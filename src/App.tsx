@@ -54,10 +54,11 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!localStorage.getItem('migration_no_mocks_v3')) {
+    if (!localStorage.getItem('migration_no_mocks_v5')) {
       localStorage.removeItem('globalFlights');
       localStorage.removeItem('meshFlights');
-      localStorage.setItem('migration_no_mocks_v3', 'true');
+      localStorage.removeItem('globalOperators');
+      localStorage.setItem('migration_no_mocks_v5', 'true');
       window.location.reload();
     }
   }, []);

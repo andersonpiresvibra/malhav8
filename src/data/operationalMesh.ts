@@ -41,7 +41,4 @@ const parseData = (dataStr: string, airline: string, airlineCode: string): MeshF
   });
 };
 
-export const INITIAL_MESH_FLIGHTS: MeshFlight[] = [
-  ...parseData(latamData, 'Latam', 'LA'),
-  ...parseData(golData, 'Gol', 'RG')
-].sort((a, b) => a.etd.localeCompare(b.etd));
+export const INITIAL_MESH_FLIGHTS: MeshFlight[] = [];
