@@ -136,6 +136,44 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
   const [isEditingSupport, setIsEditingSupport] = useState(false);
   const [supportInput, setSupportInput] = useState(flight.supportOperator || '');
 
+  // T. Rest logic
+  const [timeRemaining, setTimeRemaining] = useState<string>('--');
+
+  useEffect(() => {
+    const updateTime = () => {
+      if (!localFlight.etd) {
+        setTimeRemaining('--');
+        return;
+      }
+      
+      const now = new Date();
+      const [h, m] = localFlight.etd.split(':').map(Number);
+      const target = new Date();
+      target.setHours(h, m, 0, 0);
+      
+      let diffMs = target.getTime() - now.getTime();
+      
+      // Se a diferença for muito negativa, assume que é para o dia seguinte (se o vôo for noturno)
+      if (diffMs < -12 * 60 * 60 * 1000) {
+        diffMs += 24 * 60 * 60 * 1000;
+      } else if (diffMs > 12 * 60 * 60 * 1000) {
+        diffMs -= 24 * 60 * 60 * 1000;
+      }
+
+      const diffMinsTotal = Math.floor(diffMs / 60000);
+      const absMins = Math.abs(diffMinsTotal);
+      const hours = Math.floor(absMins / 60);
+      const mins = absMins % 60;
+      const sign = diffMinsTotal < 0 ? '-' : '';
+      
+      setTimeRemaining(`${sign}${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 30000); // Update every 30s
+    return () => clearInterval(interval);
+  }, [localFlight.etd]);
+
   const [showOperatorList, setShowOperatorList] = useState(false);
   const [showSupportOperatorList, setShowSupportOperatorList] = useState(false);
 
@@ -352,90 +390,97 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         style={{ left: position.x, top: position.y }}
-        className={`fixed z-[100] w-full max-w-[440px] flex flex-col rounded-[8px] shadow-2xl border-[0.5px] ${isDarkMode ? 'border-emerald-500/30 bg-slate-900/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl overflow-hidden`}
+        className={`fixed z-[100] w-full max-w-[400px] flex flex-col rounded-[8px] shadow-2xl border-[0.5px] ${isDarkMode ? 'border-emerald-500/30 bg-slate-900/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl overflow-hidden`}
     >
         {/* HEADER COMPACT & SOPHISTICATED */}
         <div 
             onMouseDown={handleMouseDown}
-            className={`${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#004D24] border-transparent'} p-4 flex justify-between items-center cursor-move select-none border-b`}
+            className={`${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#004D24] border-transparent'} p-3 flex justify-between items-center cursor-move select-none border-b`}
         >
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 flex items-center justify-center shrink-0 bg-white rounded shadow-inner p-1">
                     <img 
                         src={`https://images.kiwi.com/airlines/64/${localFlight.airlineCode === 'RG' ? 'G3' : localFlight.airlineCode}.png`}
                         alt={localFlight.airline}
-                        className="w-full h-full object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+                        className="w-full h-full object-contain"
                         onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                         }}
                         referrerPolicy="no-referrer"
                     />
                 </div>
-                <div>
-                    <div className="flex items-center gap-2 leading-none mb-1">
-                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest">
-                            {localFlight.airline} • {localFlight.model}
-                        </span>
-                    </div>
-                    <h2 className="text-xl font-bold text-white font-mono tracking-tight leading-none">
+                <div className="flex flex-col justify-center">
+                    <span className="text-[11px] font-bold text-white/70 uppercase tracking-widest leading-none mb-1">
+                        {localFlight.airline}
+                    </span>
+                    <h2 className="text-2xl font-black text-white font-mono tracking-tighter leading-none">
                         {localFlight.flightNumber}
                     </h2>
                 </div>
             </div>
 
-            <button 
-                onClick={onClose}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-all"
-            >
-                <X size={20} className="border border-white rounded-[5px]" />
-            </button>
+            <div className="flex items-center gap-4">
+                <div className="flex flex-col items-end">
+                    <span className="text-[14px] font-black text-emerald-400 font-mono tracking-widest leading-none">
+                        {localFlight.registration || '--'}
+                    </span>
+                    <span className="text-[7px] text-white/40 uppercase tracking-[0.2em] font-normal mt-1 leading-none">PREFIXO</span>
+                </div>
+                
+                <button 
+                    onClick={onClose}
+                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-all ml-1"
+                >
+                    <X size={18} className="border border-white rounded-[5px]" />
+                </button>
+            </div>
         </div>
 
         {/* CONTENT: TIGHT GRID */}
-        <div className="p-6 space-y-8 bg-white">
+        <div className="p-4 space-y-4 bg-white">
             <section>
-                <div className="flex items-center gap-3 mb-5">
-                    <h3 className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded uppercase tracking-[0.2em] border border-emerald-100">
+                <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-[0.2em] border border-emerald-100">
                         DADOS DO VOO
                     </h3>
                     <div className="h-px flex-1 bg-slate-100" />
                 </div>
                 
-                <div className="grid grid-cols-3 gap-x-6 gap-y-6">
+                <div className="grid grid-cols-3 gap-x-4 gap-y-4">
                     {/* LINHA 1 */}
                     {/* Nº Voo (saída) */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <PlaneTakeoff size={12} className="text-slate-300" /> Nº Voo (Saída)
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <PlaneTakeoff size={10} className="text-slate-300" /> Nº Voo (Saída)
                         </label>
                         {isEditingDepFlight ? (
                             <input 
                                 autoFocus
-                                className="w-full bg-slate-50 border border-emerald-200 text-slate-900 text-sm px-2 py-1.5 rounded-lg font-mono outline-none uppercase focus:ring-4 focus:ring-emerald-500/5 transition-all"
+                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
                                 value={depFlightInput}
                                 onChange={e => setDepFlightInput(e.target.value.toUpperCase())}
                                 onBlur={handleSaveDepFlight}
                                 onKeyDown={e => e.key === 'Enter' && handleSaveDepFlight()}
                             />
                         ) : (
-                            <div onClick={() => setIsEditingDepFlight(true)} className="flex items-center gap-2 cursor-pointer group/item">
-                                <span className="text-lg font-mono text-[#0C9E6D] font-bold tracking-tight">
+                            <div onClick={() => setIsEditingDepFlight(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
+                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
                                     {localFlight.departureFlightNumber || '--'}
                                 </span>
-                                <Pen size={10} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                             </div>
                         )}
                     </div>
 
                     {/* DESTINO */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Globe size={12} className="text-slate-300" /> Destino
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Globe size={10} className="text-slate-300" /> Destino
                         </label>
                         {isEditingDest ? (
                             <input 
                                 autoFocus
-                                className="w-full bg-slate-50 border border-emerald-200 text-slate-900 text-sm px-2 py-1.5 rounded-lg font-mono outline-none uppercase focus:ring-4 focus:ring-emerald-500/5 transition-all"
+                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
                                 value={destInput}
                                 onChange={e => setDestInput(e.target.value.toUpperCase().slice(0, 4))}
                                 onBlur={handleSaveDest}
@@ -443,203 +488,183 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                                 maxLength={4}
                             />
                         ) : (
-                            <div onClick={() => setIsEditingDest(true)} className="flex items-center gap-2 cursor-pointer group/item">
-                                <span className="text-lg font-mono text-[#0C9E6D] font-bold tracking-tight">
-                                    {localFlight.destination}
+                            <div onClick={() => setIsEditingDest(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
+                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                    {localFlight.destination || '--'}
                                 </span>
-                                <Pen size={10} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                             </div>
                         )}
                     </div>
 
                     {/* CID (cidade) */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <MapPin size={12} className="text-slate-300" /> Cidade
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <MapPin size={10} className="text-slate-300" /> Cidade
                         </label>
-                        <div className="flex items-center gap-2">
-                            <span className="text-lg font-mono text-[#0C9E6D] font-bold tracking-tight uppercase">
-                                {ICAO_CITIES[localFlight.destination] || 'EXTERIOR'}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-mono text-slate-600 bg-slate-50 border border-slate-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center uppercase">
+                                {localFlight.destination ? (ICAO_CITIES[localFlight.destination] || 'EXTERIOR') : '--'}
                             </span>
                         </div>
                     </div>
 
                     {/* LINHA 2 */}
                     {/* PREFIXO */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Hash size={12} className="text-slate-300" /> Prefixo
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Hash size={10} className="text-slate-300" /> Prefixo
                         </label>
                         {isEditingReg ? (
                             <input 
                                 autoFocus
-                                className="w-full bg-slate-50 border border-indigo-200 text-slate-900 text-sm px-2 py-1.5 rounded-lg font-mono outline-none uppercase focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
                                 value={regInput}
                                 onChange={e => setRegInput(e.target.value.toUpperCase())}
                                 onBlur={handleSaveReg}
                                 onKeyDown={e => e.key === 'Enter' && handleSaveReg()}
                             />
                         ) : (
-                            <div onClick={() => setIsEditingReg(true)} className="flex items-center gap-2 cursor-pointer group/item">
-                                <span className="text-lg font-mono text-[#0C9E6D] font-bold tracking-tight">
-                                    {localFlight.registration}
+                            <div onClick={() => setIsEditingReg(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
+                                <span className="text-[14px] leading-[20px] mb-[20px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                    {localFlight.registration || '--'}
                                 </span>
-                                <Pen size={10} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                             </div>
                         )}
                     </div>
 
                     {/* POSIÇÃO */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <MapPin size={12} className="text-slate-300" /> Posição
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <MapPin size={10} className="text-slate-300" /> Posição
                         </label>
                         {isEditingPos ? (
-                            <div className="flex flex-col gap-2">
-                                <input 
-                                    autoFocus
-                                    className="w-full bg-slate-50 border border-indigo-200 text-slate-900 text-sm px-2 py-1.5 rounded-lg font-mono outline-none uppercase focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                                    placeholder="Ex: 101"
-                                    value={posInput}
-                                    onChange={e => setPosInput(e.target.value.toUpperCase())}
-                                />
-                                <div className="flex gap-1">
-                                    {['SRV', 'CTA'].map(type => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            onClick={() => {
-                                                if (!posInput) return;
-                                                const newLog = generateAuditLog('Posição', 
-                                                    `${localFlight.positionId} (${localFlight.positionType || 'N/A'})`, 
-                                                    `${posInput} (${type})`
-                                                );
-                                                const updatedFlight = { 
-                                                    ...localFlight, 
-                                                    positionId: posInput,
-                                                    positionType: type as 'SRV' | 'CTA',
-                                                    logs: [...(localFlight.logs || []), newLog]
-                                                };
-                                                setLocalFlight(updatedFlight);
-                                                setPosTypeInput(type as 'SRV' | 'CTA');
-                                                setIsEditingPos(false);
-                                            }}
-                                            className={`flex-1 py-1.5 text-[10px] font-bold rounded border transition-all ${
-                                                posTypeInput === type 
-                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
-                                                : 'bg-white border-slate-200 text-slate-400 hover:border-indigo-200 hover:text-indigo-600'
-                                            }`}
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                            <input 
+                                autoFocus
+                                className={`w-full bg-slate-50 border-2 ${localFlight.positionType === 'CTA' ? 'border-yellow-500 focus:ring-yellow-500/20' : 'border-emerald-500 focus:ring-emerald-500/20'} text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase transition-all shadow-sm`}
+                                placeholder="Ex: 101"
+                                value={posInput}
+                                onChange={e => setPosInput(e.target.value.toUpperCase())}
+                                onBlur={() => setIsEditingPos(false)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        const newLog = generateAuditLog('Posição ID', localFlight.positionId, posInput);
+                                        const updated = { ...localFlight, positionId: posInput, logs: [...localFlight.logs, newLog] };
+                                        setLocalFlight(updated);
+                                        onUpdate(updated);
+                                        setIsEditingPos(false);
+                                    }
+                                }}
+                            />
                         ) : (
-                            <div onClick={() => setIsEditingPos(true)} className="flex items-center gap-2 cursor-pointer group/item">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-lg font-mono text-[#0C9E6D] font-bold tracking-tight">
-                                        {localFlight.positionId}
-                                    </span>
-                                    {localFlight.positionType && (
-                                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm border ${
-                                            localFlight.positionType === 'CTA' 
-                                            ? 'bg-yellow-400 border-yellow-500 text-slate-900' 
-                                            : 'bg-slate-100 border-slate-200 text-slate-600'
-                                        }`}>
-                                            {localFlight.positionType}
-                                        </span>
-                                    )}
-                                </div>
-                                <Pen size={10} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                            <div onClick={() => setIsEditingPos(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
+                                <span className={`text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[40px] inline-block text-center border ${
+                                    localFlight.positionType === 'CTA' 
+                                    ? 'bg-yellow-400 border-yellow-500 text-slate-900' 
+                                    : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                                }`}>
+                                    {localFlight.positionId || '--'}
+                                </span>
+                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                             </div>
                         )}
                     </div>
 
+                    {/* POS TIPO (SRV / CTA) */}
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Activity size={10} className="text-slate-300" /> Pos Tipo
+                        </label>
+                        <div className="flex gap-1">
+                            {['SRV', 'CTA'].map(type => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                        const newLog = generateAuditLog('Pos Tipo', localFlight.positionType || 'N/A', type);
+                                        const updated = { ...localFlight, positionType: type as 'SRV' | 'CTA', logs: [...localFlight.logs, newLog] };
+                                        setLocalFlight(updated);
+                                        onUpdate(updated);
+                                        setPosTypeInput(type as 'SRV' | 'CTA');
+                                    }}
+                                    className={`flex-1 py-1 text-[9px] font-bold rounded border transition-all ${
+                                        localFlight.positionType === type 
+                                        ? (type === 'CTA' 
+                                            ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-lg shadow-yellow-400/20' 
+                                            : 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20')
+                                        : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-200 hover:text-emerald-600 shadow-sm'
+                                    }`}
+                                >
+                                    {type}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* LINHA 3 */}
                     {/* ETD */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Clock size={12} className="text-slate-300" /> ETD
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Clock size={10} className="text-slate-300" /> ETD
                         </label>
                         {isEditingEtd ? (
                             <input 
                                 autoFocus
                                 type="time"
-                                className="w-full bg-slate-50 border border-amber-200 text-slate-900 text-sm px-2 py-1.5 rounded-lg font-mono outline-none focus:ring-4 focus:ring-amber-500/5 transition-all"
+                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
                                 value={etdInput}
                                 onChange={e => setEtdInput(e.target.value)}
                                 onBlur={handleSaveEtd}
                                 onKeyDown={e => e.key === 'Enter' && handleSaveEtd()}
                             />
                         ) : (
-                            <div onClick={() => setIsEditingEtd(true)} className="flex items-center gap-2 cursor-pointer group/item">
-                                <span className="text-lg font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 rounded">
-                                    {localFlight.etd}
+                            <div onClick={() => setIsEditingEtd(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
+                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                    {localFlight.etd || '--:--'}
                                 </span>
-                                <Pen size={10} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* LINHA 3 */}
-                    {/* ETA */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Calendar size={12} className="text-slate-300" /> ETA
-                        </label>
-                        {isEditingEta ? (
-                            <input 
-                                autoFocus
-                                type="time"
-                                className="w-full bg-slate-50 border border-emerald-200 text-slate-900 text-sm px-2 py-1.5 rounded-lg font-mono outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
-                                value={etaInput}
-                                onChange={e => setEtaInput(e.target.value)}
-                                onBlur={handleSaveEta}
-                                onKeyDown={e => e.key === 'Enter' && handleSaveEta()}
-                            />
-                        ) : (
-                            <div onClick={() => setIsEditingEta(true)} className="flex items-center gap-2 cursor-pointer group/item">
-                                <span className="text-lg font-mono text-[#0C9E6D] font-bold tracking-tight">
-                                    {localFlight.eta}
-                                </span>
-                                <Pen size={10} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                <Pen size={8} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                             </div>
                         )}
                     </div>
 
                     {/* CALÇO */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Anchor size={12} className="text-slate-300" /> Calço
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Anchor size={10} className="text-slate-300" /> Calço
                         </label>
                         {isEditingChock ? (
                             <input 
                                 autoFocus
                                 type="time"
-                                className="w-full bg-slate-50 border border-indigo-200 text-slate-900 text-sm px-2 py-1.5 rounded-lg font-mono outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
                                 value={chockInput}
                                 onChange={e => setChockInput(e.target.value)}
                                 onBlur={handleSaveChock}
                                 onKeyDown={e => e.key === 'Enter' && handleSaveChock()}
                             />
                         ) : (
-                            <div onClick={() => setIsEditingChock(true)} className="flex items-center gap-2 cursor-pointer group/item">
-                                <span className="text-lg font-mono text-[#0C9E6D] font-bold tracking-tight">
+                            <div onClick={() => setIsEditingChock(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
+                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
                                     {chockInput || '--:--'}
                                 </span>
-                                <Pen size={10} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                             </div>
                         )}
                     </div>
 
-                    {/* STATUS */}
-                    <div className="space-y-1.5 group">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <CheckCircle size={12} className="text-slate-300" /> Status
+                    {/* T. REST. */}
+                    <div className="space-y-1 group">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Clock size={10} className="text-slate-300" /> T. Rest.
                         </label>
-                        <div className="flex items-center gap-2">
-                            <span className="text-lg font-mono text-emerald-600 font-bold tracking-tight uppercase">
-                                {localFlight.status}
+                        <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center uppercase border ${
+                                timeRemaining.startsWith('-') 
+                                ? 'bg-red-50 border-red-100 text-red-600' 
+                                : 'bg-blue-50 border-blue-100 text-blue-700'
+                            }`}>
+                                {timeRemaining}
                             </span>
                         </div>
                     </div>
@@ -648,63 +673,63 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
         </div>
 
         {/* FOOTER: ACTION ORIENTED DESIGNATION */}
-        <div className="p-6 bg-slate-50 border-t border-slate-100 text-[9px]">
+        <div className="p-4 bg-slate-50 border-t border-slate-100">
             {!isFinished && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                     {/* OPERADOR */}
-                    <div className="space-y-2.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <UserPlus size={12} className="text-indigo-500" /> Operador
+                    <div className="space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <UserPlus size={10} className="text-indigo-500" /> Operador
                         </label>
                         {localFlight.operator ? (
-                            <div className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl group hover:border-indigo-300 transition-all shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-100">
+                            <div className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg group hover:border-indigo-300 transition-all shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center text-[10px] font-bold border border-indigo-100">
                                         {localFlight.operator.charAt(0)}
                                     </div>
-                                    <div>
-                                        <div className="text-[11px] font-bold text-slate-900 uppercase leading-none">{localFlight.operator} {localFlight.fleet ? `| ${localFlight.fleet}` : ''}</div>
-                                        <div className="text-[8px] text-slate-400 mt-1 font-bold uppercase tracking-widest">
+                                    <div className="overflow-hidden">
+                                        <div className="text-[10px] font-bold text-slate-900 uppercase leading-tight truncate">{localFlight.operator} {localFlight.fleet ? `| ${localFlight.fleet}` : ''}</div>
+                                        <div className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">
                                             {localFlight.vehicleType || 'S/ TIPO'}
                                         </div>
                                     </div>
                                 </div>
                                 <button 
                                     onClick={() => setIsAssignModalOpen(true)}
-                                    className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
                                 >
-                                    <RefreshCw size={12} />
+                                    <RefreshCw size={10} />
                                 </button>
                             </div>
                         ) : (
                             <button 
                                 onClick={() => setIsAssignModalOpen(true)}
-                                className="w-full h-[48px] bg-white border border-dashed border-slate-300 rounded-xl text-[10px] font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                                className="w-full h-[36px] bg-white border border-dashed border-slate-300 rounded-lg text-[9px] font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest"
                             >
-                                <UserPlus size={16} /> Designar
+                                <UserPlus size={14} /> Designar
                             </button>
                         )}
                     </div>
 
                     {/* OP. APOIO */}
-                    <div className="space-y-2.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Users size={12} className="text-emerald-500" /> Op. Apoio
+                    <div className="space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Users size={10} className="text-emerald-500" /> Op. Apoio
                         </label>
                         {localFlight.operator ? (
                             <div className="relative">
                                 {localFlight.supportOperator ? (
-                                    <div className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl group hover:border-emerald-300 transition-all shadow-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-bold border border-emerald-100">
+                                    <div className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg group hover:border-emerald-300 transition-all shadow-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center text-[10px] font-bold border border-emerald-100">
                                                 {localFlight.supportOperator.charAt(0)}
                                             </div>
-                                            <div>
-                                                <div className="text-[11px] font-bold text-slate-900 uppercase leading-none">
+                                            <div className="overflow-hidden">
+                                                <div className="text-[10px] font-bold text-slate-900 uppercase leading-tight truncate">
                                                     {localFlight.supportOperator} 
                                                     {operators.find(op => op.warName === localFlight.supportOperator)?.assignedVehicle ? ` | ${operators.find(op => op.warName === localFlight.supportOperator)?.assignedVehicle}` : ''}
                                                 </div>
-                                                <div className="text-[8px] text-slate-400 mt-1 font-bold uppercase tracking-widest">Auxiliar</div>
+                                                <div className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">Auxiliar</div>
                                             </div>
                                         </div>
                                         <button 
@@ -714,22 +739,22 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                                                 setLocalFlight(updated);
                                                 onUpdate(updated);
                                             }}
-                                            className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
                                         >
-                                            <X size={12} />
+                                            <X size={10} />
                                         </button>
                                     </div>
                                 ) : (
                                     <button 
                                         onClick={() => onOpenAssignSupport && onOpenAssignSupport(localFlight)}
-                                        className="w-full h-[48px] bg-white border border-dashed border-slate-300 rounded-xl text-[10px] font-bold text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/30 transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                                        className="w-full h-[36px] bg-white border border-dashed border-slate-300 rounded-lg text-[9px] font-bold text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/30 transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest"
                                     >
-                                        <Plus size={16} /> Adicionar
+                                        <Plus size={14} /> Adicionar
                                     </button>
                                 )}
                             </div>
                         ) : (
-                            <div className="w-full h-[48px] bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                            <div className="w-full h-[36px] bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-[9px] font-bold text-slate-300 uppercase tracking-widest">
                                 Aguardando
                             </div>
                         )}
@@ -738,7 +763,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
             )}
 
             {/* Ações (Cancelar / OK) */}
-            <div className="flex gap-4 pt-0 border-none mt-0">
+            <div className="flex gap-3">
                 <button 
                     onClick={() => {
                         if (isFinished) {
@@ -758,7 +783,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         }
                         onClose();
                     }}
-                    className="flex-1 px-4 py-3.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-slate-700 transition-all active:scale-95"
+                    className="flex-1 px-4 py-2 bg-slate-800 text-white text-[9px] font-black uppercase tracking-widest rounded transition-all active:scale-95"
                 >
                     {isFinished ? 'Limpar da Fila' : 'Cancelar'}
                 </button>
@@ -767,9 +792,9 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         onUpdate(localFlight);
                         onClose();
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-4 rounded-lg shadow-lg shadow-indigo-600/20 transition-all active:scale-95 btn-confirm-flight"
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded shadow transition-all active:scale-95 btn-confirm-flight"
                 >
-                    <span className="text-[10px] font-black uppercase tracking-widest">Confirmar</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest">Confirmar</span>
                 </button>
             </div>
         </div>

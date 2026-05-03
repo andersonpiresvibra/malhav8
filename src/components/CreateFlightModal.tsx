@@ -142,7 +142,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   value={formData.airlineCode}
                   onChange={handleChange}
                   placeholder="RG"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase placeholder:text-slate-300 transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
                   required
                 />
               </div>
@@ -160,7 +160,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   onChange={handleChange}
                   placeholder="PR-..."
                   list="prefixos-list"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase placeholder:text-slate-300 transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
                   required
                 />
               </div>
@@ -176,7 +176,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   onChange={handleChange}
                   placeholder="B738"
                   list="modelos-list"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase placeholder:text-slate-300 transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
                 />
               </div>
             </div>
@@ -191,7 +191,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   value={formData.flightNumber}
                   onChange={handleChange}
                   placeholder="RG-1234"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase placeholder:text-slate-300 transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
                 />
               </div>
             </div>
@@ -205,7 +205,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   name="eta"
                   value={formData.eta}
                   onChange={handleChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase transition-all shadow-sm"
                 />
               </div>
             </div>
@@ -219,7 +219,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   value={formData.positionId}
                   onChange={handleChange}
                   placeholder="000"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase placeholder:text-slate-300 transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
                 />
               </div>
             </div>
@@ -236,7 +236,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   value={formData.departureFlightNumber}
                   onChange={handleChange}
                   placeholder="RG-..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase placeholder:text-slate-300 transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
                   required
                 />
               </div>
@@ -251,7 +251,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   value={formData.destination}
                   onChange={handleChange}
                   placeholder="SB..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase placeholder:text-slate-300 transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
                 />
               </div>
             </div>
@@ -267,7 +267,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                   name="etd"
                   value={formData.etd}
                   onChange={handleChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 uppercase transition-all"
+                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase transition-all shadow-sm"
                   required
                 />
               </div>

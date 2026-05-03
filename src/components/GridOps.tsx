@@ -669,6 +669,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const renderEditableCell = (row: FlightData, colKey: keyof FlightData, value: string | number, className: string = "", rowIndex: number, colIndex: number, editable: boolean = true) => {
     const isFocused = focusedCell?.rowId === row.id && focusedCell?.col === colKey;
     const isEditing = editable && editingCell?.rowId === row.id && editingCell?.col === colKey;
+    
+    // Custom styling for CTA positions
+    const isCTA = colKey === 'positionId' && row.positionType === 'CTA';
+    const ctaClasses = isCTA ? 'bg-yellow-400 text-slate-900 border-yellow-500' : '';
 
     return (
       <td 
@@ -679,7 +683,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         data-editable={editable}
         className={`
           p-0 border-y border-l transition-all relative h-10 outline-none
-          ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'}
+          ${isCTA ? 'bg-yellow-400 border-yellow-500' : (isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50')}
         `}
       >
         {isEditing ? (
@@ -687,7 +691,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             type="text"
             autoFocus
             onFocus={(e) => e.target.select()}
-            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${className} ${isDarkMode ? 'bg-slate-900 shadow-inner' : 'bg-white font-black text-slate-900'}`}
+            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${className} ${isDarkMode ? (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-slate-900 shadow-inner') : (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-white font-black text-slate-900')}`}
             value={value}
             onChange={(e) => handleFieldChange(row.id, colKey, e.target.value)}
             onBlur={() => setEditingCell(null)}
@@ -706,7 +710,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
               }
             }}
             onKeyDown={(e) => handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)}
-            className={`w-full h-full px-1 flex items-center ${colKey === 'airlineCode' ? 'justify-start ml-2' : 'justify-center'} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? 'ring-2 ring-indigo-500 ring-inset z-20 shadow-xl ' + (editable ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-500/10') : ''} ${className}`}
+            className={`w-full h-full px-1 flex items-center ${colKey === 'airlineCode' ? 'justify-start ml-2' : 'justify-center'} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? 'ring-2 ring-indigo-500 ring-inset z-20 shadow-xl ' + (editable ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-500/10') : ''} ${className} ${ctaClasses}`}
           >
             {colKey === 'airlineCode' ? (
               <AirlineLogo airlineCode={row.airlineCode} className={isFocused && editable && isDarkMode ? 'invert brightness-200 justify-start' : 'justify-start'} />
@@ -1564,7 +1568,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       <tr 
                           key={row.id} 
                           data-rowindex={rowIndex}
-                          onClick={() => setSelectedFlight(row)}
                           onContextMenu={(e) => {
                               e.preventDefault();
                               setSelectedFlight(row);
