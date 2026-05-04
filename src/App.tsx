@@ -11,6 +11,7 @@ import { OperatorProfile } from './types';
 import { ShiftOperatorsSection } from './components/ShiftOperatorsSection';
 import { Sidebar } from './components/Sidebar';
 import { OperationalMesh } from './components/OperationalMesh';
+import { ReportsView } from './components/ReportsView';
 
 const GridOps = lazy(() => import('./components/GridOps').then(m => ({ default: m.GridOps })));
 
@@ -126,9 +127,13 @@ const App: React.FC = () => {
 
   const [showExitWarning, setShowExitWarning] = useState<{ id: string } | null>(null);
   const [targetView, setTargetView] = useState<ViewState | null>(null);
+  const [targetReportFlight, setTargetReportFlight] = useState<FlightData | null>(null);
 
   const handleViewChange = (newView: ViewState) => {
     setView(newView);
+    if (newView !== 'REPORTS') {
+      setTargetReportFlight(null);
+    }
   };
 
   const handleConfirmExit = (action: 'CANCEL' | 'EDIT') => {
@@ -189,6 +194,10 @@ const App: React.FC = () => {
                     meshFlights={meshFlights}
                     setMeshFlights={setMeshFlights}
                     onOpenShiftOperators={() => handleViewChange('SHIFT_OPERATORS')}
+                    onOpenReport={(flight) => {
+                        setTargetReportFlight(flight);
+                        handleViewChange('REPORTS');
+                    }}
                     pendingAction={pendingAction}
                     setPendingAction={setPendingAction}
                     ltName={ltName}
@@ -223,6 +232,9 @@ const App: React.FC = () => {
                       setGlobalFlights(prev => [...newFlights, ...prev]);
                     }}
                   />
+                )}
+                {view === 'REPORTS' && (
+                  <ReportsView flights={globalFlights} initialFlight={targetReportFlight} />
                 )}
               </Suspense>
           </div>

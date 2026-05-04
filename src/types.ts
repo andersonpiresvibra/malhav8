@@ -125,6 +125,18 @@ export interface FlightLog {
   author: string; // 'SISTEMA' ou Nome do Gestor
 }
 
+export interface FlightReport {
+  fuelOrderTime?: string;
+  mechanicTime?: string;
+  crewTime?: string;
+  authorizationTime?: string;
+  obstructedAreaTime?: string;
+  dispensed?: boolean;
+  dispensedBy?: string;
+  dispensedBadge?: string;
+  observations?: string;
+}
+
 export interface FlightData {
   id: string;
   flightNumber: string; // V. Cheg
@@ -172,6 +184,7 @@ export interface FlightData {
   isMeshFlight?: boolean; // Se é um voo da malha base não ativado
   assignmentTime?: Date; // Hr.D (Hora de designação)
   assignedByLt?: string; // LT (Líder que designou)
+  report?: FlightReport; // Report for presence and delays
 }
 
 export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET';

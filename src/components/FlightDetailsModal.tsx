@@ -40,6 +40,7 @@ interface FlightDetailsModalProps {
   vehicles: Vehicle[];
   operators: OperatorProfile[];
   onOpenAssignSupport?: (flight: FlightData) => void;
+  initialTab?: 'DADOS' | 'RELATÓRIO';
 }
 
 export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, onClose, onUpdate, vehicles, operators, onOpenAssignSupport }) => {
@@ -437,11 +438,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
         </div>
 
         {/* CONTENT: TIGHT GRID */}
-        <div className="p-4 space-y-4 bg-white">
-            <section>
+        <div className="p-4 bg-white max-h-[60vh] overflow-y-auto">
+            <section className="space-y-4">
                 <div className="flex items-center gap-2 mb-3">
                     <h3 className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-[0.2em] border border-emerald-100">
-                        DADOS DO VOO
+                        INFORMAÇÕES DO VOO
                     </h3>
                     <div className="h-px flex-1 bg-slate-100" />
                 </div>

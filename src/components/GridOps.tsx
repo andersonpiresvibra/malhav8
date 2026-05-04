@@ -5,6 +5,7 @@ import { FlightStatus, FlightData, FlightLog, LogType, OperatorProfile } from '.
 import { MOCK_TEAM_PROFILES } from '../data/mockData'; // Importando perfis para designação
 
 import { FlightDetailsModal } from './FlightDetailsModal';
+import { FlightReportInputModal } from './FlightReportInputModal';
 import { StatusBadge } from './SharedStats';
 import { OperatorCell } from './OperatorCell';
 import { AirlineLogo } from './AirlineLogo';
@@ -16,7 +17,7 @@ import {
   MessageSquare, FileText, Plane, Pen, BusFront,
   PlaneLanding, ListOrdered, AlertTriangle, Play, Pause, XCircle, Plus, Anchor,
   MapPin, Eye, CheckCheck, X, Save, History, TimerOff, UserPlus, Building2, Bell, Zap,
-  MessageCircle, MoreVertical, Search, Settings, Upload, RefreshCw, Network, Archive, Trash2
+  MessageCircle, MoreVertical, Search, Settings, Upload, RefreshCw, Network, Archive, Trash2, Printer, FileBarChart
 } from 'lucide-react';
 
 type Tab = 'GERAL' | 'CHEGADA' | 'FILA' | 'DESIGNADOS' | 'ABASTECENDO' | 'FINALIZADO' | 'MALHA';
@@ -71,6 +72,7 @@ interface GridOpsProps {
     meshFlights?: MeshFlight[];
     setMeshFlights?: React.Dispatch<React.SetStateAction<MeshFlight[]>>;
     onOpenShiftOperators?: () => void;
+    onOpenReport?: (flight: FlightData) => void;
     pendingAction?: 'CREATE' | 'IMPORT' | null;
     setPendingAction?: React.Dispatch<React.SetStateAction<'CREATE' | 'IMPORT' | null>>;
     ltName: string;
@@ -139,6 +141,29 @@ const calculateLandingETA = (blockTime: string) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const getLatestReportItem = (flight: FlightData) => {
+    if (!flight.report) return null;
+    const { report } = flight;
+    
+    const items = [];
+    if (report.fuelOrderTime) items.push({ label: 'FO', time: report.fuelOrderTime, color: 'text-orange-500', bg: 'bg-orange-500/10' });
+    if (report.mechanicTime) items.push({ label: 'MEC', time: report.mechanicTime, color: 'text-blue-500', bg: 'bg-blue-500/10' });
+    if (report.crewTime) items.push({ label: 'TRP', time: report.crewTime, color: 'text-indigo-500', bg: 'bg-indigo-500/10' });
+    if (report.obstructedAreaTime) items.push({ label: 'OBS', time: report.obstructedAreaTime, color: 'text-red-500', bg: 'bg-red-500/10' });
+    if (report.authorizationTime) items.push({ label: 'AUT', time: report.authorizationTime, color: 'text-emerald-500', bg: 'bg-emerald-500/10' });
+    if (report.dispensed) items.push({ label: 'DISP', time: '--:--', color: 'text-amber-500', bg: 'bg-amber-500/10' });
+    
+    if (items.length === 0) return null;
+
+    items.sort((a, b) => {
+        if (a.time === '--:--') return -1;
+        if (b.time === '--:--') return 1;
+        return a.time.localeCompare(b.time);
+    });
+
+    return items[items.length - 1];
+};
+
 // Verifica se houve atraso REAL (Hora Finalização > ETD)
 const checkIsDelayed = (flight: FlightData) => {
     if (!flight.endTime || !flight.etd) return false;
@@ -177,6 +202,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     meshFlights = [],
     setMeshFlights,
     onOpenShiftOperators,
+    onOpenReport,
     pendingAction,
     setPendingAction,
     ltName
@@ -201,6 +227,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   }, [initialTab]);
 
   const [selectedFlight, setSelectedFlight] = useState<FlightData | null>(null);
+  const [reportInputFlight, setReportInputFlight] = useState<FlightData | null>(null);
 
   // Keep selectedFlight in sync with global flights
   useEffect(() => {
@@ -607,6 +634,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
         return lowerTerms.every(term => searchString.includes(term));
     });
   }, [shiftedFlights, globalSearchTerm]);
+
+  const hasReport = (flight: FlightData) => Boolean(flight.report && Object.values(flight.report).some(v => v !== '' && v !== false));
 
   const stats = useMemo(() => ({
     total: searchFilteredFlights.length,
@@ -1491,6 +1520,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             <SortableHeader label="OPERADOR" columnKey="operator" className={`${activeTab === 'DESIGNADOS' ? 'text-left pl-2 w-[15%]' : 'text-left pl-2 w-[20%]'}`} />
                             <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-[5%]" />
                             <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-[5%]" />
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'}`}>
+                                <div className="flex items-center justify-center gap-1.5">
+                                    <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
+                                        REPORT
+                                    </span>
+                                </div>
+                            </th>
                             {activeTab === 'DESIGNADOS' && (
                                 <>
                                     <SortableHeader label="HR.D" columnKey="assignmentTime" className="text-center w-16" />
@@ -1516,7 +1552,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-16" />
                             <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'}`}>
                                 <div className="flex items-center justify-center gap-1.5">
-                                    <span className={`font-black text-[9px] uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-white'}`}>
+                                    <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
+                                        REPORT
+                                    </span>
+                                </div>
+                            </th>
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'}`}>
+                                <div className="flex items-center justify-center gap-1.5">
+                                    <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
                                         TAB
                                     </span>
                                 </div>
@@ -1564,6 +1607,35 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   {sortedData.map((row, rowIndex) => {
                       const dynamicStatus = getDynamicStatus(row);
                       const isInactiveRow = row.status === FlightStatus.FINALIZADO || row.status === FlightStatus.CANCELADO;
+                      
+                      const renderReportCell = (flight: FlightData) => {
+                          const latest = getLatestReportItem(flight);
+                          if (!latest) {
+                              return (
+                                  <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-center`}>
+                                      <span className="text-slate-300">-</span>
+                                  </td>
+                              );
+                          }
+                          return (
+                              <td 
+                                className={`px-1 py-1 border-y border-l cursor-pointer ${isDarkMode ? 'border-slate-700/50 hover:bg-slate-700 bg-gradient-to-b from-slate-800/50 to-slate-900/80' : 'border-slate-200 hover:bg-slate-100 bg-white'} transition-all text-center`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onOpenReport) {
+                                        onOpenReport(flight);
+                                    }
+                                }}
+                                title="Ver Relatório"
+                              >
+                                  <div className={`inline-flex flex-col items-center justify-center rounded px-1.5 py-[2px] ${latest.bg}`}>
+                                      <span className={`text-[8px] font-black tracking-widest ${latest.color} leading-none`}>{latest.label}</span>
+                                      <span className={`text-[10px] font-mono font-bold ${latest.color} leading-tight mb-0.5`}>{latest.time}</span>
+                                  </div>
+                              </td>
+                          );
+                      };
+
                       return (
                       <tr 
                           key={row.id} 
@@ -1677,6 +1749,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {/* FLEET TYPE */}
                                 {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
 
+                                {/* REPORT */}
+                                {renderReportCell(row)}
+
                                 {activeTab === 'DESIGNADOS' && (
                                     <>
                                         {/* HR.D */}
@@ -1738,6 +1813,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                                 {/* FLEET TYPE */}
                                 {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
+
+                                {/* REPORT */}
+                                {renderReportCell(row)}
 
                                 {/* TAB (Exclusivo Finalizados) - Not directly editable as it's calculated */}
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-center font-mono ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -1884,6 +1962,28 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                               </button>
                                                           );
 
+                                                          const inputReportBtn = (
+                                                              <button onClick={(e) => { 
+                                                                  e.stopPropagation(); 
+                                                                  setReportInputFlight(row);
+                                                                  setOpenMenuId(null);
+                                                              }} className={btnClass}>
+                                                                  <FileText size={14} /> Lançar Relatório
+                                                              </button>
+                                                          );
+
+                                                          const viewReportBtn = hasReport(row) ? (
+                                                              <button onClick={(e) => { 
+                                                                  e.stopPropagation(); 
+                                                                  if (onOpenReport) {
+                                                                      onOpenReport(row);
+                                                                  }
+                                                                  setOpenMenuId(null);
+                                                              }} className={btnClass}>
+                                                                  <FileBarChart size={14} /> Ver Relatório
+                                                              </button>
+                                                          ) : null;
+
                                                           if (activeTab === 'GERAL') {
                                                               return (
                                                                   <>
@@ -1933,6 +2033,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                                       <button onClick={(e) => { e.stopPropagation(); setConfirmRemoveOperatorFlight(row); setOpenMenuId(null); }} className={btnClass}>
                                                                           <UserCheck size={14} /> Cancelar Designação
                                                                       </button>
+                                                                      {inputReportBtn}
+                                                                      {viewReportBtn}
                                                                       {obsBtn}
                                                                       {cancelBtn}
                                                                   </>
@@ -1946,6 +2048,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                                       <button onClick={(e) => { e.stopPropagation(); setConfirmFinishModalFlight(row); setOpenMenuId(null); }} className="w-full text-left px-3 py-2 text-slate-300 hover:bg-emerald-600 hover:text-white hover:shadow-[0_0_15px_rgba(16,185,129,0.5)] hover:scale-105 active:scale-95 rounded flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                                                           <CheckCircle size={14} /> Finalizar
                                                                       </button>
+                                                                      {inputReportBtn}
+                                                                      {viewReportBtn}
                                                                       {obsBtn}
                                                                   </>
                                                               );
@@ -1957,6 +2061,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                                       <button onClick={(e) => handleReforco(row, e)} className={btnClass}>
                                                                           <History size={14} /> Reforço
                                                                       </button>
+                                                                      {inputReportBtn}
+                                                                      {viewReportBtn}
                                                                       {obsBtn}
                                                                   </>
                                                               );
@@ -2020,6 +2126,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
           vehicles={vehicles}
           operators={getEligibleOperators(selectedFlight)}
           onOpenAssignSupport={(flight) => setAssignSupportModalFlight(flight)}
+        />
+      )}
+
+      {reportInputFlight && (
+        <FlightReportInputModal
+            flight={reportInputFlight}
+            onClose={() => setReportInputFlight(null)}
+            onUpdate={syncFlight}
         />
       )}
 
