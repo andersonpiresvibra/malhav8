@@ -7,7 +7,7 @@ interface ConfirmActionModalProps {
     flightNumber?: string;
     registration?: string;
     message?: string;
-    onConfirm: () => void;
+    onConfirm: (data?: { startTime?: Date }) => void;
     onClose: () => void;
 }
 
@@ -20,6 +20,19 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
     onClose
 }) => {
     const { isDarkMode } = useTheme();
+    const [manualTime, setManualTime] = React.useState('');
+    const [useManualTime, setUseManualTime] = React.useState(false);
+
+    const handleConfirmClick = () => {
+        if (type === 'start' && useManualTime && manualTime) {
+            const [hours, minutes] = manualTime.split(':').map(Number);
+            const date = new Date();
+            date.setHours(hours, minutes, 0, 0);
+            onConfirm({ startTime: date });
+        } else {
+            onConfirm();
+        }
+    };
     let config = {
         title: '',
         icon: <AlertTriangle size={32} className="text-red-500" />,
@@ -45,13 +58,13 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
         case 'start':
             config = {
                 title: 'Iniciar Abastecimento',
-                icon: <Play size={32} className="text-blue-500" />,
-                iconBg: 'bg-blue-500/10 border-blue-500/20',
+                icon: <Play size={32} className="text-emerald-500" />,
+                iconBg: 'bg-emerald-500/10 border-emerald-500/20',
                 description: (
                     <>Registrar início do abastecimento para o voo <span className={`${isDarkMode ? 'text-white' : 'text-slate-900'} font-mono font-bold`}>{flightNumber}</span>?</>
                 ),
                 confirmText: 'Sim, Iniciar',
-                confirmBg: 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20'
+                confirmBg: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
             };
             break;
         case 'remove':
@@ -135,10 +148,48 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
                             {config.description}
                         </p>
                     </div>
+
+                    {type === 'start' && (
+                        <div className={`mb-8 p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="flex items-center justify-between mb-4">
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    Horário de Início
+                                </span>
+                                <div className="flex bg-slate-900/50 p-0.5 rounded-lg border border-slate-800">
+                                    <button 
+                                        onClick={() => setUseManualTime(false)}
+                                        className={`px-3 py-1.5 rounded-md text-[9px] font-bold uppercase transition-all ${!useManualTime ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                                    >
+                                        Agora
+                                    </button>
+                                    <button 
+                                        onClick={() => setUseManualTime(true)}
+                                        className={`px-3 py-1.5 rounded-md text-[9px] font-bold uppercase transition-all ${useManualTime ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                                    >
+                                        Retroativo
+                                    </button>
+                                </div>
+                            </div>
+
+                            {useManualTime && (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <input 
+                                        type="time" 
+                                        value={manualTime}
+                                        onChange={(e) => setManualTime(e.target.value)}
+                                        className={`w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white font-mono text-center text-lg focus:border-emerald-500 outline-none transition-all`}
+                                    />
+                                    <p className="text-[9px] text-slate-500 mt-2 text-center uppercase font-black tracking-widest">
+                                        Informe a hora que o operador iniciou o abastecimento
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     
                     <div className="flex gap-4">
                         <button 
-                            onClick={onConfirm}
+                            onClick={handleConfirmClick}
                             className={`flex-1 flex items-center justify-center gap-2 text-white px-6 py-4 rounded-lg shadow-lg transition-all active:scale-95 ${config.confirmBg}`}
                         >
                             <span className="text-[10px] font-black uppercase tracking-widest">{config.confirmText}</span>

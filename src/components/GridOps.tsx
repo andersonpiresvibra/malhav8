@@ -543,6 +543,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         onUpdateFlights(prevFlights => {
             return prevFlights.map(f => {
                 const minutesToETD = getMinutesDiff(f.etd);
+                
                 // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
                 // Só move para fila se NÃO tiver operador e estiver no prazo crítico
                 if (f.status === FlightStatus.CHEGADA && minutesToETD < 60 && !f.operator && !f.isExcludedFromQueue) {
@@ -550,6 +551,22 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     return { 
                         ...f, 
                         status: FlightStatus.FILA,
+                        logs: [...(f.logs || []), newLog]
+                    };
+                }
+
+                // NOVA LÓGICA: Início de abastecimento automático (Time-triggered)
+                // Se ETD <= 25min e o voo está nas fases prévias (DESIGNADO ou PRÉ)
+                if ((f.status === FlightStatus.DESIGNADO || f.status === FlightStatus.PRÉ) && 
+                    f.operator && 
+                    minutesToETD <= 25 && 
+                    minutesToETD > -120 
+                ) {
+                    const newLog = createNewLog('SISTEMA', 'Início de abastecimento automático (T-25min).', 'SISTEMA');
+                    return {
+                        ...f,
+                        status: FlightStatus.ABASTECENDO,
+                        startTime: new Date(),
                         logs: [...(f.logs || []), newLog]
                     };
                 }
@@ -831,13 +848,15 @@ export const GridOps: React.FC<GridOpsProps> = ({
       addToast('VOO NA FILA', `Voo ${flight.flightNumber} adicionado à fila de prioridade.`, 'success');
   };
 
-  const handleManualStart = (id: string, e: React.MouseEvent) => {
+  const handleManualStart = (id: string, e: React.MouseEvent, startTime?: Date) => {
       e.stopPropagation();
-      const newLog = createNewLog('SISTEMA', 'Início de abastecimento confirmado.', 'GESTOR_MESA');
+      const start = startTime || new Date();
+      const timeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const newLog = createNewLog('SISTEMA', `Início de abastecimento confirmado às ${timeStr}.`, 'GESTOR_MESA');
       onUpdateFlights(prev => prev.map(f => f.id === id ? { 
           ...f, 
           status: FlightStatus.ABASTECENDO, 
-          startTime: new Date(),
+          startTime: start,
           logs: [...(f.logs || []), newLog]
       } : f));
   };
@@ -991,9 +1010,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
       setOpenMenuId(null);
   };
 
-  const handleConfirmStart = () => {
+  const handleConfirmStart = (data?: { startTime?: Date }) => {
       if (!confirmStartModalFlight) return;
-      handleManualStart(confirmStartModalFlight.id, { stopPropagation: () => {} } as React.MouseEvent);
+      handleManualStart(confirmStartModalFlight.id, { stopPropagation: () => {} } as React.MouseEvent, data?.startTime);
       addToast('ABASTECIMENTO INICIADO', `Voo ${confirmStartModalFlight.flightNumber} em abastecimento.`, 'success');
       setConfirmStartModalFlight(null);
   };
@@ -1210,7 +1229,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         
         // Se tem operador, segue a mesma lógica de designado (A caminho, acoplando...)
         const elapsed = f.designationTime ? (new Date().getTime() - f.designationTime.getTime()) / 60000 : 0;
-        if (elapsed > 10) return { 
+        if (elapsed > 5) return { 
             label: 'ACOPLANDO', 
             color: isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200' 
         };
@@ -1222,11 +1241,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
     if (f.status === FlightStatus.DESIGNADO) {
         const elapsed = f.designationTime ? (new Date().getTime() - f.designationTime.getTime()) / 60000 : 0;
-        if (elapsed > 15) return { 
+        if (elapsed > 10) return { 
             label: 'AGUARDANDO', 
             color: isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500' : 'text-amber-600 bg-amber-50 border-amber-200' 
         };
-        if (elapsed > 10) return { 
+        if (elapsed > 5) return { 
             label: 'ACOPLANDO', 
             color: isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200' 
         };
@@ -2027,8 +2046,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                           if (activeTab === 'DESIGNADOS') {
                                                               return (
                                                                   <>
-                                                                      <button onClick={(e) => { e.stopPropagation(); setConfirmStartModalFlight(row); setOpenMenuId(null); }} className="w-full text-left px-3 py-2 text-slate-300 hover:bg-blue-600 hover:text-white hover:shadow-[0_0_15px_rgba(37,99,235,0.5)] hover:scale-105 active:scale-95 rounded flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                                                                          <Play size={14} /> Abastecendo
+                                                                      <button 
+                                                                          onClick={(e) => { e.stopPropagation(); setConfirmStartModalFlight(row); setOpenMenuId(null); }} 
+                                                                          className="w-full text-left px-3 py-2 text-white bg-emerald-600 hover:bg-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.5)] hover:scale-105 active:scale-95 rounded flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-1"
+                                                                      >
+                                                                          <Play size={14} /> Iniciar Abastecimento
                                                                       </button>
                                                                       <button onClick={(e) => { e.stopPropagation(); setConfirmRemoveOperatorFlight(row); setOpenMenuId(null); }} className={btnClass}>
                                                                           <UserCheck size={14} /> Cancelar Designação

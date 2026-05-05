@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
 import { FlightStatus, FlightData } from '../types';
 import { MOCK_TEAM_PROFILES } from '../data/mockData';
 import { OperatorCell } from './OperatorCell';
@@ -70,6 +71,7 @@ interface SortConfig {
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight }) => {
+  const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState<ReportTab>('FINALIZADOS');
   const [activeShift, setActiveShift] = useState<ShiftTab>('GERAL');
   const [selectedFlight, setSelectedFlight] = useState<FlightData | null>(initialFlight || null);
@@ -168,11 +170,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
     const isActive = sortConfig.key === columnKey;
     return (
       <th 
-        className={`px-3 py-4 border-b border-r border-slate-700 bg-slate-900 sticky top-0 cursor-pointer select-none hover:bg-slate-800 transition-all group z-20 ${className}`}
+        className={`px-3 py-4 border-b border-r ${isDarkMode ? 'border-slate-700 bg-slate-900 hover:bg-slate-800' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} sticky top-0 cursor-pointer select-none transition-all group z-20 ${className}`}
         onClick={() => handleSort(columnKey)}
       >
         <div className={`flex items-center gap-1.5 ${className.includes('text-center') ? 'justify-center' : 'justify-start'}`}>
-          <span className={`font-black text-[9px] uppercase tracking-wider transition-colors ${isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-white'}`}>
+          <span className={`font-black text-[9px] uppercase tracking-wider transition-colors ${isActive ? 'text-emerald-400' : isDarkMode ? 'text-slate-400 group-hover:text-white' : 'text-slate-500 group-hover:text-slate-900'}`}>
             {label}
           </span>
           <div className="flex items-center justify-center transition-all">
@@ -202,19 +204,31 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
 
   const getStatusBadge = (flight: FlightData) => {
       if (flight.status === FlightStatus.CANCELADO) {
-          return { label: 'CANCELADO', color: 'text-red-400 bg-red-500/10 border-red-500/30' };
+          return { 
+              label: 'CANCELADO', 
+              color: isDarkMode ? 'text-red-400 bg-red-500/10 border-red-500/30' : 'text-red-600 bg-red-50 border-red-200' 
+          };
       }
       
       const hasSwap = flight.logs.some(l => l.message.toLowerCase().includes('troca'));
       if (hasSwap) {
-          return { label: 'COM TROCA', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+          return { 
+              label: 'COM TROCA', 
+              color: isDarkMode ? 'text-purple-400 bg-purple-500/10 border-purple-500/30' : 'text-purple-600 bg-purple-50 border-purple-200' 
+          };
       }
 
       if (isDelayed(flight) || flight.delayJustification) {
-          return { label: 'COM ATRASO', color: 'text-amber-500 bg-amber-500/10 border-amber-500/30' };
+          return { 
+              label: 'COM ATRASO', 
+              color: isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500/30' : 'text-amber-600 bg-amber-50 border-amber-200' 
+          };
       }
 
-      return { label: 'COM SUCESSO', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
+      return { 
+          label: 'COM SUCESSO', 
+          color: isDarkMode ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200' 
+      };
   };
 
   const getReportIconStyle = (flight: FlightData) => {
@@ -236,17 +250,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-950 overflow-hidden">
+    <div className={`w-full h-full flex flex-col ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-white text-slate-900'} overflow-hidden`}>
         
         {selectedFlight ? (
             // === VISUALIZAÇÃO DE RELATÓRIO TÉCNICO ===
-            <div className="flex-1 flex flex-col items-center overflow-y-auto bg-slate-900/90 backdrop-blur-sm p-8 animate-in fade-in zoom-in-95 duration-300 relative z-50">
+            <div className={`flex-1 flex flex-col items-center overflow-y-auto ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-100/90'} backdrop-blur-sm p-8 animate-in fade-in zoom-in-95 duration-300 relative z-50`}>
                 
                 {/* ACTIONS BAR (Classe no-print oculta isso na impressão) */}
-                <div className="w-full max-w-[210mm] flex justify-between items-center mb-6 text-white no-print">
+                <div className={`w-full max-w-[210mm] flex justify-between items-center mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'} no-print`}>
                     <button 
                         onClick={() => setSelectedFlight(null)}
-                        className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+                        className={`flex items-center gap-2 ${isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'} transition-colors`}
                     >
                         <ChevronLeft size={20} /> Voltar
                     </button>
@@ -494,17 +508,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
         ) : (
             // === LISTA DE RELATÓRIOS (DASHBOARD) ===
             <>
-                <div className="min-h-[160px] py-6 bg-slate-900 border-b border-slate-800 flex flex-col justify-center px-8 shrink-0 gap-6">
+                <div className={`min-h-[160px] py-6 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'} border-b flex flex-col justify-center px-8 shrink-0 gap-6`}>
                     <div className="flex items-center gap-8">
                         <div className="shrink-0">
-                            <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3 whitespace-nowrap">
+                            <h1 className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-900'} uppercase tracking-tighter flex items-center gap-3 whitespace-nowrap`}>
                                 <FileBarChart className="text-emerald-500" size={28} />
                                 Relatórios de Operações
                             </h1>
-                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] mt-1 block">A caixa preta dos abastecimentos!</span>
+                            <span className={`text-[10px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'} font-black uppercase tracking-[0.4em] mt-1 block`}>A caixa preta dos abastecimentos!</span>
                         </div>
                         
-                        <div className="flex bg-slate-950 p-1 rounded-md border border-slate-800 gap-1 shrink-0 ml-auto">
+                        <div className={`flex ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} p-1 rounded-md border gap-1 shrink-0 ml-auto`}>
                             {tabs.map(tab => (
                                 <button
                                     key={tab.id}
@@ -512,13 +526,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                     className={`
                                         flex items-center gap-2 px-4 py-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-all
                                         ${activeTab === tab.id 
-                                            ? 'bg-slate-800 text-white shadow-lg border border-slate-700' 
-                                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900'}
+                                            ? isDarkMode ? 'bg-slate-800 text-white shadow-lg border-slate-700' : 'bg-emerald-500 text-white shadow-md border-emerald-400' 
+                                            : isDarkMode ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}
                                     `}
                                 >
-                                    <tab.icon size={14} className={activeTab === tab.id ? tab.color : 'opacity-50'} />
+                                    <tab.icon size={14} className={activeTab === tab.id ? isDarkMode ? tab.color : 'text-white' : 'opacity-50'} />
                                     {tab.label}
-                                    <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${activeTab === tab.id ? 'bg-slate-950 text-white' : 'bg-slate-900 text-slate-600'}`}>
+                                    <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${activeTab === tab.id ? isDarkMode ? 'bg-slate-950 text-white' : 'bg-emerald-600 text-white' : isDarkMode ? 'bg-slate-900 text-slate-600' : 'bg-slate-100 text-slate-400'}`}>
                                         {tab.count}
                                     </span>
                                 </button>
@@ -528,7 +542,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                     
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mr-2">Filtrar por Turno:</span>
+                            <span className={`text-[10px] font-black ${isDarkMode ? 'text-slate-600' : 'text-slate-400'} uppercase tracking-[0.2em] mr-2`}>Filtrar por Turno:</span>
                             <div className="flex gap-2">
                                 {shiftTabs.map(shift => (
                                     <button
@@ -537,12 +551,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                         className={`
                                             flex items-center gap-2 px-5 py-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-all border
                                             ${activeShift === shift.id 
-                                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' 
-                                                : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300 hover:border-slate-700'}
+                                                ? isDarkMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-emerald-500 text-white border-emerald-400 shadow-sm'
+                                                : isDarkMode ? 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300 hover:border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-900 hover:border-slate-300'}
                                         `}
                                     >
                                         {shift.label}
-                                        <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${activeShift === shift.id ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'}`}>
+                                        <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${activeShift === shift.id ? isDarkMode ? 'bg-emerald-500 text-slate-950' : 'bg-emerald-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-400'}`}>
                                             {shiftCounts[shift.id]}
                                         </span>
                                     </button>
@@ -551,12 +565,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                         </div>
 
                         <div className="relative w-72 h-10">
-                            <div className="absolute inset-0 bg-slate-950 border border-slate-800 rounded-md flex items-center transition-all focus-within:border-emerald-500/50">
+                            <div className={`absolute inset-0 ${isDarkMode ? 'bg-slate-950 border-slate-800 focus-within:border-emerald-500/50' : 'bg-white border-slate-200 focus-within:border-emerald-400'} border rounded-md flex items-center transition-all`}>
                                 <Search size={14} className="shrink-0 text-slate-500 ml-3" />
                                 <input 
                                     type="text" 
                                     placeholder="BUSCAR POR VOO, PREFIXO, POSIÇÃO..." 
-                                    className="bg-transparent border-none outline-none text-[10px] text-white font-mono uppercase w-full px-3 transition-all h-full"
+                                    className={`bg-transparent border-none outline-none text-[10px] ${isDarkMode ? 'text-white' : 'text-slate-900'} font-mono uppercase w-full px-3 transition-all h-full`}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -565,11 +579,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden relative bg-slate-950">
+                <div className={`flex-1 overflow-hidden relative ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
                     <div className="w-full h-full overflow-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse min-w-max">
                             <thead className="z-40">
-                                <tr className="h-12 bg-slate-900">
+                                <tr className={`h-12 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-50'}`}>
                                     <SortableHeader label="COMP." columnKey="airlineCode" className="w-24 text-center" />
                                     <SortableHeader label="V.SAÍDA" columnKey="flightNumber" className="w-20 text-center" />
                                     <SortableHeader label="PREFIXO" columnKey="registration" className="w-24 text-center" />
@@ -577,11 +591,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                     <SortableHeader label="POS" columnKey="positionId" className="w-16 text-center" />
                                     <SortableHeader label="INÍCIO" columnKey="startTime" className="w-24 text-center" />
                                     <SortableHeader label="FIM" columnKey="endTime" className="w-24 text-center" />
-                                    <th className="w-16 px-3 border-b border-r border-slate-700 bg-slate-900 sticky top-0 text-center z-20 text-[9px] text-slate-400 uppercase font-black tracking-wider">TAB</th>
-                                    <th className="w-24 px-3 border-b border-r border-slate-700 bg-slate-900 sticky top-0 text-center z-20 text-[9px] text-slate-400 uppercase font-black tracking-wider">TURNOS</th>
+                                    <th className={`w-16 px-3 border-b border-r ${isDarkMode ? 'border-slate-700 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500'} sticky top-0 text-center z-20 text-[9px] uppercase font-black tracking-wider`}>TAB</th>
+                                    <th className={`w-24 px-3 border-b border-r ${isDarkMode ? 'border-slate-700 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500'} sticky top-0 text-center z-20 text-[9px] uppercase font-black tracking-wider`}>TURNOS</th>
                                     <SortableHeader label="OPERADOR" columnKey="operator" className="w-48 text-center" />
                                     <SortableHeader label="VOLUME (L)" columnKey="volume" className="w-24 text-center border-r-0" />
-                                    <th className="w-48 px-3 border-b border-slate-700 bg-slate-900 sticky top-0 text-center z-20 text-[9px] text-slate-400 uppercase font-black tracking-wider">STATUS FINAL</th>
+                                    <th className={`w-48 px-3 border-b ${isDarkMode ? 'border-slate-700 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500'} sticky top-0 text-center z-20 text-[9px] uppercase font-black tracking-wider`}>STATUS FINAL</th>
                                 </tr>
                             </thead>
                             <tbody className="text-[11px] font-bold">
@@ -597,35 +611,35 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
 
                                         // Dynamic font color for "Histórico Geral" based on status
                                         const isGeneralHistory = activeTab === 'FINALIZADOS';
-                                        const statusColorClass = isGeneralHistory ? badge.color.split(' ')[0] : 'text-slate-400';
-                                        const whiteColorClass = isGeneralHistory ? badge.color.split(' ')[0] : 'text-white';
+                                        const statusColorClass = isGeneralHistory ? badge.color.split(' ')[0] : isDarkMode ? 'text-slate-400' : 'text-slate-500';
+                                        const whiteColorClass = isGeneralHistory ? badge.color.split(' ')[0] : isDarkMode ? 'text-white' : 'text-slate-900';
                                         const emeraldColorClass = isGeneralHistory ? badge.color.split(' ')[0] : 'text-emerald-500';
 
                                         return (
                                         <tr 
                                             key={flight.id}
                                             onClick={() => setSelectedFlight(flight)}
-                                            className="h-14 border-b border-slate-800/30 cursor-pointer transition-colors hover:bg-slate-900 group"
+                                            className={`h-14 border-b ${isDarkMode ? 'border-slate-800/30 hover:bg-slate-900' : 'border-slate-200/50 hover:bg-slate-50'} cursor-pointer transition-colors group`}
                                         >
-                                            <td className="px-2 border-r border-slate-800/50 text-left">
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-left`}>
                                                 <AirlineLogo airlineCode={flight.airlineCode} className={statusColorClass} />
                                             </td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center ${whiteColorClass} font-mono tracking-tighter`}>{flight.flightNumber}</td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center font-mono ${emeraldColorClass} tracking-tighter uppercase`}>{flight.registration}</td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center font-mono ${statusColorClass}`}>{ICAO_CITIES[flight.destination] || flight.destination}</td>
-                                            <td className="px-2 border-r border-slate-800/50 text-center">
-                                                <span className={`bg-slate-900 border border-slate-800 ${statusColorClass} px-2 py-1 font-mono text-[10px] rounded`}>{flight.positionId}</span>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center ${whiteColorClass} font-mono tracking-tighter`}>{flight.flightNumber}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${emeraldColorClass} tracking-tighter uppercase`}>{flight.registration}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${statusColorClass}`}>{ICAO_CITIES[flight.destination] || flight.destination}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center`}>
+                                                <span className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'} border ${statusColorClass} px-2 py-1 font-mono text-[10px] rounded`}>{flight.positionId}</span>
                                             </td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center font-mono ${statusColorClass}`}>{flight.startTime ? flight.startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center font-mono ${statusColorClass}`}>{flight.endTime ? flight.endTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center font-mono ${whiteColorClass}`}>{tabMinutes !== null ? `${tabMinutes}'` : '--'}</td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center font-mono ${statusColorClass} uppercase`}>{flightShift}</td>
-                                            <td className="px-2 border-r border-slate-800/50">
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${statusColorClass}`}>{flight.startTime ? flight.startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${statusColorClass}`}>{flight.endTime ? flight.endTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${whiteColorClass}`}>{tabMinutes !== null ? `${tabMinutes}'` : '--'}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${statusColorClass} uppercase`}>{flightShift}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'}`}>
                                                 <div className="flex justify-start pl-8">
                                                     <OperatorCell operatorName={flight.operator} />
                                                 </div>
                                             </td>
-                                            <td className={`px-2 border-r border-slate-800/50 text-center font-mono ${whiteColorClass}`}>{flight.volume?.toLocaleString() || 0}</td>
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${whiteColorClass}`}>{flight.volume?.toLocaleString() || 0}</td>
                                             <td className="px-3 text-center">
                                                 <div className="flex justify-center items-center">
                                                     <div className={`w-[90%] py-1 rounded border text-[9px] font-black uppercase tracking-wider ${badge.color}`}>
