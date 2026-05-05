@@ -231,7 +231,7 @@ export const MOCK_TEAM_PROFILES: OperatorProfile[] = [
     createProfile('op_luna', 'Luna', 'Luna', 'AERODROMO', 'DISPONÍVEL', 'MANHÃ'),
     createProfile('op_huan', 'Huan', 'Huan', 'AERODROMO', 'DISPONÍVEL', 'MANHÃ'),
 
-    // --- 06:00 - 16:00 (MANHÃ) ---
+    // --- 07:00 - 16:00 (MANHÃ) ---
     createProfile('op_luis', 'Luis', 'Luis', 'AERODROMO', 'DISPONÍVEL', 'MANHÃ'),
     createProfile('op_luciano', 'Luciano', 'Luciano', 'AERODROMO', 'DISPONÍVEL', 'MANHÃ'),
     createProfile('op_idenilson', 'Idenilson', 'Idenilson', 'AERODROMO', 'DISPONÍVEL', 'MANHÃ'),

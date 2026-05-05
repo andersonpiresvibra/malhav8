@@ -77,6 +77,7 @@ const App: React.FC = () => {
   const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [ltName, setLtName] = useState('');
+  const [tempLtName, setTempLtName] = useState('');
 
   const isNameInvalid = !ltName || ltName.trim() === '';
 
@@ -158,11 +159,39 @@ const App: React.FC = () => {
         <div className="fixed inset-x-0 bottom-0 top-20 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className={`border ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-[#004D24]/30'} rounded-xl p-8 max-w-md w-full shadow-2xl text-center relative overflow-hidden`}>
                 <div className={`absolute top-0 inset-x-0 h-1 ${isDarkMode ? 'bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-600' : 'bg-[#004D24]'} animate-pulse`}></div>
-                <h2 className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-900'} mb-2 tracking-tight uppercase`}>Acesso Restrito</h2>
-                <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-600'} mb-8 font-medium leading-relaxed`}>Por favor, insira o seu nome no cabeçalho superior direito para acessar e operar o sistema.</p>
-                <div className={`flex flex-col items-center justify-center gap-2 ${isDarkMode ? 'text-emerald-400' : 'text-[#004D24]'} font-bold uppercase tracking-widest text-xs`}>
+                <h2 className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-900'} mb-2 tracking-tight uppercase`}>PRIMEIRO ACESSO</h2>
+                <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-600'} mb-6 font-medium leading-relaxed`}>Por favor, insira o seu nome abaixo para acessar e operar o sistema.</p>
+                
+                <div className="flex flex-col items-center gap-4 mb-8">
+                    <input 
+                        type="text" 
+                        value={tempLtName}
+                        onChange={(e) => setTempLtName(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && tempLtName.trim()) {
+                                setLtName(tempLtName.trim());
+                            }
+                        }}
+                        placeholder="Digite seu nome..."
+                        className={`w-4/5 text-center px-4 py-3 rounded-lg border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'} focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold uppercase tracking-wide`}
+                        autoFocus
+                    />
+                    <button
+                        onClick={() => {
+                            if (tempLtName.trim()) {
+                                setLtName(tempLtName.trim());
+                            }
+                        }}
+                        disabled={!tempLtName.trim()}
+                        className={`w-4/5 py-3 rounded-lg font-black uppercase tracking-widest transition-all ${!tempLtName.trim() ? 'opacity-50 cursor-not-allowed bg-slate-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 active:scale-95'}`}
+                    >
+                        Acessar Sistema
+                    </button>
+                </div>
+
+                <div className={`flex items-center justify-center gap-2 ${isDarkMode ? 'text-emerald-400' : 'text-[#004D24]'} font-bold uppercase tracking-widest text-[10px]`}>
                      <div className="animate-bounce">
-                         <Table size={24} className="mb-2" />
+                         <Table size={14} />
                      </div>
                      Aguardando Identificação...
                 </div>

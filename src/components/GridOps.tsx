@@ -97,23 +97,31 @@ const parseTime = (timeStr: string) => {
 };
 
 // Função para calcular diferença em minutos entre uma hora (HH:MM) e o momento atual
-const getMinutesDiff = (targetTimeStr: string) => {
+const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     if (!targetTimeStr) return 0;
-    const target = parseTime(targetTimeStr);
+    
+    const [hours, minutes] = targetTimeStr.split(':').map(Number);
+    const target = new Date();
+    
+    if (flightDateStr) {
+        // flightDateStr is in "YYYY-MM-DD"
+        const [year, month, day] = flightDateStr.split('-').map(Number);
+        target.setFullYear(year, month - 1, day);
+    }
+    
+    target.setHours(hours, minutes, 0, 0);
     const current = new Date();
+    
     let diff = (target.getTime() - current.getTime()) / 60000;
     
-    // Tratamos apenas viradas de meia-noite curtas (ex: ETD 01:00 e agora 22:00 -> voo de amanhã)
-    if (diff < -720) {
-        diff += 1440;
-    } 
-    // Para resolver o bug em que voos das 21:00 (hoje à noite) eram considerados
-    // "de ontem" e movidos para a FILA como ATRASADOS (+19h => tratado como -5h),
-    // apenas consideramos voos como sendo "ontem" se estiverem muuuito no futuro,
-    // ou seja, além da malha de 24 horas. Removido o `diff -= 1440` padrão ou usamos um limite altíssimo.
-    else if (diff > 1320) { 
-        // Apenas voos com mais de 22 horas de diferença (ex: voo para 23:50 quando for 00:10 do dia seguinte)
-        diff -= 1440;
+    // Fallback: se não tiver date string gravado, usamos a lógica de aproximação
+    if (!flightDateStr) {
+        if (diff < -720) {
+            diff += 1440;
+        } 
+        else if (diff > 1320) { 
+            diff -= 1440;
+        }
     }
     
     return diff;
@@ -567,7 +575,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const interval = setInterval(() => {
         onUpdateFlights(prevFlights => {
             return prevFlights.map(f => {
-                const minutesToETD = getMinutesDiff(f.etd);
+                const minutesToETD = getMinutesDiff(f.etd, f.date);
                 
                 // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
                 // Só move para fila se NÃO tiver operador e estiver no prazo crítico
@@ -693,7 +701,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const stats = useMemo(() => ({
     total: searchFilteredFlights.length,
     chegada: searchFilteredFlights.filter(f => {
-        const minutesToEta = getMinutesDiff(f.eta);
+        const minutesToEta = getMinutesDiff(f.eta, f.date);
         return f.status === FlightStatus.CHEGADA && !(f.isOnGround && f.positionId) && minutesToEta <= 120;
     }).length,
     fila: searchFilteredFlights.filter(f => f.status === FlightStatus.FILA && !f.operator).length,
@@ -717,7 +725,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     switch (activeTab) {
       case 'CHEGADA': 
         base = searchFilteredFlights.filter(f => {
-            const minutesToEta = getMinutesDiff(f.eta);
+            const minutesToEta = getMinutesDiff(f.eta, f.date);
             return f.status === FlightStatus.CHEGADA && 
                    !(f.isOnGround && f.positionId) && 
                    minutesToEta <= 120;
@@ -899,7 +907,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const handleManualFinish = (flight: FlightData, e: React.MouseEvent) => {
       e.stopPropagation();
-      const minutesToETD = getMinutesDiff(flight.etd);
+      const minutesToETD = getMinutesDiff(flight.etd, flight.date);
       if (minutesToETD < 0) {
           setDelayModalFlightId(flight.id);
           setDelayReasonCode('');
@@ -1174,8 +1182,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   // --- HELPER RENDERS ---
   const getDynamicStatus = (f: FlightData) => {
-    const minutesToETA = getMinutesDiff(f.eta);
-    const minutesToETD = getMinutesDiff(f.etd);
+    const minutesToETA = getMinutesDiff(f.eta, f.date);
+    const minutesToETD = getMinutesDiff(f.etd, f.date);
 
     if (f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO) {
         if (activeTab === 'FINALIZADO') {
@@ -1293,7 +1301,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
     if (f.status === FlightStatus.ABASTECENDO) {
         const isDelayed = minutesToETD <= 0;
-        const isPausado = (f.currentFlowRate ?? 0) === 0;
         
         // Regra especial para voos PRÉ: 25 minutos de abastecimento -> CONFIRMAR
         const isPreFlight = f.etd === 'PRÉ' || f.logs.some(l => l.message.includes('PRÉ'));
@@ -1311,12 +1318,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
         const isFinalizando = (minutesToETD < 10 && minutesToETD > 0) || (f.fuelStatus > 90);
         
         let label = 'ABASTECENDO';
-        let color = isDarkMode ? 'text-blue-400 bg-blue-500/20 border-blue-500/30' : 'text-blue-600 bg-blue-50 border-blue-200';
+        let color = isDarkMode ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200';
         
-        if (isPausado) {
-            label = 'PAUSADO';
-            color = isDarkMode ? 'text-amber-500 bg-amber-500/20 border-amber-500' : 'text-amber-600 bg-amber-50 border-amber-200';
-        } else if (isFinalizando) {
+        if (isFinalizando) {
             label = 'FINALIZANDO';
             color = isDarkMode ? 'text-blue-300 bg-blue-500/20 border-blue-300' : 'text-blue-700 bg-blue-50 border-blue-300';
         }
@@ -1595,33 +1599,33 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     {/* LAYOUT CONDICIONAL DE COLUNAS */}
                     {activeTab === 'FILA' ? (
                         <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-20" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center" />
-                            <SortableHeader label="CID" columnKey="destination" className="text-center w-12" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-16" />
-                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-12" />
+                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
+                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
+                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
+                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
+                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
+                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
                             <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
                             <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
                             <SortableHeader label="ETA" columnKey="eta" className="text-center w-16" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-28" />
+                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
                             <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-16" />
+                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
                         </>
                     ) : isStreamlinedView ? (
                         <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-[10%]" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-[10%]" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-[10%]" />
-                            <SortableHeader label="CID" columnKey="destination" className={`text-center ${activeTab === 'DESIGNADOS' ? 'w-[15%]' : 'w-12'}`} />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-[10%]" />
-                            <SortableHeader label="POS" columnKey="positionId" className={`text-center ${activeTab === 'DESIGNADOS' ? 'w-[10%]' : 'w-12'}`} />
+                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
+                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
+                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
+                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
+                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
+                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
                             <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
-                            <SortableHeader label="ETD" columnKey="etd" className="text-center w-[10%]" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className={`${activeTab === 'DESIGNADOS' ? 'text-left pl-2 w-[15%]' : 'text-left pl-2 w-[20%]'}`} />
-                            <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-[5%]" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-[5%]" />
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'}`}>
+                            <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
+                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
+                            <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
+                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
                                 <div className="flex items-center justify-center gap-1.5">
                                     <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
                                         REPORT
@@ -1635,56 +1639,56 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 </>
                             )}
                             {activeTab === 'ABASTECENDO' && (
-                                <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center" />
+                                <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center w-16" />
                             )}
                         </>
                     ) : isFinishedView ? (
                         <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-20" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center" />
-                            <SortableHeader label="CID" columnKey="destination" className="text-center w-12" />
-                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-12" />
+                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
+                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
+                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
+                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
+                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
+                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
                             <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
                             <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-28" />
+                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
                             <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-16" />
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'}`}>
+                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
                                 <div className="flex items-center justify-center gap-1.5">
                                     <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
                                         REPORT
                                     </span>
                                 </div>
                             </th>
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'}`}>
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
                                 <div className="flex items-center justify-center gap-1.5">
                                     <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
                                         TAB
                                     </span>
                                 </div>
                             </th>
-                            <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center" />
+                            <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center w-16" />
                         </>
                     ) : (
                         <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-20" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center" />
-                            <SortableHeader label="MODELO" columnKey="model" className="text-center" />
-                            <SortableHeader label="V.CHEG" columnKey="flightNumber" className="text-center" />
-                            <SortableHeader label="ETA" columnKey="eta" className="text-center" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center" />
-                            <SortableHeader label="CID" columnKey="destination" className="text-center w-12" />
-                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-12" />
+                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
+                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
+                            <SortableHeader label="MODELO" columnKey="model" className="text-center w-16" />
+                            <SortableHeader label="V.CHEG" columnKey="flightNumber" className="text-center w-20" />
+                            <SortableHeader label="ETA" columnKey="eta" className="text-center w-16" />
+                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
+                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
+                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
+                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
                             <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
                             <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-28" />
+                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
                             <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-16" />
+                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
                             {activeTab === 'GERAL' && (
-                                <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center" />
+                                <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center w-16" />
                             )}
                         </>
                     )}
@@ -1695,7 +1699,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         <SortableHeader label="STATUS" columnKey="status" className="text-center w-24" />
                       )}
 
-                      <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} last:rounded-r-[4px] group ${activeTab === 'DESIGNADOS' ? 'w-12' : ''}`}>
+                      <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} last:rounded-r-[4px] group w-16`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span className={`font-black text-[9px] uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-white'}`}>
                             AÇÕES
@@ -1780,7 +1784,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'eta', row.eta || '', "text-center font-mono text-emerald-400 font-black tracking-widest", rowIndex, 99)}
 
                                 {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle w-[100px] max-w-[100px] overflow-hidden`}>
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
                                             <OperatorCell operatorName={row.operator} />
@@ -1828,7 +1832,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 6)}
 
                                 {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle ${activeTab === 'DESIGNADOS' ? 'w-[96px] max-w-[96px]' : 'w-[100px] max-w-[100px]'} overflow-hidden`}>
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
                                             <OperatorCell operatorName={row.operator} />
@@ -1866,7 +1870,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                             false
                                         )}
                                         {/* LT */}
-                                        <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight w-[112px] max-w-[112px] overflow-hidden truncate`}>
+                                        <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight overflow-hidden truncate`}>
                                             {row.assignedByLt || '--'}
                                         </td>
                                     </>
@@ -1901,7 +1905,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 6)}
                                 
                                 {/* OPERATOR (WITH ASSIGN BUTTON & MESSAGE DOT) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle w-[100px] max-w-[100px] overflow-hidden truncate`}>
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden truncate`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
                                             <OperatorCell operatorName={row.operator} />
@@ -1961,7 +1965,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 9)}
 
                                 {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle w-[100px] max-w-[100px] overflow-hidden`}>
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
                                             <OperatorCell operatorName={row.operator} />
