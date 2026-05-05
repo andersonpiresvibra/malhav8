@@ -139,6 +139,7 @@ export interface FlightReport {
 
 export interface FlightData {
   id: string;
+  date?: string; // Format: YYYY-MM-DD
   flightNumber: string; // V. Cheg
   departureFlightNumber?: string; // V. Saida
   airline: string;

@@ -17,12 +17,23 @@ import {
   MessageSquare, FileText, Plane, Pen, BusFront,
   PlaneLanding, ListOrdered, AlertTriangle, Play, Pause, XCircle, Plus, Anchor,
   MapPin, Eye, CheckCheck, X, Save, History, TimerOff, UserPlus, Building2, Bell, Zap,
-  MessageCircle, MoreVertical, Search, Settings, Upload, RefreshCw, Network, Archive, Trash2, Printer, FileBarChart
+  MessageCircle, MoreVertical, Search, Settings, Upload, RefreshCw, Network, Archive, Trash2, Printer, FileBarChart,
+  CalendarDays, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 type Tab = 'GERAL' | 'CHEGADA' | 'FILA' | 'DESIGNADOS' | 'ABASTECENDO' | 'FINALIZADO' | 'MALHA';
 type SortDirection = 'asc' | 'desc' | null;
 type MeshShift = 'TODOS' | 'MANHA' | 'TARDE' | 'NOITE';
+
+// Utils para Data da Malha
+const getDisplayDate = (dateOffset: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + dateOffset);
+    if (dateOffset === 0) return `HOJE - ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase()}`;
+    if (dateOffset === -1) return `ONTEM - ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase()}`;
+    if (dateOffset === 1) return `AMNHA - ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase()}`;
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase();
+};
 
 const isTimeInShift = (timeStr: string, shift: MeshShift) => {
   if (shift === 'TODOS' || !timeStr) return true;
@@ -215,6 +226,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [activeShift, setActiveShift] = useState<MeshShift>('TODOS');
+  const [activeDateOffset, setActiveDateOffset] = useState<number>(0);
   
   useEffect(() => {
     // Simulate data fetching
@@ -514,7 +526,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const optionsMenuRef = useRef<HTMLDivElement>(null);
 
   const handleCreateFlight = (newFlight: FlightData) => {
-    onUpdateFlights(prev => [newFlight, ...prev]);
+    // If getting date string for the currently selected activeDateOffset
+    const d = new Date();
+    d.setDate(d.getDate() + activeDateOffset);
+    const dateStr = d.toISOString().split('T')[0];
+
+    const flightWithDate = {
+        ...newFlight,
+        date: newFlight.date || dateStr
+    };
+    onUpdateFlights(prev => [flightWithDate, ...prev]);
     addToast('VOO CRIADO', `Voo ${newFlight.flightNumber} criado com sucesso.`, 'success');
     setIsCreateModalOpen(false);
   };
@@ -624,7 +645,18 @@ export const GridOps: React.FC<GridOpsProps> = ({
       setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  const visibleFlights = useMemo(() => flights.filter(f => !f.isHiddenFromGrid), [flights]);
+  const visibleFlights = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + activeDateOffset);
+    const targetDateStr = d.toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    return flights.filter(f => {
+       if (f.isHiddenFromGrid) return false;
+       const fDate = f.date || todayStr;
+       return fDate === targetDateStr;
+    });
+  }, [flights, activeDateOffset]);
 
   const shiftedFlights = useMemo(() => 
     visibleFlights.filter(f => isTimeInShift(f.etd, activeShift)), 
@@ -1400,6 +1432,31 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     </button>
                     <button 
                         onClick={() => {
+                            const dateStr = getDisplayDate(activeDateOffset);
+                            const headers = ['COMP', 'V.SAIDA', 'ICAO', 'CID', 'PREFIXO', 'POS', 'ETD', 'CALCO', 'ETA', 'OPERADOR', 'FROTA', 'FRT.TIPO', 'STATUS', 'VOLUME'];
+                            const rows = visibleFlights.map(f => [
+                                f.airline || '', f.departureFlightNumber || '', f.destination || '', ICAO_CITIES[f.destination] || 'EXTERIOR',
+                                f.registration || '', f.positionId || '', f.etd || '', f.actualArrivalTime || '?', f.eta || '?',
+                                f.operator || '', f.fleet || '', f.fleetType || '', f.status || '', f.volume || ''
+                            ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+                            const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + '\n' + rows.join('\n');
+                            const encodedUri = encodeURI(csvContent);
+                            const link = document.createElement("a");
+                            link.setAttribute("href", encodedUri);
+                            link.setAttribute("download", `malha_${dateStr.replace(/\s+/g, '_')}.csv`);
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            setShowOptionsDropdown(false);
+                            addToast('EXPORTAÇÃO', 'Exportação para CSV iniciada com sucesso.', 'success');
+                        }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-100'}`}
+                    >
+                        <FileBarChart size={14} />
+                        Exportar Malha (CSV)
+                    </button>
+                    <button 
+                        onClick={() => {
                             handleClearFinished();
                             setShowOptionsDropdown(false);
                         }}
@@ -1435,7 +1492,28 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 </div>
             </div>
 
-            <div className="flex items-center gap-2 ml-6 bg-black/20 p-1 rounded border border-white/10 w-[270px] h-10">
+            <div className="flex items-center ml-2 bg-black/20 p-1 rounded border border-white/10 h-10">
+                <button 
+                  onClick={() => setActiveDateOffset(prev => prev - 1)}
+                  className="px-2 py-1 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                >
+                    <ChevronLeft size={16} />
+                </button>
+                <div className="px-4 flex items-center gap-2">
+                    <CalendarDays size={14} className="text-emerald-400" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap min-w-[100px] text-center">
+                        {getDisplayDate(activeDateOffset)}
+                    </span>
+                </div>
+                <button 
+                  onClick={() => setActiveDateOffset(prev => prev + 1)}
+                  className="px-2 py-1 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                >
+                    <ChevronRight size={16} />
+                </button>
+            </div>
+
+            <div className="flex items-center gap-2 ml-4 bg-black/20 p-1 rounded border border-white/10 w-[270px] h-10">
                 {(['TODOS', 'MANHA', 'TARDE', 'NOITE'] as MeshShift[]).map(shift => (
                     <button
                         key={shift}
