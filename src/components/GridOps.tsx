@@ -92,12 +92,16 @@ const getMinutesDiff = (targetTimeStr: string) => {
     const current = new Date();
     let diff = (target.getTime() - current.getTime()) / 60000;
     
-    // Se a diferença for menor que -12 horas (ex: ETD 01:00 e agora 22:00), significa amanhã.
+    // Tratamos apenas viradas de meia-noite curtas (ex: ETD 01:00 e agora 22:00 -> voo de amanhã)
     if (diff < -720) {
         diff += 1440;
     } 
-    // Se for maior que 12 horas (ex: ETD 23:00 e agora 01:00), significa ontem (atrasado)
-    else if (diff > 720) {
+    // Para resolver o bug em que voos das 21:00 (hoje à noite) eram considerados
+    // "de ontem" e movidos para a FILA como ATRASADOS (+19h => tratado como -5h),
+    // apenas consideramos voos como sendo "ontem" se estiverem muuuito no futuro,
+    // ou seja, além da malha de 24 horas. Removido o `diff -= 1440` padrão ou usamos um limite altíssimo.
+    else if (diff > 1320) { 
+        // Apenas voos com mais de 22 horas de diferença (ex: voo para 23:50 quando for 00:10 do dia seguinte)
         diff -= 1440;
     }
     
