@@ -6,6 +6,7 @@ import { MOCK_TEAM_PROFILES } from '../data/mockData'; // Importando perfis para
 
 import { FlightDetailsModal } from './FlightDetailsModal';
 import { FlightReportInputModal } from './FlightReportInputModal';
+import { TimeConflictModal } from './TimeConflictModal';
 import { StatusBadge } from './SharedStats';
 import { OperatorCell } from './OperatorCell';
 import { AirlineLogo } from './AirlineLogo';
@@ -113,16 +114,6 @@ const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     const current = new Date();
     
     let diff = (target.getTime() - current.getTime()) / 60000;
-    
-    // Fallback: se não tiver date string gravado, usamos a lógica de aproximação
-    if (!flightDateStr) {
-        if (diff < -720) {
-            diff += 1440;
-        } 
-        else if (diff > 1320) { 
-            diff -= 1440;
-        }
-    }
     
     return diff;
 };
@@ -278,6 +269,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [newObservation, setNewObservation] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
+  const [timeConflictData, setTimeConflictData] = useState<{rowId: string, oldEtd: string, newEtd: string} | null>(null);
   
   // NEW: Spreadsheet inline editing states
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: string } | null>(null);
@@ -362,6 +354,24 @@ export const GridOps: React.FC<GridOpsProps> = ({
     syncFlight(updatedFlight);
   };
 
+  const confirmedConflictsRef = useRef<Set<string>>(new Set());
+
+  const handleFinishEdit = (rowId: string, colKey: string) => {
+    setEditingCell(null);
+    if (colKey === 'etd') {
+        const flight = flights.find(f => f.id === rowId);
+        if (flight && flight.etd && flight.etd.length >= 4) {
+            const diff = getMinutesDiff(flight.etd, flight.date);
+            if (diff < 0) {
+                const conflictKey = `${rowId}-${flight.etd}`;
+                if (!confirmedConflictsRef.current.has(conflictKey)) {
+                    setTimeConflictData({ rowId, oldEtd: flight.etd, newEtd: flight.etd });
+                }
+            }
+        }
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent, rowId: string, colKey: string, rowIndex: number, colIndex: number) => {
     const isEditing = editingCell?.rowId === rowId && editingCell?.col === colKey;
     let targetTd = e.currentTarget as HTMLElement;
@@ -419,7 +429,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             if (preferEditing) {
               setEditingCell({ rowId: newRowId, col: newColKey });
             } else {
-              setEditingCell(null);
+              handleFinishEdit(rowId, colKey);
             }
             setTimeout(() => {
                 const innerEl = targetCell.querySelector('input') || targetCell.querySelector('div');
@@ -449,7 +459,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           if (input && input.selectionStart === input.value.length) {
             e.preventDefault();
             navigate(rowIndex, colIndex + 1, false, 1);
-            setEditingCell(null);
+            handleFinishEdit(rowId, colKey);
           }
         }
         break;
@@ -462,7 +472,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           if (input && input.selectionStart === 0) {
             e.preventDefault();
             navigate(rowIndex, colIndex - 1, false, -1);
-            setEditingCell(null);
+            handleFinishEdit(rowId, colKey);
           }
         }
         break;
@@ -470,7 +480,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         e.preventDefault();
         if (isEditing) {
           navigate(rowIndex, colIndex + 1, false, 1);
-          setEditingCell(null);
+          handleFinishEdit(rowId, colKey);
         } else if (targetTd?.getAttribute('data-editable') === 'true') {
           setEditingCell({ rowId, col: colKey });
         } else {
@@ -480,7 +490,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         break;
       case 'Tab':
         e.preventDefault();
-        setEditingCell(null);
+        handleFinishEdit(rowId, colKey);
         if (e.shiftKey) {
           navigate(rowIndex, colIndex - 1, false, -1);
         } else {
@@ -490,7 +500,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       case 'Escape':
         if (isEditing) {
           e.preventDefault();
-          setEditingCell(null);
+          handleFinishEdit(rowId, colKey);
         }
         break;
       case 'Backspace':
@@ -784,7 +794,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${className} ${isDarkMode ? (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-slate-900 shadow-inner') : (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-white font-black text-slate-900')}`}
             value={value}
             onChange={(e) => handleFieldChange(row.id, colKey, e.target.value)}
-            onBlur={() => setEditingCell(null)}
+            onBlur={() => handleFinishEdit(row.id, colKey as string)}
             onKeyDown={(e) => handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)}
           />
         ) : (
@@ -823,6 +833,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
               if (a.isPinned && !b.isPinned) return -1;
               if (!a.isPinned && b.isPinned) return 1;
               
+              if (activeTab === 'FILA') {
+                  const aMin = getMinutesDiff(a.etd, a.date);
+                  const bMin = getMinutesDiff(b.etd, b.date);
+                  const aSevere = aMin <= -60;
+                  const bSevere = bMin <= -60;
+                  if (aSevere && !bSevere) return 1;
+                  if (!aSevere && bSevere) return -1;
+                  return aMin - bMin;
+              }
+              
               if (activeTab === 'GERAL') {
                   const aInactive = a.status === FlightStatus.FINALIZADO || a.status === FlightStatus.CANCELADO;
                   const bInactive = b.status === FlightStatus.FINALIZADO || b.status === FlightStatus.CANCELADO;
@@ -837,6 +857,15 @@ export const GridOps: React.FC<GridOpsProps> = ({
       return [...list].sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
+        
+        if (activeTab === 'FILA') {
+            const aMin = getMinutesDiff(a.etd, a.date);
+            const bMin = getMinutesDiff(b.etd, b.date);
+            const aSevere = aMin <= -60;
+            const bSevere = bMin <= -60;
+            if (aSevere && !bSevere) return 1;
+            if (!aSevere && bSevere) return -1;
+        }
         
         if (activeTab === 'GERAL') {
             const aInactive = a.status === FlightStatus.FINALIZADO || a.status === FlightStatus.CANCELADO;
@@ -1181,9 +1210,26 @@ export const GridOps: React.FC<GridOpsProps> = ({
   };
 
   // --- HELPER RENDERS ---
-  const getDynamicStatus = (f: FlightData) => {
+  const getDynamicStatus = (f: FlightData): any => {
     const minutesToETA = getMinutesDiff(f.eta, f.date);
     const minutesToETD = getMinutesDiff(f.etd, f.date);
+
+    if (activeTab === 'GERAL') {
+        const baseStatusMap: Record<FlightStatus, string> = {
+            [FlightStatus.CHEGADA]: 'CHEGADA',
+            [FlightStatus.FILA]: 'FILA',
+            [FlightStatus.DESIGNADOS]: 'DESIGNADOS',
+            [FlightStatus.ABASTECENDO]: 'ABASTECENDO',
+            [FlightStatus.FINALIZADO]: 'FINALIZADO',
+            [FlightStatus.CANCELADO]: 'CANCELADO',
+            [FlightStatus.PRÉ]: 'PRÉ',
+        };
+        const stLabel = baseStatusMap[f.status] || f.status;
+        return {
+            label: stLabel,
+            color: isDarkMode ? 'text-slate-300 bg-slate-800 border-slate-700' : 'text-slate-700 bg-slate-200 border-slate-400'
+        };
+    }
 
     if (f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO) {
         if (activeTab === 'FINALIZADO') {
@@ -1203,12 +1249,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
             return { 
                 label: 'COM SUCESSO', 
                 color: isDarkMode ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200' 
-            };
-        }
-        if (activeTab === 'GERAL' && f.status === FlightStatus.FINALIZADO) {
-            return { 
-                label: 'FINALIZADO', 
-                color: isDarkMode ? 'text-emerald-300 bg-emerald-500/20 border-emerald-500' : 'text-emerald-700 bg-emerald-50 border-emerald-500' 
             };
         }
     }
@@ -1239,29 +1279,41 @@ export const GridOps: React.FC<GridOpsProps> = ({
             label: 'STAND-BY', 
             color: isDarkMode ? 'text-slate-400 bg-slate-800 border-slate-600' : 'text-slate-600 bg-slate-100 border-slate-300' 
         };
-        if (minutesToETD < 0) return { 
-            label: 'ATRASADO', 
-            color: isDarkMode ? 'text-red-500 bg-red-900/50 border-red-500' : 'text-red-700 bg-red-100 border-red-500' 
+        
+        const absMins = Math.abs(minutesToETD);
+        const h = Math.floor(absMins / 60);
+        const m = Math.floor(absMins % 60);
+        const displayTime = minutesToETD >= 60 || minutesToETD <= -60 ? `${h}h ${m}m${minutesToETD < 0 ? ' ATRASO' : ''}` : `${minutesToETD < 0 ? absMins + 'm ATRASO' : minutesToETD + ' min'}`;
+
+        if (minutesToETD <= -60) return {
+            label: 'RETIDO (+1H)',
+            subtitle: displayTime,
+            color: isDarkMode ? 'text-slate-500 bg-slate-900 border-slate-700/50' : 'text-slate-500 bg-slate-200 border-slate-300',
+            rowClass: isDarkMode ? '[&>td]:!bg-slate-900/40 [&>td]:!border-slate-800/50 [&>td]:opacity-60' : '[&>td]:!bg-slate-100 [&>td]:!border-slate-200 [&>td]:opacity-60'
         };
+
         if (minutesToETD < 20) return { 
-            label: '-20M CRÍTICO', 
-            color: isDarkMode ? 'text-red-500 bg-red-500/20 border-red-500' : 'text-red-700 bg-red-50 border-red-500' 
-        };
-        if (minutesToETD < 25) return { 
-            label: '-25M ALERTA', 
-            color: isDarkMode ? 'text-amber-500 bg-amber-500/20 border-amber-500' : 'text-amber-700 bg-amber-50 border-amber-500' 
+            label: 'PENALTY', 
+            subtitle: displayTime,
+            color: 'text-white bg-black border-red-500',
+            rowClass: isDarkMode ? '[&>td]:!bg-red-950/40 [&>td]:!border-red-900/50' : '[&>td]:!bg-red-100 [&>td]:!border-red-300'
         };
         if (minutesToETD < 30) return { 
-            label: '-30M', 
-            color: isDarkMode ? 'text-amber-400 bg-amber-500/10 border-amber-400/50' : 'text-amber-600 bg-amber-50 border-amber-200' 
+            label: 'ATRASANDO', 
+            subtitle: displayTime,
+            color: isDarkMode ? 'text-red-500 bg-red-900/50 border-red-500' : 'text-red-700 bg-red-100 border-red-500',
+            rowClass: isDarkMode ? '[&>td]:!bg-red-900/40 [&>td]:!border-red-800/30' : '[&>td]:!bg-red-50 [&>td]:!border-red-200'
         };
-        if (minutesToETD < 45) return { 
-            label: '-45M', 
-            color: isDarkMode ? 'text-yellow-200 bg-yellow-500/10 border-yellow-200/30' : 'text-yellow-700 bg-yellow-50 border-yellow-200' 
+        if (minutesToETD < 40) return { 
+            label: 'ATRASANDO', 
+            subtitle: displayTime,
+            color: isDarkMode ? 'text-amber-500 bg-amber-900/50 border-amber-500' : 'text-amber-800 bg-amber-100 border-amber-500',
+            rowClass: isDarkMode ? '[&>td]:!bg-amber-900/20 [&>td]:!border-amber-800/30' : '[&>td]:!bg-yellow-50 [&>td]:!border-yellow-200'
         };
         return { 
-            label: '-1H', 
-            color: isDarkMode ? 'text-slate-300 bg-slate-800 border-slate-600' : 'text-slate-600 bg-slate-100 border-slate-300' 
+            label: 'FILA', 
+            subtitle: displayTime,
+            color: isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400/50' : 'text-blue-600 bg-blue-50 border-blue-200' 
         };
     }
 
@@ -1499,7 +1551,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             <div className="flex items-center ml-2 bg-black/20 p-1 rounded border border-white/10 h-10">
                 <button 
                   onClick={() => setActiveDateOffset(prev => prev - 1)}
-                  className="px-2 py-1 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                  className="px-2 py-1 flex items-center justify-center text-white hover:text-emerald-200 transition-colors"
                 >
                     <ChevronLeft size={16} />
                 </button>
@@ -1511,7 +1563,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 </div>
                 <button 
                   onClick={() => setActiveDateOffset(prev => prev + 1)}
-                  className="px-2 py-1 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                  className="px-2 py-1 flex items-center justify-center text-white hover:text-emerald-200 transition-colors"
                 >
                     <ChevronRight size={16} />
                 </button>
@@ -1522,7 +1574,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     <button
                         key={shift}
                         onClick={() => setActiveShift(shift)}
-                        className={`px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-all h-full ${activeShift === shift ? 'bg-emerald-500 text-slate-950 flex-1' : 'text-emerald-100/50 hover:text-white flex-1'}`}
+                        className={`px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-all h-full ${activeShift === shift ? 'bg-emerald-500 text-white flex-1' : 'text-emerald-100/50 hover:text-white flex-1'}`}
                     >
                         {shift}
                     </button>
@@ -1532,19 +1584,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
         <div className="flex items-center gap-4">
             <div className="relative w-[280px] h-9">
-                <div className={`absolute inset-0 bg-white shadow-sm border ${isDarkMode ? 'border-slate-700' : 'border-white/20'} rounded flex items-center transition-all`}>
-                    <Search size={14} className="shrink-0 text-slate-800 ml-3" />
+                <div className={`absolute inset-0 ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-white/20 text-slate-900'} shadow-sm border rounded flex items-center transition-all`}>
+                    <Search size={14} className={`shrink-0 ml-3 ${isDarkMode ? 'text-slate-400' : 'text-slate-400'}`} />
                     <input 
                         type="text" 
                         placeholder="Pesquise..." 
-                        className="bg-transparent border-none outline-none text-[10px] text-slate-900 placeholder:text-slate-500 font-mono uppercase w-full px-3 transition-all h-full rounded"
+                        className={`bg-transparent border-none outline-none text-[10px] ${isDarkMode ? 'text-slate-200 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'} font-mono uppercase w-full px-3 transition-all h-full rounded`}
                         value={globalSearchTerm}
                         onChange={(e) => onUpdateSearch && onUpdateSearch(e.target.value)}
                     />
                     {globalSearchTerm && (
                         <button 
                             onClick={() => onUpdateSearch && onUpdateSearch('')}
-                            className="p-1.5 mr-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                            className={`p-1.5 mr-1 rounded-full transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-400 hover:text-slate-200' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-600'}`}
                         >
                             <X size={12} />
                         </button>
@@ -1749,7 +1801,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                               e.preventDefault();
                               setSelectedFlight(row);
                           }}
-                          className={`h-10 cursor-pointer transition-all active:scale-[0.99] group shadow-sm rounded-[4px] ${isDarkMode ? '' : 'hover:bg-slate-50'} ${isInactiveRow ? 'opacity-40 grayscale' : ''}`}
+                          className={`h-10 cursor-pointer transition-all active:scale-[0.99] group shadow-sm rounded-[4px] ${isInactiveRow ? 'opacity-40 grayscale' : ''} ${dynamicStatus?.rowClass ? dynamicStatus.rowClass : (isDarkMode ? '' : 'hover:bg-slate-50')}`}
                       >
                           {/* AIRLINE */}
                           {renderEditableCell(row, 'airlineCode', row.airlineCode, "justify-start text-left first:rounded-l-[4px]", rowIndex, 0, false)}
@@ -1993,10 +2045,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           )}
                           
                           {/* STATUS (PILL DESIGN RESTORED) - MOVED OUTSIDE CONDITIONAL */}
-                          <td className={`px-1.5 text-center border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all`}>
+                          <td className={`px-1.5 py-1 text-center border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all`}>
                               {dynamicStatus ? (
-                                  <div className={`flex items-center justify-center w-full h-[28px] px-2 rounded text-[9px] font-black uppercase tracking-[0.1em] border ${dynamicStatus.color}`}>
-                                      {dynamicStatus.label}
+                                  <div className="flex flex-col items-center justify-center gap-0.5 w-full">
+                                      <div className={`flex items-center justify-center w-full min-h-[28px] px-2 rounded text-[9px] leading-[10px] py-1 font-black uppercase tracking-[0.1em] border ${dynamicStatus.color}`}>
+                                          {dynamicStatus.label}
+                                      </div>
+                                      {dynamicStatus.subtitle && (
+                                          <span className={`block text-[8px] font-black uppercase tracking-widest mt-0.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                                              {dynamicStatus.subtitle}
+                                          </span>
+                                      )}
                                   </div>
                               ) : (
                                   <StatusBadge status={row.status} isDarkMode={isDarkMode} />
@@ -2134,9 +2193,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                                   <>
                                                                       <button 
                                                                           onClick={(e) => { e.stopPropagation(); setConfirmStartModalFlight(row); setOpenMenuId(null); }} 
-                                                                          className="w-full text-left px-3 py-2 text-white bg-emerald-600 hover:bg-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.5)] hover:scale-105 active:scale-95 rounded flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-1"
+                                                                          className={btnClass}
                                                                       >
-                                                                          <Play size={14} /> Iniciar Abastecimento
+                                                                          <Play size={14} className="text-emerald-500" /> Iniciar Abastecimento
                                                                       </button>
                                                                       <button onClick={(e) => { e.stopPropagation(); setConfirmRemoveOperatorFlight(row); setOpenMenuId(null); }} className={btnClass}>
                                                                           <UserCheck size={14} /> Cancelar Designação
@@ -2153,8 +2212,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                               return (
                                                                   <>
                                                                       {pinBtn}
-                                                                      <button onClick={(e) => { e.stopPropagation(); setConfirmFinishModalFlight(row); setOpenMenuId(null); }} className="w-full text-left px-3 py-2 text-slate-300 hover:bg-emerald-600 hover:text-white hover:shadow-[0_0_15px_rgba(16,185,129,0.5)] hover:scale-105 active:scale-95 rounded flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                                                                          <CheckCircle size={14} /> Finalizar
+                                                                      <button onClick={(e) => { e.stopPropagation(); setConfirmFinishModalFlight(row); setOpenMenuId(null); }} className={btnClass}>
+                                                                          <CheckCircle size={14} className="text-emerald-500" /> Finalizar
                                                                       </button>
                                                                       {inputReportBtn}
                                                                       {viewReportBtn}
@@ -2366,6 +2425,44 @@ export const GridOps: React.FC<GridOpsProps> = ({
           onClose={() => setConfirmFinishModalFlight(null)}
         />
       )}
+      {timeConflictData && (
+        <TimeConflictModal 
+            timeStr={timeConflictData.newEtd}
+            isDarkMode={isDarkMode}
+            onConfirmToday={() => {
+                const flight = flights.find(f => f.id === timeConflictData.rowId);
+                if (flight) {
+                    confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
+                }
+                setTimeConflictData(null);
+            }}
+            onConfirmTomorrow={() => {
+                const flight = flights.find(f => f.id === timeConflictData.rowId);
+                if (flight) {
+                    confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
+                    let baseDate = new Date();
+                    if (flight.date) {
+                        const [y, m, d] = flight.date.split('-').map(Number);
+                        baseDate = new Date(y, m - 1, d);
+                    }
+                    baseDate.setDate(baseDate.getDate() + 1);
+                    const newDateStr = baseDate.toISOString().split('T')[0];
+                    onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { ...f, date: newDateStr } : f));
+                }
+                setTimeConflictData(null);
+            }}
+            onCancel={() => {
+                // Revert to old ETD
+                const flight = flights.find(f => f.id === timeConflictData.rowId);
+                if (flight) {
+                    onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { ...f, etd: timeConflictData.oldEtd } : f));
+                }
+                setTimeConflictData(null);
+                setEditingCell({ rowId: timeConflictData.rowId, col: 'etd' });
+            }}
+        />
+      )}
+
     </div>
   );
 };

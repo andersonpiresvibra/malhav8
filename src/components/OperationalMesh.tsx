@@ -6,6 +6,24 @@ import { FlightData, FlightStatus } from '../types';
 import * as XLSX from 'xlsx';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
+import { TimeConflictModal } from './TimeConflictModal';
+
+const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
+    if (!targetTimeStr) return 0;
+    
+    const [hours, minutes] = targetTimeStr.split(':').map(Number);
+    const target = new Date();
+    
+    if (flightDateStr) {
+        const [year, month, day] = flightDateStr.split('-').map(Number);
+        target.setFullYear(year, month - 1, day);
+    }
+    
+    target.setHours(hours, minutes, 0, 0);
+    const current = new Date();
+    
+    return (target.getTime() - current.getTime()) / 60000;
+};
 
 interface OperationalMeshProps {
   onClose: () => void;
@@ -133,6 +151,26 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
 
   const [alertState, setAlertState] = useState<{isOpen: boolean; title: string; message: React.ReactNode}>({isOpen: false, title: '', message: ''});
   const [syncConfirmState, setSyncConfirmState] = useState<{isOpen: boolean; message: string; unsynced: MeshFlight[]}>({isOpen: false, message: '', unsynced: []});
+
+  const [timeConflictData, setTimeConflictData] = useState<{rowId: string, newEtd: string}|null>(null);
+  const confirmedConflictsRef = useRef<Set<string>>(new Set());
+
+  const handleFinishEdit = (rowId: string, colIndex: number) => {
+    setEditingCell(null);
+    const colKey = COLUMNS[colIndex]?.key;
+    if (colKey === 'etd') {
+      const flight = meshFlights.find(f => f.id === rowId);
+      if (flight && flight.etd && flight.etd.length >= 4) {
+        const diff = getMinutesDiff(flight.etd, flight.date);
+        if (diff < 0) {
+          const conflictKey = `${rowId}-${flight.etd}`;
+          if (!confirmedConflictsRef.current.has(conflictKey)) {
+            setTimeConflictData({ rowId, newEtd: flight.etd });
+          }
+        }
+      }
+    }
+  };
 
   const handleFieldChange = (id: string, field: MeshField, value: string) => {
     if (field === 'actions') return;
@@ -356,10 +394,15 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
   const executeSync = (flightsToSync: MeshFlight[]) => {
     const newFlights: FlightData[] = flightsToSync.map(mesh => {
       const isPre = mesh.etd === 'PRÉ';
+      let derivedCode = mesh.airlineCode || mesh.airline.substring(0, 3) || 'G3';
+      if (mesh.airline.toUpperCase().includes('GOL') && !mesh.airlineCode) {
+          derivedCode = 'RG';
+      }
+      
       return {
         id: `mesh-${Date.now()}-${mesh.id}`,
         airline: mesh.airline,
-        airlineCode: mesh.airlineCode || mesh.airline.substring(0, 3) || 'G3',
+        airlineCode: derivedCode,
         registration: mesh.registration.toUpperCase(),
         model: mesh.model.toUpperCase(),
         flightNumber: '', 
@@ -368,6 +411,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
         destination: mesh.destination.toUpperCase(),
         positionId: mesh.positionId,
         etd: mesh.etd,
+        date: mesh.date,
         origin: 'SBGL', 
         fuelStatus: 0,
         status: isPre ? FlightStatus.PRÉ : FlightStatus.CHEGADA,
@@ -507,7 +551,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
           if (input.selectionStart === input.value.length) {
             e.preventDefault();
             setFocusedCell({ rowId: flight.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
-            setEditingCell(null);
+            handleFinishEdit(flight.id, colIndex);
           }
         }
         break;
@@ -520,20 +564,17 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
           if (input.selectionStart === 0) {
             e.preventDefault();
             setFocusedCell({ rowId: flight.id, col: Math.max(0, colIndex - 1) });
-            setEditingCell(null);
+            handleFinishEdit(flight.id, colIndex);
           }
         }
         break;
       case 'Enter':
         e.preventDefault();
         if (isEditing) {
-          // Inteligência: Se estiver corrigindo pendências e o voo ficar OK, movemos ele e focamos o próximo
           const updatedFlight = meshFlights.find(f => f.id === flight.id);
           const errors = getFlightErrors(updatedFlight || flight);
           
           if (errors.isValid && readyStateFilter === 'ERROR') {
-             // O voo ficará pronto, então vai sumir da lista de pendentes.
-             // Vamos tentar focar o próximo voo pendente
              const nextIndex = rowIndex + 1;
              const nextPending = filteredFlights.slice(nextIndex).find(f => !getFlightErrors(f).isValid);
              
@@ -543,10 +584,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                 setFocusedCell(null);
              }
           } else {
-             // Comportamento normal: vai para a próxima coluna
              setFocusedCell({ rowId: flight.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
           }
-          setEditingCell(null);
+          handleFinishEdit(flight.id, colIndex);
         } else if (COLUMNS[colIndex].isVariable) {
           setEditingCell({ rowId: flight.id, col: colIndex });
         } else {
@@ -555,7 +595,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
         break;
       case 'Tab':
         e.preventDefault();
-        setEditingCell(null);
+        handleFinishEdit(flight.id, colIndex);
         if (e.shiftKey) {
           if (colIndex > 0) {
             setFocusedCell({ rowId: flight.id, col: colIndex - 1 });
@@ -573,7 +613,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
       case 'Escape':
         if (editingCell) {
           e.preventDefault();
-          setEditingCell(null);
+          handleFinishEdit(flight.id, colIndex);
         }
         break;
       case 'Backspace':
@@ -1135,9 +1175,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                                 type="text"
                                 autoFocus
                                 value={String(flight[col.key as keyof MeshFlight] || '')}
-                                onChange={(e) => handleFieldChange(flight.id, col.key, e.target.value)}
+                                onChange={(e) => handleFieldChange(flight.id, col.key as MeshField, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
-                                onBlur={() => setEditingCell(null)}
+                                onBlur={() => handleFinishEdit(flight.id, cIdx)}
                                 className={`
                                   absolute inset-0 w-full h-full px-3 bg-emerald-500 text-slate-950 font-mono text-[11px] uppercase font-black outline-none
                                   ${col.key === 'airline' ? 'text-left' : 'text-center'}
@@ -1224,6 +1264,40 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
               }}
               onClose={() => setSyncConfirmState(prev => ({...prev, isOpen: false}))}
           />
+      )}
+
+      {timeConflictData && (
+        <TimeConflictModal 
+            timeStr={timeConflictData.newEtd}
+            isDarkMode={isDarkMode}
+            onConfirmToday={() => {
+                const flight = meshFlights.find(f => f.id === timeConflictData.rowId);
+                if (flight) {
+                    confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
+                }
+                setTimeConflictData(null);
+            }}
+            onConfirmTomorrow={() => {
+                const flight = meshFlights.find(f => f.id === timeConflictData.rowId);
+                if (flight) {
+                    confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
+                    let baseDate = new Date();
+                    if (flight.date) {
+                        const [y, m, d] = flight.date.split('-').map(Number);
+                        baseDate = new Date(y, m - 1, d);
+                    }
+                    baseDate.setDate(baseDate.getDate() + 1);
+                    const newDateStr = baseDate.toISOString().split('T')[0];
+                    setMeshFlights(prev => prev.map(f => f.id === flight.id ? { ...f, date: newDateStr } : f));
+                }
+                setTimeConflictData(null);
+            }}
+            onCancel={() => {
+                // If cancelled, let them edit
+                setTimeConflictData(null);
+                setEditingCell({ rowId: timeConflictData.rowId, col: COLUMNS.findIndex(c => c.key === 'etd') });
+            }}
+        />
       )}
     </div>
   );

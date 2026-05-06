@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plane, Calendar, Clock, MapPin, Hash, Tag, Globe } from 'lucide-react';
 import { FlightData, FlightStatus, FlightLog } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { TimeConflictModal } from './TimeConflictModal';
 
 const GOL_PREFIXOS = [
   "PR-GEA", "PR-GEC", "PR-GED", "PR-GEH", "PR-GEI", "PR-GEJ", "PR-GEK", "PR-GEQ", "PR-GIH", "PR-GOQ", "PR-GOR", "PR-VBQ",
@@ -37,6 +38,8 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
     etd: ''
   });
 
+  const [timeConflict, setTimeConflict] = useState<string | null>(null);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     let newValue = value.toUpperCase();
@@ -52,9 +55,22 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
     setFormData(prev => ({ ...prev, [name]: newValue }));
   };
 
-  const handleCreate = () => {
+  const handleCreate = (forceDateStr?: string) => {
     // Basic validation
     if (!formData.registration || !formData.airlineCode || !formData.departureFlightNumber || !formData.etd) return;
+
+    // Check time conflict if forceDateStr is not provided
+    if (!forceDateStr && formData.etd.length >= 4) {
+      const now = new Date();
+      const [h, m] = formData.etd.split(':').map(Number);
+      const etdDate = new Date();
+      etdDate.setHours(h, m, 0, 0);
+      const diffMins = (etdDate.getTime() - now.getTime()) / 60000;
+      if (diffMins < 0) {
+        setTimeConflict(formData.etd);
+        return;
+      }
+    }
 
     const airlineCode = formData.airlineCode.toUpperCase() === 'G3' ? 'RG' : formData.airlineCode.toUpperCase();
     const airlineName = airlineCode === 'RG' ? 'GOL' : (airlineCode === 'LA' ? 'LATAM' : (airlineCode === 'AD' ? 'AZUL' : 'OUTRA'));
@@ -71,6 +87,8 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
       destination: formData.destination.toUpperCase(),
       positionId: formData.positionId,
       etd: formData.etd,
+      date: forceDateStr, // if undefined, GridOps adds activeDateOffset
+      insertionTime: new Date(),
       origin: 'SBGL', // Default
       fuelStatus: 0,
       status: FlightStatus.CHEGADA, // Default status
@@ -318,6 +336,29 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
 
         </form>
       </div>
+
+      {timeConflict && (
+        <TimeConflictModal 
+            timeStr={timeConflict}
+            isDarkMode={isDarkMode}
+            onConfirmToday={() => {
+                const now = new Date();
+                const dList = now.toISOString().split('T')[0];
+                handleCreate(dList); // Hoje
+                setTimeConflict(null);
+            }}
+            onConfirmTomorrow={() => {
+                const now = new Date();
+                now.setDate(now.getDate() + 1);
+                const dList = now.toISOString().split('T')[0];
+                handleCreate(dList); // Amanhã
+                setTimeConflict(null);
+            }}
+            onCancel={() => {
+                setTimeConflict(null);
+            }}
+        />
+      )}
     </div>
   );
 };

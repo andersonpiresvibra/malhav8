@@ -52,24 +52,24 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
               </div>
               <div className="text-left">
                   {editingField === 'ltName' ? (
-                      <input 
-                          type="text" 
-                          value={tempLtName}
-                          onChange={(e) => setTempLtName(e.target.value)}
-                          onBlur={() => { setLtName(tempLtName); setEditingField(null); }}
-                          onKeyDown={(e) => { 
-                              if (e.key === 'Enter') { 
-                                  setLtName(tempLtName); 
-                                  setEditingField(null); 
-                              } 
-                          }}
-                          placeholder="INSIRA SEU NOME"
-                          autoFocus
-                          className="bg-black/20 text-white font-bold text-sm rounded outline-none border border-emerald-500/50 px-1 uppercase w-36 placeholder:text-white/50"
-                      />
+                        <input 
+                            type="text" 
+                            value={tempLtName}
+                            onChange={(e) => setTempLtName(e.target.value)}
+                            onBlur={() => { setLtName(tempLtName); setEditingField(null); }}
+                            onKeyDown={(e) => { 
+                                if (e.key === 'Enter') { 
+                                    setLtName(tempLtName); 
+                                    setEditingField(null); 
+                                } 
+                            }}
+                            placeholder="INSIRA SEU NOME"
+                            autoFocus
+                            className={`font-bold text-sm rounded outline-none border border-emerald-500/50 px-1 uppercase w-36 ${isDarkMode ? 'bg-black/20 text-white placeholder:text-white/50' : 'bg-white text-slate-900 placeholder:text-slate-400'}`}
+                        />
                   ) : (
                       <span 
-                          className={`text-sm font-bold transition-colors uppercase block select-none ${ltName ? 'text-white group-hover:text-emerald-200' : 'text-white/50 group-hover:text-white/80'}`}
+                          className="text-sm font-bold transition-colors uppercase block select-none text-white group-hover:text-emerald-200"
                           onClick={() => { setTempLtName(ltName); setEditingField('ltName'); }}
                       >
                           {ltName || 'INSIRA SEU NOME'}
@@ -82,7 +82,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
           <div className="w-px h-10 bg-white/20"></div>
 
           <div>
-              <h1 className={`text-4xl font-bold tracking-tighter font-mono ${isDarkMode ? 'text-white' : 'text-[#4ade80]'}`}>{formatTime(currentTime)}</h1>
+              <h1 className="text-4xl font-bold tracking-tighter font-mono text-white">{formatTime(currentTime)}</h1>
               <p className="text-xs text-emerald-100 font-bold tracking-widest">{formatDate(currentTime)}</p>
           </div>
 
@@ -91,7 +91,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
           <div className="flex items-center gap-6">
               <div className="text-sm">
                   <div className="flex items-center gap-2">
-                      <span className="text-emerald-100/70 font-bold text-xs uppercase w-10">DENS.</span>
+                      <span className="text-white font-bold text-xs uppercase w-10">DENS.</span>
                       {editingField === 'density' ? (
                           <input 
                               type="text"
@@ -114,11 +114,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                                   }
                               }}
                               autoFocus
-                              className="w-16 bg-white/10 text-white font-mono font-bold text-lg rounded px-1 outline-none"
+                              className={`w-16 font-mono font-bold text-lg rounded px-1 outline-none ${isDarkMode ? 'bg-white/10 text-white' : 'bg-white text-slate-900 border border-emerald-500/50'}`}
                           />
                       ) : (
                           <span 
-                              className={`font-mono font-bold ${isDarkMode ? 'text-white' : 'text-[#4ade80]'} text-lg cursor-pointer hover:text-emerald-200 transition-colors w-16 inline-block`}
+                              className="font-mono font-bold text-white text-lg cursor-pointer hover:text-emerald-200 transition-colors w-16 inline-block"
                               onClick={() => setEditingField('density')}
                           >
                               {Number(densityN).toFixed(3)}
@@ -126,7 +126,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                       )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                      <span className="text-emerald-100/70 font-bold text-xs uppercase w-10">TEMP.</span>
+                      <span className="text-white font-bold text-xs uppercase w-10">TEMP.</span>
                       {editingField === 'temperature' ? (
                           <input 
                               type="text"
@@ -149,11 +149,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                                   }
                               }}
                               autoFocus
-                              className="w-16 bg-white/10 text-white font-mono font-bold text-lg rounded px-1 outline-none"
+                              className={`w-16 font-mono font-bold text-lg rounded px-1 outline-none ${isDarkMode ? 'bg-white/10 text-white' : 'bg-white text-slate-900 border border-emerald-500/50'}`}
                           />
                       ) : (
                           <span 
-                              className={`font-mono font-bold ${isDarkMode ? 'text-white' : 'text-[#4ade80]'} text-lg cursor-pointer hover:text-emerald-200 transition-colors w-16 inline-block`}
+                              className="font-mono font-bold text-white text-lg cursor-pointer hover:text-emerald-200 transition-colors w-16 inline-block"
                               onClick={() => setEditingField('temperature')}
                           >
                               {Number(temperature).toFixed(1)}°C

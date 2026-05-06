@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
               >
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="transition-transform group-hover:scale-110" />
                 <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 whitespace-nowrap ${
-                  isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  isActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
                 } transition-opacity`}>
                   {item.label}
                 </span>

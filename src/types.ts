@@ -177,6 +177,7 @@ export interface FlightData {
   currentFlowRate?: number; // Vazão atual (L/min)
   
   // Caixa Preta e Justificativas
+  insertionTime?: Date; // Hora real em que o voo foi inserido na malha
   logs: FlightLog[]; 
   observations?: string; // Mantido para compatibilidade, mas idealmente derivado de logs
   delayJustification?: string; // Justificativa de atraso se ETD estourado

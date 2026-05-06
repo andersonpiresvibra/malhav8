@@ -79,7 +79,7 @@ const App: React.FC = () => {
   const [ltName, setLtName] = useState('');
   const [tempLtName, setTempLtName] = useState('');
 
-  const isNameInvalid = !ltName || ltName.trim() === '';
+  const isNameInvalid = false; // !ltName || ltName.trim() === ''; // disabled temporarily per user request
 
   const toggleFullscreen = () => {
     const doc = document as any;
