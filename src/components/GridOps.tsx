@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FlightStatus, FlightData, FlightLog, LogType, OperatorProfile } from '../types';
-import { MOCK_TEAM_PROFILES } from '../data/mockData'; // Importando perfis para designação
+ // Importando perfis para designação
 
 import { FlightDetailsModal } from './FlightDetailsModal';
 import { FlightReportInputModal } from './FlightReportInputModal';

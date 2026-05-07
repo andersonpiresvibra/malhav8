@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FlightData, FlightLog, OperatorProfile, Vehicle, FlightStatus } from '../types';
-import { MOCK_TEAM_PROFILES } from '../data/mockData';
+
 import useOnClickOutside from '../hooks/useOnClickOutside';
 import { DesigOpr } from './desigopr';
 import { useTheme } from '../contexts/ThemeContext';
@@ -198,7 +198,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
   const availableOperators = useMemo(() => {
     const isRemote = flight.positionId.startsWith('5') || flight.positionId.startsWith('6') || flight.positionId.startsWith('7');
 
-    return MOCK_TEAM_PROFILES
+    return operators
       .filter(op => {
         if (op.status !== 'DISPONÍVEL') return false;
         if (isRemote && op.category !== 'ILHA' && op.category !== 'VIP') return false; // Simplificado para ILHA/VIP em remotas

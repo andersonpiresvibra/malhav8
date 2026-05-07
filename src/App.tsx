@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo } from 'react';
 import { ViewState, FlightData, Vehicle } from './types';
-import { MOCK_TEAM_PROFILES } from './data/mockData';
-import { MOCK_VEHICLES } from './data/mockVehicleData';
+
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from './data/operationalMesh';
 import { DashboardHeader } from './components/DashboardHeader';
 import { Spinner } from './components/ui/Spinner';
@@ -41,8 +40,27 @@ const App: React.FC = () => {
     return [];
   });
 
-  const [globalVehicles, setGlobalVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
+  const [globalVehicles, setGlobalVehicles] = useState<Vehicle[]>([]);
   const [globalOperators, setGlobalOperators] = useState<OperatorProfile[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+
+  useEffect(() => {
+    import('./services/supabaseService').then(async ({ getVehicles, getOperators }) => {
+      try {
+        const [vehicles, operators] = await Promise.all([
+          getVehicles(),
+          getOperators()
+        ]);
+        if (vehicles && vehicles.length > 0) setGlobalVehicles(vehicles);
+        if (operators && operators.length > 0) setGlobalOperators(operators);
+      } catch (err) {
+        console.error('Failed to load base data from Supabase:', err);
+      } finally {
+        setIsLoadingData(false);
+      }
+    });
+  }, []);
+
   const [meshFlightsByDate, setMeshFlightsByDate] = useState<Record<string, MeshFlight[]>>(() => {
     const saved = localStorage.getItem('meshFlightsByDate');
     const today = new Date().toISOString().split('T')[0];

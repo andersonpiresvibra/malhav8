@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { FlightStatus, FlightData } from '../types';
-import { MOCK_TEAM_PROFILES } from '../data/mockData';
+import { FlightStatus, FlightData, OperatorProfile } from '../types';
 import { OperatorCell } from './OperatorCell';
 import { AirlineLogo } from './AirlineLogo';
 import { 
@@ -14,6 +13,7 @@ import {
 interface ReportsViewProps {
     flights: FlightData[];
     initialFlight?: FlightData | null;
+    operators?: OperatorProfile[];
 }
 
 type ReportTab = 'FINALIZADOS' | 'SUCESSO' | 'ATRASADOS' | 'TROCADOS' | 'CANCELADOS';
@@ -70,7 +70,7 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight }) => {
+export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight, operators = [] }) => {
   const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState<ReportTab>('FINALIZADOS');
   const [activeShift, setActiveShift] = useState<ShiftTab>('GERAL');
@@ -386,7 +386,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                             <div>
                                 <span className="block text-[10px] font-bold text-slate-500 uppercase">Operador Responsável</span>
                                 <div className="mt-1">
-                                    <OperatorCell operatorName={selectedFlight.operator} />
+                                    <OperatorCell operatorName={selectedFlight.operator} operators={operators} />
                                 </div>
                             </div>
                         </div>
@@ -607,7 +607,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                             : null;
                                         
                                         const flightShift = getShift(flight.endTime || flight.startTime);
-                                        const operatorProfile = MOCK_TEAM_PROFILES.find(p => p.warName === flight.operator);
+                                        const operatorProfile = operators.find(p => p.warName === flight.operator);
 
                                         // Dynamic font color for "Histórico Geral" based on status
                                         const isGeneralHistory = activeTab === 'FINALIZADOS';
@@ -636,7 +636,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${statusColorClass} uppercase`}>{flightShift}</td>
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'}`}>
                                                 <div className="flex justify-start pl-8">
-                                                    <OperatorCell operatorName={flight.operator} />
+                                                    <OperatorCell operatorName={flight.operator} operators={operators} />
                                                 </div>
                                             </td>
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${whiteColorClass}`}>{flight.volume?.toLocaleString() || 0}</td>
