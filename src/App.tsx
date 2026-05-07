@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { ViewState, FlightData, Vehicle } from './types';
 import { MOCK_TEAM_PROFILES } from './data/mockData';
 import { MOCK_VEHICLES } from './data/mockVehicleData';
@@ -42,17 +42,45 @@ const App: React.FC = () => {
 
   const [globalVehicles, setGlobalVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
   const [globalOperators, setGlobalOperators] = useState<OperatorProfile[]>([]);
-  const [meshFlights, setMeshFlights] = useState<MeshFlight[]>(() => {
-    const saved = localStorage.getItem('meshFlights');
+  const [meshFlightsByDate, setMeshFlightsByDate] = useState<Record<string, MeshFlight[]>>(() => {
+    const saved = localStorage.getItem('meshFlightsByDate');
     if (saved) {
       try {
         return JSON.parse(saved);
       } catch (e) {
-        console.error('Failed to parse meshFlights from localStorage', e);
+        console.error('Failed to parse meshFlightsByDate', e);
       }
     }
-    return INITIAL_MESH_FLIGHTS;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Fallback: load old single mesh if exists
+    const oldSaved = localStorage.getItem('meshFlights');
+    if (oldSaved) {
+       try {
+          return { [today]: JSON.parse(oldSaved) };
+       } catch (e) {}
+    }
+    
+    return { [today]: INITIAL_MESH_FLIGHTS };
   });
+
+  const [currentMeshDate, setCurrentMeshDate] = useState<string>(
+      () => new Date().toISOString().split('T')[0]
+  );
+  
+  const meshFlights = meshFlightsByDate[currentMeshDate] || [];
+  
+  const setMeshFlights = useCallback((action: React.SetStateAction<MeshFlight[]>) => {
+      setMeshFlightsByDate(prev => {
+          const current = prev[currentMeshDate] || [];
+          const updated = typeof action === 'function' ? action(current) : action;
+          return { ...prev, [currentMeshDate]: updated };
+      });
+  }, [currentMeshDate]);
+
+  useEffect(() => {
+    localStorage.setItem('meshFlightsByDate', JSON.stringify(meshFlightsByDate));
+  }, [meshFlightsByDate]);
 
   useEffect(() => {
     if (!localStorage.getItem('migration_no_mocks_v5')) {
@@ -255,6 +283,8 @@ const App: React.FC = () => {
                     isDarkMode={isDarkMode}
                     meshFlights={meshFlights}
                     setMeshFlights={setMeshFlights}
+                    currentMeshDate={currentMeshDate}
+                    setCurrentMeshDate={setCurrentMeshDate}
                     setFlights={setGlobalFlights}
                     globalFlights={globalFlights}
                     onActivateMesh={(newFlights) => {

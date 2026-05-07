@@ -363,9 +363,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
         if (flight && flight.etd && flight.etd.length >= 4) {
             const diff = getMinutesDiff(flight.etd, flight.date);
             if (diff < 0) {
+                const oldFlight = lastStableFlightsRef.current.find(f => f.id === rowId);
+                const trueOldEtd = oldFlight?.etd || ''; // REAL original ETD
                 const conflictKey = `${rowId}-${flight.etd}`;
                 if (!confirmedConflictsRef.current.has(conflictKey)) {
-                    setTimeConflictData({ rowId, oldEtd: flight.etd, newEtd: flight.etd });
+                    setTimeConflictData({ rowId, oldEtd: trueOldEtd, newEtd: flight.etd });
                 }
             }
         }
@@ -2451,14 +2453,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 }
                 setTimeConflictData(null);
             }}
-            onCancel={() => {
-                // Revert to old ETD
+            onCorrect={() => {
+                setTimeConflictData(null);
+                setEditingCell({ rowId: timeConflictData.rowId, col: 'etd' });
+            }}
+            onDiscard={() => {
                 const flight = flights.find(f => f.id === timeConflictData.rowId);
                 if (flight) {
                     onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { ...f, etd: timeConflictData.oldEtd } : f));
                 }
                 setTimeConflictData(null);
-                setEditingCell({ rowId: timeConflictData.rowId, col: 'etd' });
             }}
         />
       )}

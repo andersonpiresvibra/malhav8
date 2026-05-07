@@ -6,7 +6,8 @@ interface TimeConflictModalProps {
   isDarkMode: boolean;
   onConfirmToday: () => void;
   onConfirmTomorrow: () => void;
-  onCancel: () => void;
+  onCorrect: () => void;
+  onDiscard: () => void;
 }
 
 export const TimeConflictModal: React.FC<TimeConflictModalProps> = ({
@@ -14,7 +15,8 @@ export const TimeConflictModal: React.FC<TimeConflictModalProps> = ({
   isDarkMode,
   onConfirmToday,
   onConfirmTomorrow,
-  onCancel
+  onCorrect,
+  onDiscard
 }) => {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
@@ -59,15 +61,28 @@ export const TimeConflictModal: React.FC<TimeConflictModalProps> = ({
             </button>
 
             <button
-              onClick={onCancel}
+              onClick={onCorrect}
               className={`w-full p-4 rounded-xl border flex items-center gap-4 transition-all group ${isDarkMode ? 'border-slate-700 bg-slate-800 hover:border-slate-500 hover:bg-slate-700' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
             >
               <div className="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                 <Undo2 size={20} className={isDarkMode ? 'text-slate-300' : 'text-slate-600'} />
               </div>
               <div className="text-left flex-1">
-                <p className={`font-black text-[13px] uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>Cancelar / Corrigir</p>
-                <p className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} font-medium`}>Foi um erro de digitação, quero corrigir.</p>
+                <p className={`font-black text-[13px] uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>Corrigir Digitação</p>
+                <p className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} font-medium`}>Voltar a editar para corrigir o horário.</p>
+              </div>
+            </button>
+
+            <button
+              onClick={onDiscard}
+              className={`w-full p-4 rounded-xl border flex items-center gap-4 transition-all group ${isDarkMode ? 'border-slate-700 bg-slate-800 hover:border-red-500 hover:bg-slate-700' : 'border-slate-200 bg-white hover:border-red-300 hover:bg-red-50'}`}
+            >
+              <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <AlertCircle size={20} className="text-red-500" />
+              </div>
+              <div className="text-left flex-1">
+                <p className={`font-black text-[13px] uppercase tracking-wide ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>Descartar Alteração</p>
+                <p className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} font-medium`}>Cancelar e restaurar o horário anterior.</p>
               </div>
             </button>
         </div>
