@@ -30,10 +30,13 @@ type MeshShift = 'TODOS' | 'MANHA' | 'TARDE' | 'NOITE';
 const getDisplayDate = (dateOffset: number) => {
     const d = new Date();
     d.setDate(d.getDate() + dateOffset);
-    if (dateOffset === 0) return `HOJE - ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase()}`;
-    if (dateOffset === -1) return `ONTEM - ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase()}`;
-    if (dateOffset === 1) return `AMNHA - ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase()}`;
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.','').toUpperCase();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const formattedDate = `${day}/${month}`;
+    if (dateOffset === 0) return `HOJE - ${formattedDate}`;
+    if (dateOffset === -1) return `ONTEM - ${formattedDate}`;
+    if (dateOffset === 1) return `AMANHÃ - ${formattedDate}`;
+    return formattedDate;
 };
 
 const isTimeInShift = (timeStr: string, shift: MeshShift) => {
@@ -113,7 +116,7 @@ const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     target.setHours(hours, minutes, 0, 0);
     const current = new Date();
     
-    let diff = (target.getTime() - current.getTime()) / 60000;
+    let diff = Math.round((target.getTime() - current.getTime()) / 60000);
     
     return diff;
 };
@@ -361,8 +364,12 @@ export const GridOps: React.FC<GridOpsProps> = ({
     if (colKey === 'etd') {
         const flight = flights.find(f => f.id === rowId);
         if (flight && flight.etd && flight.etd.length >= 4) {
-            const diff = getMinutesDiff(flight.etd, flight.date);
-            if (diff < 0) {
+            const [h] = flight.etd.split(':').map(Number);
+            const currentH = new Date().getHours();
+            // Verificação se o horário digitado cruza a meia-noite (próximo dia)
+            const isNextDayCross = (currentH >= 12 && h < currentH - 12);
+            
+            if (isNextDayCross) {
                 const oldFlight = lastStableFlightsRef.current.find(f => f.id === rowId);
                 const trueOldEtd = oldFlight?.etd || ''; // REAL original ETD
                 const conflictKey = `${rowId}-${flight.etd}`;
@@ -538,6 +545,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   
   // New Confirmation Modals
   const [confirmStartModalFlight, setConfirmStartModalFlight] = useState<FlightData | null>(null);
+  const [missingPositionModalFlight, setMissingPositionModalFlight] = useState<FlightData | null>(null);
   const [confirmRemoveOperatorFlight, setConfirmRemoveOperatorFlight] = useState<FlightData | null>(null);
   const [confirmFinishModalFlight, setConfirmFinishModalFlight] = useState<FlightData | null>(null);
 
@@ -590,8 +598,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 const minutesToETD = getMinutesDiff(f.etd, f.date);
                 
                 // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
-                // Só move para fila se NÃO tiver operador e estiver no prazo crítico
-                if (f.status === FlightStatus.CHEGADA && minutesToETD < 60 && !f.operator && !f.isExcludedFromQueue) {
+                // Só move para fila se NÃO tiver operador e estiver no prazo crítico (mas não ultrapassado demais)
+                if (f.status === FlightStatus.CHEGADA && minutesToETD < 60 && minutesToETD >= -120 && !f.operator && !f.isExcludedFromQueue) {
                     const newLog = createNewLog('SISTEMA', 'Voo movido para FILA automaticamente (ETD < 60min).', 'SISTEMA');
                     return { 
                         ...f, 
@@ -599,21 +607,28 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         logs: [...(f.logs || []), newLog]
                     };
                 }
-
+                
                 // NOVA LÓGICA: Início de abastecimento automático (Time-triggered)
-                // Se ETD <= 25min e o voo está nas fases prévias (DESIGNADO ou PRÉ)
-                if ((f.status === FlightStatus.DESIGNADO || f.status === FlightStatus.PRÉ) && 
-                    f.operator && 
-                    minutesToETD <= 25 && 
-                    minutesToETD > -120 
-                ) {
-                    const newLog = createNewLog('SISTEMA', 'Início de abastecimento automático (T-25min).', 'SISTEMA');
-                    return {
-                        ...f,
-                        status: FlightStatus.ABASTECENDO,
-                        startTime: new Date(),
-                        logs: [...(f.logs || []), newLog]
-                    };
+                // O operador precisa de 5 min para "A CAMINHO" e 5 min para "ACOPLANDO" (Total 10 mins).
+                const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
+                if ((f.status === FlightStatus.DESIGNADO || f.status === FlightStatus.PRÉ) && f.operator && hasPosition) {
+                    const designationTime = f.designationTime ? new Date(f.designationTime).getTime() : 0;
+                    if (designationTime > 0) {
+                        const minsSinceDesig = (Date.now() - designationTime) / 60000;
+                        
+                        if (minsSinceDesig >= 10) {
+                            // Se o voo já está atrasado (menor que 30) ou se for pra iniciar por tempo (ETD <= 25)
+                            if (minutesToETD <= 25 || minutesToETD < 30) {
+                                const newLog = createNewLog('SISTEMA', 'Início aut. de abastecimento (10m deslocamento/acoplamento respeitados).', 'SISTEMA');
+                                return {
+                                    ...f,
+                                    status: FlightStatus.ABASTECENDO,
+                                    startTime: new Date(),
+                                    logs: [...(f.logs || []), newLog]
+                                };
+                            }
+                        }
+                    }
                 }
                 
                 return f;
@@ -636,6 +651,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
             confirmDeleteFlight();
         } else if (confirmStartModalFlight) {
             handleConfirmStart();
+        } else if (missingPositionModalFlight) {
+            const f = missingPositionModalFlight;
+            setMissingPositionModalFlight(null);
+            onUpdateFlights(prev => prev.map(flight => 
+                flight.id === f.id ? { ...flight, positionId: 'PÁTIO VIP' } : flight
+            ));
+            setConfirmStartModalFlight({ ...f, positionId: 'PÁTIO VIP' });
         } else if (confirmFinishModalFlight) {
             handleConfirmFinish();
         } else if (confirmRemoveOperatorFlight) {
@@ -648,7 +670,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   }, [
       observationModalFlight, newObservation, 
       delayModalFlightId, delayReasonCode, 
-      cancelModalFlight, confirmStartModalFlight, 
+      cancelModalFlight, confirmStartModalFlight, missingPositionModalFlight,
       confirmFinishModalFlight, confirmRemoveOperatorFlight,
       deleteModalFlight
   ]);
@@ -669,12 +691,30 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const d = new Date();
     d.setDate(d.getDate() + activeDateOffset);
     const targetDateStr = d.toISOString().split('T')[0];
+    
+    // For crossover shift logic
+    const dNext = new Date();
+    dNext.setDate(dNext.getDate() + activeDateOffset + 1);
+    const nextDateStr = dNext.toISOString().split('T')[0];
+    
     const todayStr = new Date().toISOString().split('T')[0];
 
     return flights.filter(f => {
        if (f.isHiddenFromGrid) return false;
        const fDate = f.date || todayStr;
-       return fDate === targetDateStr;
+       
+       if (fDate === targetDateStr) return true;
+       
+       // Crossover turn concept (virada de turno): 
+       // Bring next day's early morning flights (00:00 - 05:00) into today's view automatically
+       if (fDate === nextDateStr && f.etd && f.etd !== '?' && f.etd !== 'PRÉ') {
+           const [h] = f.etd.split(':').map(Number);
+           if (h >= 0 && h < 5) {
+               return true; // Aparece simultaneamente
+           }
+       }
+       
+       return false;
     });
   }, [flights, activeDateOffset]);
 
@@ -776,6 +816,26 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isCTA = colKey === 'positionId' && row.positionType === 'CTA';
     const ctaClasses = isCTA ? 'bg-yellow-400 text-slate-900 border-yellow-500' : '';
 
+    let cellStyle = className;
+    let extraLabel = null;
+
+    if (colKey === 'etd' && row.status !== FlightStatus.FINALIZADO && row.status !== FlightStatus.CANCELADO) {
+        const minutesToETD = getMinutesDiff(row.etd, row.date);
+        if (minutesToETD < -120) {
+            cellStyle += isDarkMode ? " text-red-300 bg-red-900/60 font-black tracking-widest" : " text-red-800 bg-red-200 font-black tracking-widest";
+        } else if (minutesToETD < 0) {
+            cellStyle += isDarkMode ? " text-orange-400 bg-orange-950/20" : " text-orange-600 bg-orange-50 font-bold";
+        }
+    }
+
+    // Indicator for Next Day crossover shift
+    const d = new Date();
+    d.setDate(d.getDate() + activeDateOffset);
+    const targetDateStr = d.toISOString().split('T')[0];
+    if (colKey === 'etd' && row.date && row.date > targetDateStr) {
+        extraLabel = <span className="absolute -top-1.5 -left-1 text-[7px] bg-blue-500 text-white px-1 rounded-sm font-black uppercase tracking-tighter shadow-sm z-20 pointer-events-none" title="Voo do dia seguinte (cruzamento de turno)">+1D</span>;
+    }
+
     return (
       <td 
         data-rowid={row.id}
@@ -793,7 +853,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             type="text"
             autoFocus
             onFocus={(e) => e.target.select()}
-            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${className} ${isDarkMode ? (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-slate-900 shadow-inner') : (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-white font-black text-slate-900')}`}
+            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${cellStyle} ${isDarkMode ? (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-slate-900 shadow-inner') : (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-white font-black text-slate-900')}`}
             value={value}
             onChange={(e) => handleFieldChange(row.id, colKey, e.target.value)}
             onBlur={() => handleFinishEdit(row.id, colKey as string)}
@@ -812,8 +872,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
               }
             }}
             onKeyDown={(e) => handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)}
-            className={`w-full h-full px-1 flex items-center ${colKey === 'airlineCode' ? 'justify-start ml-2' : 'justify-center'} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? 'ring-2 ring-indigo-500 ring-inset z-20 shadow-xl ' + (editable ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-500/10') : ''} ${className} ${ctaClasses}`}
+            className={`w-full h-full px-1 flex items-center relative ${colKey === 'airlineCode' ? 'justify-start ml-2' : 'justify-center'} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? 'ring-2 ring-indigo-500 ring-inset z-20 shadow-xl ' + (editable ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-500/10') : ''} ${cellStyle} ${ctaClasses}`}
           >
+            {extraLabel}
             {colKey === 'airlineCode' ? (
               <AirlineLogo airlineCode={row.airlineCode} className={isFocused && editable && isDarkMode ? 'invert brightness-200 justify-start' : 'justify-start'} />
             ) : (
@@ -850,6 +911,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   const bInactive = b.status === FlightStatus.FINALIZADO || b.status === FlightStatus.CANCELADO;
                   if (aInactive && !bInactive) return 1;
                   if (!aInactive && bInactive) return -1;
+                  
+                  const aMin = getMinutesDiff(a.etd, a.date);
+                  const bMin = getMinutesDiff(b.etd, b.date);
+                  return aMin - bMin;
               }
               
               return 0;
@@ -1085,6 +1150,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
       setOpenMenuId(null);
   };
 
+  const handleIntentStart = (row: FlightData, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const pos = row.positionId?.trim();
+      if (!pos || pos === '?' || pos === '-') {
+          setMissingPositionModalFlight(row);
+      } else {
+          setConfirmStartModalFlight(row);
+      }
+      setOpenMenuId(null);
+  };
+
   const handleConfirmStart = (data?: { startTime?: Date }) => {
       if (!confirmStartModalFlight) return;
       handleManualStart(confirmStartModalFlight.id, { stopPropagation: () => {} } as React.MouseEvent, data?.startTime);
@@ -1220,7 +1296,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
         const baseStatusMap: Record<FlightStatus, string> = {
             [FlightStatus.CHEGADA]: 'CHEGADA',
             [FlightStatus.FILA]: 'FILA',
-            [FlightStatus.DESIGNADOS]: 'DESIGNADOS',
+            [FlightStatus.DESIGNADO]: 'DESIGNADO',
+            [FlightStatus.AGUARDANDO]: 'AGUARDANDO',
             [FlightStatus.ABASTECENDO]: 'ABASTECENDO',
             [FlightStatus.FINALIZADO]: 'FINALIZADO',
             [FlightStatus.CANCELADO]: 'CANCELADO',
@@ -1326,30 +1403,68 @@ export const GridOps: React.FC<GridOpsProps> = ({
         };
         
         // Se tem operador, segue a mesma lógica de designado (A caminho, acoplando...)
-        const elapsed = f.designationTime ? (new Date().getTime() - f.designationTime.getTime()) / 60000 : 0;
-        if (elapsed > 5) return { 
-            label: 'ACOPLANDO', 
-            color: isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200' 
-        };
+        const elapsed = f.designationTime ? (new Date().getTime() - new Date(f.designationTime).getTime()) / 60000 : 0;
+        const isDelayed = minutesToETD < 30; // Atraso ou Penalty
+        const delayedColor = isDarkMode ? 'text-red-500 bg-red-900/40 border-red-500/50' : 'text-red-700 bg-red-100 border-red-400';
+        const delayedRowClass = isDarkMode ? '[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40' : '[&>td]:!bg-red-50 [&>td]:!border-red-200';
+        
+        let targetLabel = 'A CAMINHO';
+        let targetColor = isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-400' : 'text-indigo-600 bg-indigo-50 border-indigo-200';
+        
+        const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
+
+        if (!hasPosition) {
+            if (elapsed > 5) {
+                targetLabel = 'AGUARDANDO';
+                targetColor = isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500' : 'text-amber-600 bg-amber-50 border-amber-200';
+            }
+        } else {
+            if (elapsed > 10) {
+                targetLabel = 'ACOPLADO';
+                targetColor = isDarkMode ? 'text-blue-500 bg-blue-900/40 border-blue-500' : 'text-blue-700 bg-blue-100 border-blue-300';
+            } else if (elapsed > 5) {
+                targetLabel = 'ACOPLANDO';
+                targetColor = isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200';
+            }
+        }
+        
         return { 
-            label: 'A CAMINHO', 
-            color: isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-400' : 'text-indigo-600 bg-indigo-50 border-indigo-200' 
+            label: targetLabel, 
+            color: isDelayed ? delayedColor : targetColor,
+            rowClass: isDelayed ? delayedRowClass : undefined
         };
     }
 
     if (f.status === FlightStatus.DESIGNADO) {
-        const elapsed = f.designationTime ? (new Date().getTime() - f.designationTime.getTime()) / 60000 : 0;
-        if (elapsed > 10) return { 
-            label: 'AGUARDANDO', 
-            color: isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500' : 'text-amber-600 bg-amber-50 border-amber-200' 
-        };
-        if (elapsed > 5) return { 
-            label: 'ACOPLANDO', 
-            color: isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200' 
-        };
+        const elapsed = f.designationTime ? (new Date().getTime() - new Date(f.designationTime).getTime()) / 60000 : 0;
+        const isDelayed = minutesToETD < 30; // Atraso ou Penalty
+        const delayedColor = isDarkMode ? 'text-red-500 bg-red-900/40 border-red-500/50' : 'text-red-700 bg-red-100 border-red-400';
+        const delayedRowClass = isDarkMode ? '[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40' : '[&>td]:!bg-red-50 [&>td]:!border-red-200';
+        
+        let targetLabel = 'A CAMINHO';
+        let targetColor = isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-400' : 'text-indigo-600 bg-indigo-50 border-indigo-200';
+        
+        const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
+
+        if (!hasPosition) {
+            if (elapsed > 5) {
+                targetLabel = 'AGUARDANDO';
+                targetColor = isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500' : 'text-amber-600 bg-amber-50 border-amber-200';
+            }
+        } else {
+            if (elapsed > 10) {
+                targetLabel = 'ACOPLADO';
+                targetColor = isDarkMode ? 'text-blue-500 bg-blue-900/40 border-blue-500' : 'text-blue-700 bg-blue-100 border-blue-300';
+            } else if (elapsed > 5) {
+                targetLabel = 'ACOPLANDO';
+                targetColor = isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200';
+            }
+        }
+        
         return { 
-            label: 'A CAMINHO', 
-            color: isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-400' : 'text-indigo-600 bg-indigo-50 border-indigo-200' 
+            label: targetLabel, 
+            color: isDelayed ? delayedColor : targetColor,
+            rowClass: isDelayed ? delayedRowClass : undefined
         };
     }
 
@@ -1550,24 +1665,41 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 </div>
             </div>
 
-            <div className="flex items-center ml-2 bg-black/20 p-1 rounded border border-white/10 h-10">
+            <div className="flex items-center ml-2 bg-black/20 p-0.5 rounded border border-white/10 h-8">
                 <button 
                   onClick={() => setActiveDateOffset(prev => prev - 1)}
-                  className="px-2 py-1 flex items-center justify-center text-white hover:text-emerald-200 transition-colors"
+                  className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
                 >
-                    <ChevronLeft size={16} />
+                    <ChevronLeft size={14} strokeWidth={2.5} />
                 </button>
-                <div className="px-4 flex items-center gap-2">
-                    <CalendarDays size={14} className="text-emerald-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap min-w-[100px] text-center">
+                <div className="px-2 flex items-center gap-1.5 relative overflow-hidden group hover:bg-white/5 rounded cursor-pointer transition-colors h-full">
+                    <CalendarDays size={13} className="text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap text-center group-hover:text-emerald-50 transition-colors">
                         {getDisplayDate(activeDateOffset)}
                     </span>
+                    <input 
+                      type="date"
+                      value={new Date(new Date().setDate(new Date().getDate() + activeDateOffset)).toISOString().split('T')[0]}
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        const targetD = new Date(e.target.value + 'T00:00:00');
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        const diffTime = targetD.getTime() - today.getTime();
+                        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                        setActiveDateOffset(diffDays);
+                      }}
+                      onClick={(e) => {
+                         try { (e.target as any).showPicker(); } catch (err) {}
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
                 </div>
                 <button 
                   onClick={() => setActiveDateOffset(prev => prev + 1)}
-                  className="px-2 py-1 flex items-center justify-center text-white hover:text-emerald-200 transition-colors"
+                  className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
                 >
-                    <ChevronRight size={16} />
+                    <ChevronRight size={14} strokeWidth={2.5} />
                 </button>
             </div>
 
@@ -1647,7 +1779,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       {/* GRID CONTAINER */}
       <div className={`flex-1 min-w-0 overflow-hidden relative ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'} pt-2`}>
             <div className="w-full h-full overflow-auto min-w-0 custom-scrollbar relative">
-              <table ref={tableRef} className="w-full text-left border-separate border-spacing-x-0 border-spacing-y-1 px-2 grid-ops-table -mt-1">
+              <table ref={tableRef} className="w-full text-left border-collapse border-spacing-0 px-2 grid-ops-table -mt-1">
                   <thead className="grid-ops-thead relative z-50">
                       <tr id="grid-header-container" className="h-10">
                     {/* LAYOUT CONDICIONAL DE COLUNAS */}
@@ -2194,7 +2326,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                                               return (
                                                                   <>
                                                                       <button 
-                                                                          onClick={(e) => { e.stopPropagation(); setConfirmStartModalFlight(row); setOpenMenuId(null); }} 
+                                                                          onClick={(e) => handleIntentStart(row, e)} 
                                                                           className={btnClass}
                                                                       >
                                                                           <Play size={14} className="text-emerald-500" /> Iniciar Abastecimento
@@ -2395,6 +2527,23 @@ export const GridOps: React.FC<GridOpsProps> = ({
           registration={deleteModalFlight.registration}
           onConfirm={confirmDeleteFlight}
           onClose={() => setDeleteModalFlight(null)}
+        />
+      )}
+
+      {/* MISSING POSITION VIP MODAL */}
+      {missingPositionModalFlight && (
+        <ConfirmActionModal
+          type="missingPositionVIP"
+          flightNumber={missingPositionModalFlight.flightNumber}
+          onConfirm={() => {
+              const f = missingPositionModalFlight;
+              setMissingPositionModalFlight(null);
+              onUpdateFlights(prev => prev.map(flight => 
+                  flight.id === f.id ? { ...flight, positionId: 'PÁTIO VIP' } : flight
+              ));
+              setConfirmStartModalFlight({ ...f, positionId: 'PÁTIO VIP' });
+          }}
+          onClose={() => setMissingPositionModalFlight(null)}
         />
       )}
 

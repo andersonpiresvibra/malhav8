@@ -138,12 +138,14 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
   const [supportInput, setSupportInput] = useState(flight.supportOperator || '');
 
   // T. Rest logic
-  const [timeRemaining, setTimeRemaining] = useState<string>('--');
+  const [timeRemaining, setTimeRemaining] = useState<string>('--m');
+  const [timeDelay, setTimeDelay] = useState<string>('--m');
 
   useEffect(() => {
     const updateTime = () => {
       if (!localFlight.etd) {
-        setTimeRemaining('--');
+        setTimeRemaining('--m');
+        setTimeDelay('--m');
         return;
       }
       
@@ -162,12 +164,27 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
       }
 
       const diffMinsTotal = Math.floor(diffMs / 60000);
-      const absMins = Math.abs(diffMinsTotal);
-      const hours = Math.floor(absMins / 60);
-      const mins = absMins % 60;
-      const sign = diffMinsTotal < 0 ? '-' : '';
       
-      setTimeRemaining(`${sign}${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+      if (diffMinsTotal >= 0) {
+        const hours = Math.floor(diffMinsTotal / 60);
+        const mins = diffMinsTotal % 60;
+        if (hours > 0) {
+            setTimeRemaining(`${hours}h${mins.toString().padStart(2, '0')}m`);
+        } else {
+            setTimeRemaining(`${mins}m`);
+        }
+        setTimeDelay('--m');
+      } else {
+        setTimeRemaining('0m');
+        const absMins = Math.abs(diffMinsTotal);
+        const hours = Math.floor(absMins / 60);
+        const mins = absMins % 60;
+        if (hours > 0) {
+            setTimeDelay(`${hours}h${mins.toString().padStart(2, '0')}m`);
+        } else {
+            setTimeDelay(`${mins}m`);
+        }
+      }
     };
 
     updateTime();
@@ -654,18 +671,28 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         )}
                     </div>
 
-                    {/* T. REST. */}
-                    <div className="space-y-1 group">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                            <Clock size={10} className="text-slate-300" /> T. Rest.
-                        </label>
-                        <div className="flex items-center gap-1.5">
-                            <span className={`text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center uppercase border ${
-                                timeRemaining.startsWith('-') 
-                                ? 'bg-red-50 border-red-100 text-red-600' 
-                                : 'bg-blue-50 border-blue-100 text-blue-700'
-                            }`}>
+                    {/* TEMPOS (RESTANTE / ATRASO) */}
+                    <div className="flex gap-2">
+                        {/* T. REST. */}
+                        <div className="space-y-1 group">
+                            <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <Clock size={10} className="text-slate-300" /> T. Rest.
+                            </label>
+                            <span className="text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center uppercase border bg-blue-50 border-blue-100 text-blue-700">
                                 {timeRemaining}
+                            </span>
+                        </div>
+                        {/* T. ATR. */}
+                        <div className="space-y-1 group">
+                            <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 cursor-help" title="Tempo de Atraso">
+                                <AlertCircle size={10} className="text-slate-300" /> T. Atr.
+                            </label>
+                            <span className={`text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center uppercase border ${
+                                timeDelay !== '--m' 
+                                ? 'bg-red-50 border-red-100 text-red-600' 
+                                : 'bg-slate-50 border-slate-100 text-slate-400'
+                            }`}>
+                                {timeDelay}
                             </span>
                         </div>
                     </div>

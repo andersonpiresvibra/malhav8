@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Users, Table, Database, FileBarChart } from 'lucide-react';
+import { LayoutDashboard, Users, Table, Database, FileBarChart, Network } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
@@ -12,6 +12,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'OPERATIONAL_MESH' as ViewState, icon: Database, label: 'Base' },
+    // { id: 'ROOT_MESH' as ViewState, icon: Network, label: 'Raiz' }, // Temporarily hiding Root Mesh
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];

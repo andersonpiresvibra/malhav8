@@ -24,8 +24,11 @@ const latamData = "LA3396,SBPS,00:10 | LA3960,SBIZ,00:15 | LA3306,SBSV,00:20 | L
 const golData = "RG1644,SBJP,00:05 | RG1680,SBSG,00:10 | RG9632,SBRF,04:30 | RG9600,SBGO,04:35 | RG9618,SBSV,05:15 | RG9616,SBVT,05:25 | RG9608,SBCY,05:25 | RG9604,SBPA,05:35 | RG1454,SBBR,05:45 | RG9612,SBSV,06:00 | RG9636,SBBR,06:15 | RG1676,SBSG,08:20 | RG1554,SBSG,08:35 | RG1690,SBSV,08:40 | RG1774,SBFN,08:40 | RG1234,SBPA,08:40 | RG1178,SBFI,08:45 | RG7638,SLVR,08:50 | RG7480,SGAS,08:55 | RG1456,SBBR,08:55 | RG1586,SBRF,08:55 | RG1466,SBCY,09:00 | RG7630,SUMU,09:10 | RG1668,SBMO,09:10 | RG1128,SBCA,09:15 | RG7640,SABE,09:40 | RG1652,SBAR,09:45 | RG1168,SBCT,09:45 | RG1482,SBCF,09:50 | RG1374,SBGL,09:55 | RG1658,SBPS,10:00 | RG1140,SBFL,10:00";
 
 const parseData = (dataStr: string, airline: string, airlineCode: string): MeshFlight[] => {
+  const isLatam = airlineCode === 'LA';
+  
   return dataStr.split('|').map(item => item.trim()).filter(Boolean).map((item, index) => {
     const [departureFlightNumber, destination, etd] = item.split(',');
+    
     return {
       id: `${airlineCode}-${departureFlightNumber}-${index}`,
       airline,

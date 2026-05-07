@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy } from 'lucide-react';
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
 import { FlightData, FlightStatus } from '../types';
 import * as XLSX from 'xlsx';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
 import { TimeConflictModal } from './TimeConflictModal';
-import { BulkNextDayModal } from './BulkNextDayModal';
+import { PieChartDashboard } from './PieChartDashboard';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     if (!targetTimeStr) return 0;
@@ -28,16 +28,11 @@ const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     return diff;
 };
 
-interface OperationalMeshProps {
-  onClose: () => void;
-  onActivateMesh: (flights: FlightData[]) => void;
+interface RootMeshProps {
+  rootMeshFlights: MeshFlight[];
+  setRootMeshFlights: React.Dispatch<React.SetStateAction<MeshFlight[]>>;
   isDarkMode: boolean;
-  meshFlights: MeshFlight[];
-  setMeshFlights: React.Dispatch<React.SetStateAction<MeshFlight[]>>;
-  currentMeshDate: string;
-  setCurrentMeshDate: (date: string) => void;
-  setFlights?: React.Dispatch<React.SetStateAction<FlightData[]>>;
-  globalFlights: FlightData[];
+  setMeshFlightsByDate: React.Dispatch<React.SetStateAction<Record<string, MeshFlight[]>>>;
 }
 
 const formatMeshDateDisplay = (dateString: string) => {
@@ -149,20 +144,21 @@ const formatImportTime = (rawVal: string) => {
   return '?';
 };
 
-const COLUMNS: { key: MeshField; label: string; width: string; isVariable: boolean }[] = [
-  { key: 'airline', label: 'Cia', width: 'w-24', isVariable: false },
-  { key: 'departureFlightNumber', label: 'Voo', width: 'w-24', isVariable: false },
-  { key: 'destination', label: 'Destino', width: 'w-24', isVariable: false },
-  { key: 'etd', label: 'ETD', width: 'w-20', isVariable: false },
-  { key: 'registration', label: 'Prefixo', width: 'w-28', isVariable: true },
-  { key: 'model', label: 'Modelo', width: 'w-24', isVariable: true },
-  { key: 'eta', label: 'ETA', width: 'w-24', isVariable: true },
-  { key: 'positionId', label: 'Posição', width: 'w-20', isVariable: true },
-  { key: 'actualArrivalTime', label: 'Calço', width: 'w-24', isVariable: true },
-  { key: 'actions', label: 'Ações', width: 'w-14', isVariable: false },
+const COLUMNS: { key: MeshField | any; label: string; width: string; isVariable: boolean }[] = [
+  { key: 'airline', label: 'Cia', width: 'w-[140px]', isVariable: false },
+  { key: 'departureFlightNumber', label: 'Voo', width: 'w-[70px]', isVariable: false },
+  { key: 'destination', label: 'Destino', width: 'w-[75px]', isVariable: false },
+  { key: 'etd', label: 'ETD', width: 'w-[65px]', isVariable: false },
+  { key: 'actions', label: 'Ações', width: 'w-[60px]', isVariable: false },
 ];
 
-export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onActivateMesh, isDarkMode, meshFlights, setMeshFlights, currentMeshDate, setCurrentMeshDate, setFlights, globalFlights }) => {
+export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights: meshFlights, setRootMeshFlights: setMeshFlights, setMeshFlightsByDate }) => {
+  const [targetMonth, setTargetMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const currentMeshDate = targetMonth + '-01'; // Dummy for internal hooks
+
   const [searchTerm, setSearchTerm] = useState('');
   const [activeShift, setActiveShift] = useState<MeshShift>('TODOS');
   const [readyStateFilter, setReadyStateFilter] = useState<'ALL' | 'READY' | 'ERROR'>('ALL');
@@ -190,24 +186,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
   }, [readyStateFilter, activeShift, searchTerm]);
 
   const [alertState, setAlertState] = useState<{isOpen: boolean; title: string; message: React.ReactNode}>({isOpen: false, title: '', message: ''});
-  const [syncConfirmState, setSyncConfirmState] = useState<{isOpen: boolean; message: string; unsynced: MeshFlight[]}>({isOpen: false, message: '', unsynced: []});
-
   const [timeConflictData, setTimeConflictData] = useState<{rowId: string, oldEtd: string, newEtd: string}|null>(null);
-  const [bulkConflictData, setBulkConflictData] = useState<{fileName: string; nonDuplicates: MeshFlight[]; ignoredCount: number; crossedFlightsIds: string[]}|null>(null);
   const confirmedConflictsRef = useRef<Set<string>>(new Set());
   const [editingCellOriginalValue, setEditingCellOriginalValue] = useState<string>('');
-
-  const handlePrevDay = () => {
-    const d = new Date(currentMeshDate + 'T00:00:00');
-    d.setDate(d.getDate() - 1);
-    setCurrentMeshDate(d.toISOString().split('T')[0]);
-  };
-
-  const handleNextDay = () => {
-    const d = new Date(currentMeshDate + 'T00:00:00');
-    d.setDate(d.getDate() + 1);
-    setCurrentMeshDate(d.toISOString().split('T')[0]);
-  };
 
   const handleFinishEdit = (rowId: string, colIndex: number) => {
     setEditingCell(null);
@@ -215,12 +196,8 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
     if (colKey === 'etd') {
       const flight = meshFlights.find(f => f.id === rowId);
       if (flight && flight.etd && flight.etd.length >= 4) {
-        const [h] = flight.etd.split(':').map(Number);
-        const currentH = new Date().getHours();
-        // Verificação se o horário digitado cruza a meia-noite (próximo dia)
-        const isNextDayCross = (currentH >= 12 && h < currentH - 12);
-
-        if (isNextDayCross) {
+        const diff = getMinutesDiff(flight.etd, flight.date);
+        if (diff < 0) {
           const conflictKey = `${rowId}-${flight.etd}`;
           if (!confirmedConflictsRef.current.has(conflictKey)) {
             setTimeConflictData({ rowId, oldEtd: editingCellOriginalValue, newEtd: flight.etd });
@@ -265,25 +242,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
         }
         return updated;
     });
-
-    if (setFlights) {
-      setFlights(prevFlights => prevFlights.map(f => {
-        const flightIdBase = f.id.replace(/^mesh-\d+-/, '');
-        const isIdMatch = f.id === id || flightIdBase === id;
-        
-        // Se o ID não bater, tentamos pelo número do voo (Saída ou Chegada)
-        const currentMeshFlight = meshFlights.find(m => m.id === id);
-        const isNumberMatch = currentMeshFlight && (
-          (f.departureFlightNumber && currentMeshFlight.departureFlightNumber && f.departureFlightNumber === currentMeshFlight.departureFlightNumber) ||
-          (f.flightNumber && currentMeshFlight.departureFlightNumber && f.flightNumber === currentMeshFlight.departureFlightNumber)
-        );
-
-        if (isIdMatch || isNumberMatch) {
-            return { ...f, [field]: newValue };
-        }
-        return f;
-      }));
-    }
   };
 
   const handleAddFlight = () => {
@@ -369,28 +327,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
     setFlightActionMenu(null);
   };
 
-  const isFlightSynced = (mesh: MeshFlight) => {
-    return globalFlights.some(f => {
-        // Ignorar voos que já foram finalizados, cancelados ou arquivados (histórico)
-        // Isso permite que o mesmo voo seja importado novamente no dia seguinte
-        const isFinishedOrArchived = f.status === 'FINALIZADO' || f.status === 'CANCELADO' || f.isHiddenFromGrid;
-        if (isFinishedOrArchived) return false;
-
-        const fIdBase = f.id.replace(/^mesh-\d+-/, ''); // Extract original mesh.id from f.id
-        const isIdMatch = f.id === mesh.id || fIdBase === mesh.id;
-        if (isIdMatch) return true;
-        
-        // Checking by properties
-        const depMatch = f.departureFlightNumber && mesh.departureFlightNumber && 
-            f.departureFlightNumber.toUpperCase() === mesh.departureFlightNumber.toUpperCase();
-        const destMatch = f.destination && mesh.destination && 
-            f.destination.toUpperCase() === mesh.destination.toUpperCase();
-        const etdMatch = f.etd === mesh.etd;
-        
-        return depMatch && destMatch && etdMatch;
-    });
-  };
-
   const getFlightErrors = (flight: MeshFlight) => {
     const isDuplicated = meshFlights.some(f => 
        f.id !== flight.id && 
@@ -415,112 +351,56 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                          checkField(flight.etd);
     
     const hasFormatError = (flight.etd === '?' || flight.eta === '?' || flight.actualArrivalTime === '?') && !isPre;
-    const isUltrapassado = !checkField(flight.etd) && !isPre && getMinutesDiff(flight.etd, flight.date || currentMeshDate) < 0;
     
     return { 
       isDuplicated, 
       hasFormatError, 
-      isIncomplete,
-      isUltrapassado,
-      isValid: !isDuplicated && !isIncomplete && !flight.disabled && !isUltrapassado
+      isIncomplete, 
+      isValid: !isDuplicated && !isIncomplete && !flight.disabled 
     };
   };
 
-  const handleActivate = () => {
+  const handleGenerateMesh = () => {
     const activeFlights = meshFlights.filter(f => !f.disabled);
-    const unsyncedFlights = activeFlights.filter(f => !isFlightSynced(f));
-
-    if (unsyncedFlights.length === 0) {
-        setAlertState({isOpen: true, title: 'Malha Sincronizada', message: 'A malha geral já está sincronizada. Todos os voos ativos da malha base já estão presentes na malha geral.'});
-        return;
-    }
-
-    const readyToSync = unsyncedFlights.filter(f => getFlightErrors(f).isValid).sort((a, b) => {
-        const aMin = getMinutesDiff(a.etd, a.date || currentMeshDate);
-        const bMin = getMinutesDiff(b.etd, b.date || currentMeshDate);
-        return aMin - bMin;
-    });
-    const inconsistent = unsyncedFlights.filter(f => !getFlightErrors(f).isValid);
-
-    if (readyToSync.length === 0) {
-        setAlertState({
-            isOpen: true, 
-            title: 'Nenhum Voo Pronto', 
-            message: 'Não há voos prontos para sincronização. Corrija as duplicatas e campos obrigatórios (marcados em vermelho/laranja) para prosseguir.'
-        });
-        return;
-    }
+    const inconsistent = activeFlights.filter(f => !getFlightErrors(f).isValid);
 
     if (inconsistent.length > 0) {
-        setSyncConfirmState({
+        setAlertState({
             isOpen: true, 
-            message: `Identificamos ${readyToSync.length} voos prontos e ${inconsistent.length} voos inconsistentes. Deseja enviar apenas os voos prontos? Os inconsistentes ficarão pendentes na Malha Base.`, 
-            unsynced: readyToSync
+            title: 'Existem Inconsistências', 
+            message: `Há ${inconsistent.length} voos inconsistentes (duplicados ou sem dados obrigatórios). Corrija ou desabilite-os antes de gerar a malha deste mês.`
         });
         return;
     }
 
-    executeSync(readyToSync);
-  };
+    if (!window.confirm(`Isso irá sobrescrever a Malha Base inteira do mês ${targetMonth}. Deseja continuar?`)) {
+      return;
+    }
 
-  const executeSync = (flightsToSync: MeshFlight[]) => {
-    const newFlights: FlightData[] = flightsToSync.map(mesh => {
-      const isPre = mesh.etd === 'PRÉ';
-      let derivedCode = mesh.airlineCode || mesh.airline.substring(0, 3) || 'G3';
-      if (mesh.airline.toUpperCase().includes('GOL') && !mesh.airlineCode) {
-          derivedCode = 'RG';
+    const [year, month] = targetMonth.split('-');
+    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+    
+    setMeshFlightsByDate(prev => {
+      const newMap = { ...prev };
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
+        // Map root flights to instances for this date
+        newMap[dateStr] = activeFlights.map((f, i) => ({
+          ...f,
+          id: `mesh-${dateStr}-${i}`,
+          date: dateStr,
+        }));
       }
       
-      return {
-        id: `mesh-${Date.now()}-${mesh.id}`,
-        airline: mesh.airline,
-        airlineCode: derivedCode,
-        registration: mesh.registration.toUpperCase(),
-        model: mesh.model.toUpperCase(),
-        flightNumber: '', 
-        eta: mesh.eta,
-        departureFlightNumber: mesh.departureFlightNumber.toUpperCase(),
-        destination: mesh.destination.toUpperCase(),
-        positionId: mesh.positionId,
-        etd: mesh.etd,
-        date: mesh.date || currentMeshDate,
-        origin: 'SBGL', 
-        fuelStatus: 0,
-        status: isPre ? FlightStatus.PRÉ : FlightStatus.CHEGADA,
-        logs: [{
-          id: Date.now().toString(),
-          timestamp: new Date(),
-          type: 'SISTEMA',
-          message: isPre ? 'Voo de manutenção (PRÉ) carregado da malha operacional.' : 'Voo carregado da malha operacional.',
-          author: 'SISTEMA'
-        }],
-        messages: [],
-        actualArrivalTime: mesh.actualArrivalTime || ''
-      };
+      return newMap;
     });
-
-    onActivateMesh(newFlights);
-    
-    // Total de voos filtrados pelo shift ativo (total visível)
-    const pendingCount = meshFlights.length - newFlights.length;
 
     setAlertState({
         isOpen: true, 
-        title: 'Sincronização concluída!', 
-        message: (
-            <div className="space-y-3 py-2">
-                <div className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                   <span className="text-emerald-500 font-bold uppercase text-[10px] tracking-widest">Enviado(s) com sucesso</span>
-                   <span className="text-emerald-500 font-black text-sm">{newFlights.length}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                    <span className="text-amber-500 font-bold uppercase text-[10px] tracking-widest">Pendente(s) na Malha</span>
-                    <span className="text-amber-500 font-black text-sm">{pendingCount}</span>
-                </div>
-            </div>
-        )
+        title: 'Sucesso!', 
+        message: `A Malha Base foi gerada com sucesso para todos os ${daysInMonth} dias de ${targetMonth}. Verifique a aba Malha Base.`
     });
-
   };
 
   // 1. Filtragem Base para Contadores (AO VIVO)
@@ -741,10 +621,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
     }
   }, [focusedCell, editingCell, filteredFlights]);
 
-  const handleClose = () => {
-    onClose();
-  };
-
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
     setPortalTarget(document.getElementById('subheader-portal-target'));
@@ -756,31 +632,25 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
         {/* Brand & Quick Stats */}
         <div className="flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
           <div className="flex flex-col">
-            <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">Malha Base</h2>
+            <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">Malha Raiz</h2>
             <p className="text-[9px] font-bold text-emerald-100/40 uppercase tracking-tighter mt-1">{totalCount} REGISTROS</p>
           </div>
           
-          <div className="h-4 w-px bg-white/10 hidden md:block mx-1" />
+          <div className="h-4 w-px bg-white/10 mx-1 hidden md:block" />
 
           {/* Custom Date Picker */}
           <div className="flex items-center gap-0.5 bg-[#3a8b28] px-0.5 py-0.5 rounded-md hover:bg-[#327a23] transition-colors shadow-inner shrink-0 leading-none">
-            <button 
-              onClick={handlePrevDay}
-              className="p-1 rounded hover:bg-white/20 text-white transition-colors"
-            >
-              <ChevronLeft size={14} strokeWidth={3} />
-            </button>
             
             <div className="flex items-center gap-1.5 px-2 relative cursor-pointer group hover:bg-white/10 rounded h-full py-1">
               <Calendar size={14} className="text-emerald-400 shrink-0 group-hover:text-emerald-300 transition-colors" strokeWidth={2.5} />
               
               <span className="text-white font-mono text-[11px] font-black uppercase tracking-wider whitespace-nowrap">
-                {formatMeshDateDisplay(currentMeshDate)}
+                {targetMonth}
               </span>
               <input 
-                  type="date"
-                  value={currentMeshDate}
-                  onChange={(e) => setCurrentMeshDate(e.target.value)}
+                  type="month"
+                  value={targetMonth}
+                  onChange={(e) => setTargetMonth(e.target.value)}
                   onClick={(e) => {
                      try { (e.target as any).showPicker(); } catch (err) {}
                   }}
@@ -788,15 +658,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
               />
             </div>
 
-            <button 
-              onClick={handleNextDay}
-              className="p-1 rounded hover:bg-white/20 text-white transition-colors"
-            >
-              <ChevronRight size={14} strokeWidth={3} />
-            </button>
           </div>
 
-          <div className="h-6 w-px bg-white/10 hidden md:block" />
+          <div className="h-4 w-px bg-white/10 mx-1 hidden md:block" />
         </div>
 
         {/* Unified Filters Controls */}
@@ -905,25 +769,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                                 );
                               });
                               const ignoredCount = newFlights.length - nonDuplicates.length;
-                              
-                              const currentH = new Date().getHours();
-                              const crossedFlightsIds = nonDuplicates.filter(nf => {
-                                if (!nf.etd || nf.etd === '?' || nf.etd === 'PRÉ') return false;
-                                const [h] = nf.etd.split(':').map(Number);
-                                return currentH >= 12 && h < currentH - 12;
-                              }).map(f => f.id);
-
-                              if (crossedFlightsIds.length > 0) {
-                                // Defer the bulk conflict modal because we are inside a state setter function here.
-                                setTimeout(() => setBulkConflictData({
-                                  fileName: file.name,
-                                  nonDuplicates,
-                                  ignoredCount,
-                                  crossedFlightsIds
-                                }), 0);
-                                return prev; // Do not apply yet
-                              }
-
                               const messageContent = (
                                 <>
                                   Arquivo "{file.name}" foi carregado com sucesso!
@@ -1080,13 +925,13 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
 
                 <button 
                   onClick={() => {
-                    handleActivate();
+                    handleGenerateMesh();
                     setShowOptionsDropdown(false);
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-[#FEDC00]/20 hover:text-[#FEDC00]' : 'text-slate-600 hover:bg-[#FEDC00]/20 hover:text-slate-900'}`}
                 >
-                  <RefreshCw size={14} />
-                  Sincronizar Malha
+                  <Copy size={14} />
+                  Gerar Malha do Mês
                 </button>
 
                 <button 
@@ -1107,7 +952,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300' : 'text-red-600 hover:bg-red-50 hover:text-red-700'}`}
                 >
                   <Trash2 size={14} />
-                  Limpar Malha Base
+                  Limpar Malha Raiz
                 </button>
               </div>
             </div>
@@ -1118,17 +963,17 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
   );
 
   return (
-    <div className="w-full h-full flex flex-col animate-in fade-in" onKeyDown={(e) => {
-      if (e.key === 'Escape') handleClose();
-    }}>
-      <div className={`flex-1 overflow-hidden flex flex-col ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+    <div className="w-full h-full flex flex-col animate-in fade-in">
+      <div className={`flex-1 overflow-hidden flex flex-row ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
         
-        {/* Header */}
-        {portalTarget ? createPortal(headerContent, portalTarget) : headerContent}
+        {/* Left Side: Table & Controls */}
+        <div className="w-auto flex flex-col overflow-hidden shrink-0 border-r border-slate-700/20">
+          {/* Header */}
+          {portalTarget ? createPortal(headerContent, portalTarget) : headerContent}
 
-        {/* Spreadsheet Area */}
-        <div className={`flex-1 min-w-0 overflow-auto ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
-          <table ref={tableRef} className="w-full border-collapse table-fixed select-none min-w-[800px]">
+          {/* Spreadsheet Area */}
+          <div className={`flex-1 min-w-0 overflow-auto ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
+          <table ref={tableRef} className="w-max border-collapse table-fixed select-none">
             <thead className="sticky top-0 z-[40]">
                 <tr className={`${isDarkMode ? 'bg-slate-800/95 text-slate-400' : 'bg-slate-800 text-slate-200'} backdrop-blur-sm shadow-md`}>
                 {COLUMNS.map((col, idx) => (
@@ -1156,7 +1001,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
             </thead>
               <tbody className={isDarkMode ? 'bg-slate-950' : 'bg-slate-100'}>
               {filteredFlights.map((flight, rIdx) => {
-                const isSynced = isFlightSynced(flight);
                 const errors = getFlightErrors(flight);
                 const isReady = errors.isValid;
                 const isDuplicated = errors.isDuplicated;
@@ -1253,22 +1097,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                                         onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            if (!errors.isValid) {
-                                              alert('Corrija as inconsistências antes de enviar.');
-                                              return;
-                                            }
-                                            executeSync([flight]);
-                                            setFlightActionMenu(null);
-                                        }}
-                                        className={`w-full px-3 py-2.5 text-[10px] font-bold uppercase flex items-center gap-2 border-b border-slate-700/50 transition-colors text-left ${errors.isValid ? 'hover:bg-emerald-900/30 text-emerald-400' : 'opacity-50 cursor-not-allowed text-slate-500'}`}
-                                    >
-                                        <Send size={12} />
-                                        Enviar p/ Malha Geral
-                                    </button>
-                                    <button 
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
                                             handleDeleteFlight(flight.id);
                                         }}
                                         className="w-full px-3 py-2.5 text-[10px] font-bold uppercase flex items-center gap-2 hover:bg-red-900/40 text-red-500 transition-colors text-left"
@@ -1319,12 +1147,11 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                                 tabIndex={0}
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
                                 className={`
-                                  w-full h-full px-3 flex items-center gap-2 font-bold text-[11px] uppercase select-none cursor-default outline-none tracking-tight relative
+                                  w-full h-full px-3 flex items-center gap-2 font-bold text-[11px] uppercase select-none cursor-default outline-none tracking-tight
                                   ${flight.disabled ? (isDarkMode ? 'text-slate-500/30' : 'text-slate-400/50') : (isDarkMode ? 'text-slate-200' : 'text-slate-700')}
                                   ${col.key === 'airline' ? 'justify-start text-left' : 'justify-center text-center'}
                                   ${!col.isVariable && !isCellFocused && !isMandatoryEmpty ? (isDarkMode ? 'text-indigo-400' : 'text-indigo-700') : ''}
                                   ${col.key === 'etd' && flight[col.key] === 'PRÉ' ? (isDarkMode ? 'text-blue-400 font-black' : 'text-blue-600 font-black text-[12px]') : ''}
-                                  ${col.key === 'etd' && flight[col.key] && flight[col.key] !== '?' && flight[col.key] !== 'PRÉ' && getMinutesDiff(flight[col.key] as string, flight.date || currentMeshDate) < 0 ? (isDarkMode ? 'text-red-300 bg-red-900/60 font-black' : 'text-red-800 bg-red-200 font-black tracking-widest') : ''}
                                   ${isMandatoryEmpty ? 'text-red-500 animate-pulse font-black text-xs' : ''}
                                 `}
                               >
@@ -1363,7 +1190,11 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
           <div>Dica: 1 clique seleciona, 2 cliques editam. Setas navegam, Enter pula para a direita.</div>
         </div>
       </div>
+
+      <PieChartDashboard flights={filteredFlights} isDarkMode={isDarkMode} />
       
+      </div>
+
       {showClearMeshModal && (
         <ConfirmActionModal
           type="clearMesh"
@@ -1383,18 +1214,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
               title={alertState.title}
               message={alertState.message}
               onClose={() => setAlertState(prev => ({...prev, isOpen: false}))}
-          />
-      )}
-
-      {syncConfirmState.isOpen && (
-          <ConfirmActionModal 
-              type="syncPartial"
-              message={syncConfirmState.message}
-              onConfirm={() => {
-                  setSyncConfirmState(prev => ({...prev, isOpen: false}));
-                  executeSync(syncConfirmState.unsynced);
-              }}
-              onClose={() => setSyncConfirmState(prev => ({...prev, isOpen: false}))}
           />
       )}
 
@@ -1435,55 +1254,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                     setMeshFlights(prev => prev.map(f => f.id === flight.id ? { ...f, etd: timeConflictData.oldEtd } : f));
                 }
                 setTimeConflictData(null);
-            }}
-        />
-      )}
-
-      {bulkConflictData && (
-        <BulkNextDayModal 
-            count={bulkConflictData.crossedFlightsIds.length}
-            isDarkMode={isDarkMode}
-            onMoveToNextDay={() => {
-                setMeshFlights(prev => {
-                    let baseDate = new Date();
-                    const [y, m, d] = currentMeshDate.split('-').map(Number);
-                    baseDate = new Date(y, m - 1, d);
-                    baseDate.setDate(baseDate.getDate() + 1);
-                    const newDateStr = baseDate.toISOString().split('T')[0];
-                    
-                    const appliedFlights = bulkConflictData.nonDuplicates.map(f => {
-                       if (bulkConflictData.crossedFlightsIds.includes(f.id)) {
-                           f.date = newDateStr;
-                       }
-                       return f;
-                    });
-                    return [...appliedFlights, ...prev];
-                });
-                
-                const messageContent = (
-                   <>
-                     Arquivo "{bulkConflictData.fileName}" carregado!
-                     <br/><br/>
-                     {bulkConflictData.crossedFlightsIds.length} voo(s) foram movidos para o próximo dia.
-                   </>
-                );
-                setAlertState({isOpen: true, title: 'Importação Concluída', message: messageContent});
-                setBulkConflictData(null);
-            }}
-            onEditToday={() => {
-                setMeshFlights(prev => [...bulkConflictData.nonDuplicates, ...prev]);
-                const messageContent = (
-                   <>
-                     Arquivo "{bulkConflictData.fileName}" carregado!
-                     <br/><br/>
-                     Os voos que aparentam cruzar o dia foram mantidos na malha atual para sua conferência ou reedição.
-                   </>
-                );
-                setAlertState({isOpen: true, title: 'Importação Concluída', message: messageContent});
-                setBulkConflictData(null);
-            }}
-            onCancel={() => {
-                setBulkConflictData(null);
             }}
         />
       )}

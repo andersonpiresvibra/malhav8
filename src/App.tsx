@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo } from 'react';
 import { ViewState, FlightData, Vehicle } from './types';
 import { MOCK_TEAM_PROFILES } from './data/mockData';
 import { MOCK_VEHICLES } from './data/mockVehicleData';
@@ -11,6 +11,7 @@ import { OperatorProfile } from './types';
 import { ShiftOperatorsSection } from './components/ShiftOperatorsSection';
 import { Sidebar } from './components/Sidebar';
 import { OperationalMesh } from './components/OperationalMesh';
+import { RootMesh } from './components/RootMesh';
 import { ReportsView } from './components/ReportsView';
 
 const GridOps = lazy(() => import('./components/GridOps').then(m => ({ default: m.GridOps })));
@@ -44,25 +45,51 @@ const App: React.FC = () => {
   const [globalOperators, setGlobalOperators] = useState<OperatorProfile[]>([]);
   const [meshFlightsByDate, setMeshFlightsByDate] = useState<Record<string, MeshFlight[]>>(() => {
     const saved = localStorage.getItem('meshFlightsByDate');
+    const today = new Date().toISOString().split('T')[0];
+    
+    let loadedData: Record<string, MeshFlight[]> | null = null;
     if (saved) {
       try {
-        return JSON.parse(saved);
+        loadedData = JSON.parse(saved);
       } catch (e) {
         console.error('Failed to parse meshFlightsByDate', e);
       }
     }
-    const today = new Date().toISOString().split('T')[0];
     
-    // Fallback: load old single mesh if exists
-    const oldSaved = localStorage.getItem('meshFlights');
-    if (oldSaved) {
-       try {
-          return { [today]: JSON.parse(oldSaved) };
-       } catch (e) {}
+    if (!loadedData) {
+      // Fallback: load old single mesh if exists
+      const oldSaved = localStorage.getItem('meshFlights');
+      if (oldSaved) {
+         try {
+            loadedData = { [today]: JSON.parse(oldSaved) };
+         } catch (e) {}
+      }
     }
     
-    return { [today]: INITIAL_MESH_FLIGHTS };
+    if (!loadedData) {
+        loadedData = { [today]: INITIAL_MESH_FLIGHTS };
+    }
+
+    return loadedData;
   });
+
+  const [rootMeshFlights, setRootMeshFlights] = useState<MeshFlight[]>(() => {
+    const saved = localStorage.getItem('rootMeshFlights');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse rootMeshFlights', e);
+      }
+    }
+    
+    // Fallback to initial mapping
+    return INITIAL_MESH_FLIGHTS.map((f, i) => ({ ...f }));
+  });
+
+  useEffect(() => {
+    localStorage.setItem('rootMeshFlights', JSON.stringify(rootMeshFlights));
+  }, [rootMeshFlights]);
 
   const [currentMeshDate, setCurrentMeshDate] = useState<string>(
       () => new Date().toISOString().split('T')[0]
@@ -298,6 +325,14 @@ const App: React.FC = () => {
                     onActivateMesh={(newFlights) => {
                       setGlobalFlights(prev => [...newFlights, ...prev]);
                     }}
+                  />
+                )}
+                {view === 'ROOT_MESH' && (
+                  <RootMesh
+                    rootMeshFlights={rootMeshFlights}
+                    setRootMeshFlights={setRootMeshFlights}
+                    isDarkMode={isDarkMode}
+                    setMeshFlightsByDate={setMeshFlightsByDate}
                   />
                 )}
                 {view === 'REPORTS' && (

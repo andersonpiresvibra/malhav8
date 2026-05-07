@@ -3,7 +3,7 @@ import { X, AlertTriangle, Play, UserCheck, CheckCircle } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface ConfirmActionModalProps {
-    type: 'cancel' | 'start' | 'remove' | 'finish' | 'delete' | 'clearMesh' | 'syncPartial';
+    type: 'cancel' | 'start' | 'remove' | 'finish' | 'delete' | 'clearMesh' | 'syncPartial' | 'missingPositionVIP';
     flightNumber?: string;
     registration?: string;
     message?: string;
@@ -127,6 +127,18 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
                 confirmBg: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
             };
             break;
+        case 'missingPositionVIP':
+            config = {
+                title: 'Posição Não Informada',
+                icon: <AlertTriangle size={32} className="text-amber-500" />,
+                iconBg: 'bg-amber-500/10 border-amber-500/20',
+                description: (
+                    <>O voo <span className={`${isDarkMode ? 'text-white' : 'text-slate-900'} font-mono font-bold`}>{flightNumber}</span> não possui posição definida! Não é permitido iniciar o abastecimento sem posição de calço.<br/><br/><b>Este voo é do Pátio VIP?</b></>
+                ),
+                confirmText: 'Sim, Pátio VIP (Continuar)',
+                confirmBg: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+            };
+            break;
     }
 
     return (
@@ -198,7 +210,7 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
                             onClick={onClose}
                             className={`flex-1 font-black py-4 rounded-lg uppercase tracking-widest text-[10px] transition-all active:scale-95 ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
                         >
-                            {type === 'syncPartial' ? 'Não, Editar Antes' : 'Não, Voltar'}
+                            {type === 'syncPartial' ? 'Não, Editar Antes' : type === 'missingPositionVIP' ? 'Não, Editar Posição' : 'Não, Voltar'}
                         </button>
                     </div>
                 </div>
