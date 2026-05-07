@@ -68,11 +68,19 @@ const App: React.FC = () => {
       () => new Date().toISOString().split('T')[0]
   );
   
-  const meshFlights = meshFlightsByDate[currentMeshDate] || [];
+  const meshFlights = meshFlightsByDate[currentMeshDate] || INITIAL_MESH_FLIGHTS.map((f, i) => ({
+      ...f, 
+      id: `mesh-${currentMeshDate}-${i}`,
+      date: currentMeshDate
+  }));
   
   const setMeshFlights = useCallback((action: React.SetStateAction<MeshFlight[]>) => {
       setMeshFlightsByDate(prev => {
-          const current = prev[currentMeshDate] || [];
+          const current = prev[currentMeshDate] || INITIAL_MESH_FLIGHTS.map((f, i) => ({
+              ...f, 
+              id: `mesh-${currentMeshDate}-${i}`,
+              date: currentMeshDate
+          }));
           const updated = typeof action === 'function' ? action(current) : action;
           return { ...prev, [currentMeshDate]: updated };
       });

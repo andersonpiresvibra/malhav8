@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload } from 'lucide-react';
+import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
 import { FlightData, FlightStatus } from '../types';
 import * as XLSX from 'xlsx';
@@ -36,6 +36,26 @@ interface OperationalMeshProps {
   setFlights?: React.Dispatch<React.SetStateAction<FlightData[]>>;
   globalFlights: FlightData[];
 }
+
+const formatMeshDateDisplay = (dateString: string) => {
+  if (!dateString) return '';
+  const dateObj = new Date(dateString + 'T00:00:00'); // Prevent timezone issues
+  if (isNaN(dateObj.getTime())) return dateString;
+
+  const today = new Date();
+  const isToday = dateObj.getDate() === today.getDate() && 
+                  dateObj.getMonth() === today.getMonth() && 
+                  dateObj.getFullYear() === today.getFullYear();
+
+  const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const month = months[dateObj.getMonth()];
+
+  if (isToday) {
+    return `HOJE - ${day} DE ${month}`;
+  }
+  return `${day} DE ${month}`;
+};
 
 type MeshField = keyof MeshFlight | 'actions';
 type MeshShift = 'TODOS' | 'MANHA' | 'TARDE' | 'NOITE';
@@ -157,6 +177,18 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
   const [timeConflictData, setTimeConflictData] = useState<{rowId: string, oldEtd: string, newEtd: string}|null>(null);
   const confirmedConflictsRef = useRef<Set<string>>(new Set());
   const [editingCellOriginalValue, setEditingCellOriginalValue] = useState<string>('');
+
+  const handlePrevDay = () => {
+    const d = new Date(currentMeshDate + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    setCurrentMeshDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(currentMeshDate + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    setCurrentMeshDate(d.toISOString().split('T')[0]);
+  };
 
   const handleFinishEdit = (rowId: string, colIndex: number) => {
     setEditingCell(null);
@@ -700,14 +732,35 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
           
           <div className="h-6 w-px bg-white/10 hidden md:block" />
 
-          {/* Date Picker */}
-          <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10">
-            <input 
-                type="date"
-                value={currentMeshDate}
-                onChange={(e) => setCurrentMeshDate(e.target.value)}
-                className="bg-transparent text-white font-mono text-[11px] font-bold uppercase outline-none cursor-pointer flex-1 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
-            />
+          {/* Custom Date Picker */}
+          <div className="flex items-center gap-1 bg-[#3a8b28] px-2 py-1.5 rounded-md hover:bg-[#327a23] transition-colors shadow-inner mx-2">
+            <button 
+              onClick={handlePrevDay}
+              className="p-1 rounded hover:bg-white/20 text-white transition-colors"
+            >
+              <ChevronLeft size={16} strokeWidth={3} />
+            </button>
+            
+            <div className="flex items-center gap-2 px-1 relative cursor-pointer group">
+              <Calendar size={16} className="text-emerald-400 shrink-0 group-hover:text-emerald-300 transition-colors" strokeWidth={2.5} />
+              
+              <span className="text-white font-mono text-[12px] font-black uppercase tracking-wider whitespace-nowrap pt-0.5">
+                {formatMeshDateDisplay(currentMeshDate)}
+              </span>
+              <input 
+                  type="date"
+                  value={currentMeshDate}
+                  onChange={(e) => setCurrentMeshDate(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+            </div>
+
+            <button 
+              onClick={handleNextDay}
+              className="p-1 rounded hover:bg-white/20 text-white transition-colors"
+            >
+              <ChevronRight size={16} strokeWidth={3} />
+            </button>
           </div>
 
           <div className="h-6 w-px bg-white/10 hidden md:block" />
@@ -1239,21 +1292,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
             <div className="flex flex-col items-center justify-center p-20 text-slate-500">
                <Search size={48} className="opacity-10 mb-4" />
                <p className="text-xs font-bold uppercase tracking-widest opacity-40">Nenhum registro encontrado</p>
-               {searchTerm === '' && (
-                 <div className="mt-8 flex gap-4">
-                    <button 
-                       onClick={() => {
-                           // Use mock initial data
-                           import('../data/operationalMesh').then(m => {
-                               setMeshFlights([...m.INITIAL_MESH_FLIGHTS.map(f => ({...f, id: `mesh-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`}))]);
-                           });
-                       }}
-                       className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all shadow-md ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'}`}
-                    >
-                       <Plus size={14} /> CLONAR MALHA PADRÃO
-                    </button>
-                 </div>
-               )}
             </div>
           )}
         </div>
