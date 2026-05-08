@@ -43,6 +43,7 @@ const App: React.FC = () => {
   const [globalVehicles, setGlobalVehicles] = useState<Vehicle[]>([]);
   const [globalOperators, setGlobalOperators] = useState<OperatorProfile[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
   useEffect(() => {
     import('./services/supabaseService').then(async ({ getVehicles, getOperators }) => {
@@ -51,13 +52,35 @@ const App: React.FC = () => {
           getVehicles(),
           getOperators()
         ]);
-        if (vehicles && vehicles.length > 0) setGlobalVehicles(vehicles);
-        if (operators && operators.length > 0) setGlobalOperators(operators);
-      } catch (err) {
+        
+        console.log("Supabase Vehicles returned:", vehicles);
+        console.log("Supabase Operators returned:", operators);
+        
+        if (vehicles && vehicles.length > 0) {
+          setGlobalVehicles(vehicles);
+        } else if (vehicles && vehicles.length === 0) {
+          console.warn("Nenhum veículo encontrado no Supabase. Tabelas vazias ou bloqueadas por RLS.");
+        }
+
+        if (operators && operators.length > 0) {
+          setGlobalOperators(operators);
+        } else if (operators && operators.length === 0) {
+          console.warn("Nenhum operador encontrado no Supabase. Tabelas vazias ou bloqueadas por RLS.");
+        }
+        
+        if (vehicles.length === 0 && operators.length === 0) {
+            setSupabaseError(`O banco conectou com sucesso, mas não retornou DADOS (0 veículos e 0 operadores). Possíveis causas:\n1. Você não rodou o script "supabase_seed.sql" no SQL Editor do Supabase.\n2. O banco está bloqueado por RLS (Row Level Security). Desative o RLS para leitura anônima ou insira dados pelas tabelas. Vá no seu projeto Supabase > Tabela Vehicles > '...' > 'Disable RLS' para testes.`);
+        }
+      } catch (err: any) {
         console.error('Failed to load base data from Supabase:', err);
+        setSupabaseError(`Erro de conexão com o Supabase: ${err.message || JSON.stringify(err)}`);
       } finally {
         setIsLoadingData(false);
       }
+    }).catch(err => {
+      console.error('Failed to import supabaseService:', err);
+      setSupabaseError(`${err.message || 'Erro ao inicializar conexão com Supabase'}`);
+      setIsLoadingData(false);
     });
   }, []);
 
@@ -235,7 +258,20 @@ const App: React.FC = () => {
         ltName={ltName}
         setLtName={setLtName}
       />
-      
+
+      {supabaseError && (
+        <div className="bg-red-500 text-white p-4 font-bold flex items-start justify-between z-[9999]">
+            <div className="flex items-start gap-4 flex-1">
+                <AlertCircle size={24} className="mt-1 flex-shrink-0" />
+                <div className="flex flex-col gap-2">
+                    <span className="text-lg">Problema com o Banco de Dados</span>
+                    <span className="font-normal whitespace-pre-line">{supabaseError}</span>
+                </div>
+            </div>
+            <button onClick={() => setSupabaseError(null)} className="hover:bg-red-600 p-1 rounded transition-colors"><X size={20}/></button>
+        </div>
+      )}
+
       {isNameInvalid && (
         <div className="fixed inset-x-0 bottom-0 top-20 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className={`border ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-[#004D24]/30'} rounded-xl p-8 max-w-md w-full shadow-2xl text-center relative overflow-hidden`}>
@@ -320,6 +356,7 @@ const App: React.FC = () => {
                     onUpdateOperators={setGlobalOperators}
                     flights={globalFlights}
                     onUpdateFlights={setGlobalFlights}
+                    vehicles={globalVehicles}
                     onOpenCreateModal={() => {
                         setPendingAction('CREATE');
                         handleViewChange('GRID_OPS');

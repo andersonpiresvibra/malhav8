@@ -1,26 +1,34 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Vehicle, OperatorProfile, AircraftType, FlightData } from '../types';
 
+const checkConfig = () => {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase não configurado. Por favor, adicione suas credenciais reais (URL e Anon Key) em Settings -> Environment Variables. Os valores não podem conter "<project-ref>".');
+  }
+};
+
 export const getVehicles = async (): Promise<Vehicle[]> => {
+  checkConfig();
   const { data, error } = await supabase.from('vehicles').select('*');
   if (error) throw error;
   
-  return data.map((v: any) => ({
-    id: v.fleet_number, // The frontend expects the fleet number as ID in many places or we should use v.id?
-    type: v.type,
-    manufacturer: v.manufacturer,
-    status: v.status,
-    maxFlowRate: v.max_flow_rate || 1000,
-    hasPlatform: v.has_platform,
-    capacity: v.capacity,
-    counterInitial: v.counter_initial,
-    counterFinal: v.counter_final,
-    isActive: v.status !== 'INATIVO',
-    observations: v.observations
-  })) as Vehicle[];
+            return data.map((v: any) => ({
+              id: v.fleet_number?.toString() || v.id?.toString(),
+              type: v.type?.toString().toUpperCase() === 'CTA' ? 'CTA' : 'SERVIDOR',
+              manufacturer: v.manufacturer,
+              status: v.status,
+              maxFlowRate: v.max_flow_rate || 1000,
+              hasPlatform: v.has_platform,
+              capacity: v.capacity,
+              counterInitial: v.counter_initial,
+              counterFinal: v.counter_final,
+              isActive: v.status !== 'INATIVO',
+              observations: v.observations
+            })) as Vehicle[];
 };
 
 export const getOperators = async (): Promise<OperatorProfile[]> => {
+  checkConfig();
   const { data, error } = await supabase.from('operators').select('*');
   if (error) throw error;
   
@@ -49,12 +57,14 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
 };
 
 export const getAircrafts = async (): Promise<AircraftType[]> => {
+  checkConfig();
   const { data, error } = await supabase.from('aircrafts').select('*');
   if (error) throw error;
   return data as any[];
 };
 
 export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
+  checkConfig();
   const { data, error } = await supabase
     .from('flights')
     .select('*, operators(*), vehicles(*)')
