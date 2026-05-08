@@ -12,8 +12,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'OPERATIONAL_MESH' as ViewState, icon: Database, label: 'Base' },
-    // { id: 'ROOT_MESH' as ViewState, icon: Network, label: 'Raiz' }, // Temporarily hiding Root Mesh
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
+    { id: 'OPERATORS_ADMIN' as ViewState, icon: Users, label: 'Operadores' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
 

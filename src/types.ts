@@ -189,7 +189,7 @@ export interface FlightData {
   report?: FlightReport; // Report for presence and delays
 }
 
-export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH';
+export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN';
 
 export interface AircraftType {
   id: string;

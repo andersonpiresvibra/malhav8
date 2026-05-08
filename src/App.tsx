@@ -12,6 +12,7 @@ import { Sidebar } from './components/Sidebar';
 import { OperationalMesh } from './components/OperationalMesh';
 import { RootMesh } from './components/RootMesh';
 import { ReportsView } from './components/ReportsView';
+import { OperatorsAdmin } from './components/OperatorsAdmin';
 
 const GridOps = lazy(() => import('./components/GridOps').then(m => ({ default: m.GridOps })));
 
@@ -392,6 +393,9 @@ const App: React.FC = () => {
                 )}
                 {view === 'REPORTS' && (
                   <ReportsView flights={globalFlights} initialFlight={targetReportFlight} />
+                )}
+                {view === 'OPERATORS_ADMIN' && (
+                  <OperatorsAdmin isDarkMode={isDarkMode} />
                 )}
               </Suspense>
           </div>
