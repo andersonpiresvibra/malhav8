@@ -1,5 +1,5 @@
-import React from 'react';
-import { LayoutDashboard, Users, Table, Database, FileBarChart, Network } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { LayoutDashboard, Users, Table, Database, FileBarChart, Network, Settings, ChevronRight } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
@@ -9,13 +9,26 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDarkMode }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
-    { id: 'OPERATIONAL_MESH' as ViewState, icon: Database, label: 'Base' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
-    { id: 'OPERATORS_ADMIN' as ViewState, icon: Users, label: 'Operadores' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
+
+  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN';
 
   return (
     <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 ${
@@ -23,7 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
         ? 'bg-slate-900 border-slate-800' 
         : 'bg-[#004D24] border-transparent'
     }`}>
-      <div className="flex flex-col gap-6 w-full items-center">
+      <div className="flex flex-col gap-6 w-full items-center flex-1">
         <nav className={`flex flex-col gap-4 w-full px-2 ${!isDarkMode ? 'bg-[#004D24]' : ''}`}>
           {navItems.map((item) => {
             const isActive = activeView === item.id;
@@ -55,6 +68,65 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
             );
           })}
         </nav>
+      </div>
+
+      <div className="w-full px-2 mt-auto relative" ref={menuRef}>
+        <div className={`w-full h-px mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-white/20'}`}></div>
+        
+        {isMenuOpen && (
+          <div className={`absolute bottom-0 left-full ml-2 p-2 rounded-xl shadow-xl w-48 border z-[100] flex flex-col gap-1 ${
+            isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+          }`}>
+             <button
+                onClick={() => {
+                   onViewChange('OPERATIONAL_MESH');
+                   setIsMenuOpen(false);
+                }}
+                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                   activeView === 'OPERATIONAL_MESH' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Database size={16} /> Malha Base
+             </button>
+             <button
+                onClick={() => {
+                   onViewChange('OPERATORS_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                   activeView === 'OPERATORS_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Users size={16} /> Operadores
+             </button>
+          </div>
+        )}
+
+        <button
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          data-active={isManagementActive}
+          title="Gerenciamento"
+          className={`sidebar-nav-btn flex flex-col items-center justify-center p-3 rounded-xl transition-all w-full group ${
+            isManagementActive
+              ? isDarkMode 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                : 'bg-white text-emerald-900 shadow-lg' 
+              : isDarkMode
+                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <Settings size={22} strokeWidth={isManagementActive ? 2.5 : 2} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
+          <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 whitespace-nowrap ${
+            isManagementActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
+          } transition-opacity`}>
+            Gerenciar
+          </span>
+        </button>
       </div>
     </aside>
   );

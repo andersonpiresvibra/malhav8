@@ -395,7 +395,11 @@ const App: React.FC = () => {
                   <ReportsView flights={globalFlights} initialFlight={targetReportFlight} />
                 )}
                 {view === 'OPERATORS_ADMIN' && (
-                  <OperatorsAdmin isDarkMode={isDarkMode} />
+                  <OperatorsAdmin 
+                    isDarkMode={isDarkMode} 
+                    globalOperators={globalOperators}
+                    onUpdateGlobalOperators={setGlobalOperators}
+                  />
                 )}
               </Suspense>
           </div>

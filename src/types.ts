@@ -70,7 +70,7 @@ export interface OperatorProfile {
   bloodType?: string; // TS (e.g. O+)
   isLT?: 'SIM' | 'NÃO'; // LT
   patio?: 'AERODROMO' | 'VIP' | 'AMBOS' | string; // Pátio
-  role?: 'Op. Jr.' | 'Op. Pl' | 'Op. Sr.' | 'Op. LT' | string; // Função
+  role?: 'Op. Jr.' | 'Op. Pl' | 'Op. Sr.' | string; // Função
   photoUrl: string;
   status: OperatorStatus;
   category: string; // Changed to string to support JUNIOR/PLENO/SENIOR without complaining
@@ -194,7 +194,7 @@ export interface FlightData {
   report?: FlightReport; // Report for presence and delays
 }
 
-export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN';
+export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT';
 
 export interface AircraftType {
   id: string;

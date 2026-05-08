@@ -39,15 +39,15 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
     companyId: o.company_id || '',
     gruId: o.gru_id || '',
     vestNumber: o.vest_number || '',
-    photoUrl: o.photo_url || `https://i.pravatar.cc/150?u=${o.id}`,
+    photoUrl: o.photo_url || '',
     status: o.status,
     category: o.category,
     lastPosition: '',
     fleetCapability: o.fleet_capability,
     shift: {
       cycle: o.shift_cycle,
-      start: '06:00', // Mock for now if not in DB
-      end: '14:00'
+      start: o.shift_start || '',
+      end: o.shift_end || ''
     },
     airlines: ['G3'],
     ratings: { speed: 4.5, safety: 5.0, airlineSpecific: {} },

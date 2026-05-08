@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useTheme } from '../contexts/ThemeContext';
 import { 
     Search, ArrowLeft, Plane, MapPin, 
     Activity, Radar, User, ChevronRight, Droplet, Users, BusFront, Zap
@@ -16,19 +18,20 @@ interface ShiftOperatorsSectionProps {
     vehicles?: Vehicle[];
 }
 
-const OperatorAvatar: React.FC<{ op: OperatorProfile, isActive: boolean }> = ({ op, isActive }) => {
+const OperatorAvatar: React.FC<{ op: OperatorProfile, isActive: boolean, isDarkMode: boolean }> = ({ op, isActive, isDarkMode }) => {
     const [error, setError] = useState(false);
     return (
-        <div className="w-[67px] shrink-0 border-r border-slate-950/10 overflow-hidden relative flex items-end justify-center bg-slate-950/10">
+        <div className={`w-[48px] shrink-0 border-r overflow-hidden relative flex items-end justify-center ${isDarkMode ? 'border-slate-950/10 bg-slate-950/10' : 'border-slate-300/50 bg-slate-200'}`}>
             {op.photoUrl && !error ? (
                 <img 
                     src={op.photoUrl} 
                     alt={op.warName} 
+                    referrerPolicy="no-referrer"
                     className={`w-full h-full object-cover transition-all ${isActive ? '' : 'grayscale'}`} 
                     onError={() => setError(true)}
                 />
             ) : (
-                <User size={48} className={`mb-2 ${isActive ? 'text-slate-950/25' : 'text-slate-400/25'}`} />
+                <User size={32} className={`mb-1 ${isActive ? (isDarkMode ? 'text-slate-950/25' : 'text-slate-400') : 'text-slate-400/25'}`} />
             )}
         </div>
     );
@@ -37,10 +40,16 @@ const OperatorAvatar: React.FC<{ op: OperatorProfile, isActive: boolean }> = ({ 
 export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({ 
     onClose, operators, flights = [] 
 }) => {
+  const { isDarkMode } = useTheme();
 
   const [activeShift, setActiveShift] = useState<ShiftCycle>('MANHÃ');
   const [activeCategory, setActiveCategory] = useState<OperatorCategory>('AERODROMO');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+     setPortalTarget(document.getElementById('subheader-portal-target'));
+  }, []);
 
   const getActiveMission = (warName: string): FlightData | undefined => {
     if (!flights) return undefined;
@@ -62,27 +71,38 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
     return operators.map(p => {
       let isActive = false;
       
-      if (p.shift && p.shift.start && p.shift.end) {
+      if (p.shift && p.shift.start && p.shift.end && p.shift.start.includes(':') && p.shift.end.includes(':')) {
           const [sH, sM] = p.shift.start.split(':').map(Number);
           const [eH, eM] = p.shift.end.split(':').map(Number);
           
-          const nowMins = currentHour * 60 + currentMinute;
-          const startMins = sH * 60 + sM;
-          const endMins = eH * 60 + eM;
+          if (!isNaN(sH) && !isNaN(sM) && !isNaN(eH) && !isNaN(eM)) {
+              const nowMins = currentHour * 60 + currentMinute;
+              const startMins = sH * 60 + sM;
+              const endMins = eH * 60 + eM;
 
-          if (startMins < endMins) {
-              isActive = nowMins >= startMins && nowMins <= endMins;
+              if (startMins < endMins) {
+                  isActive = nowMins >= startMins && nowMins <= endMins;
+              } else {
+                  // Overnight shift
+                  isActive = nowMins >= startMins || nowMins <= endMins;
+              }
           } else {
-              // Overnight shift
-              isActive = nowMins >= startMins || nowMins <= endMins;
+              isActive = true;
           }
       } else {
           // Fallback if there's no shift mapped in the operator object
           isActive = true; 
       }
 
-      // Override status se inativo
-      let finalStatus = isActive ? p.status : 'INATIVO';
+      // Preserve intentional inactive statuses even if inside shift hours
+      let finalStatus = p.status;
+      const inactiveStatuses = ['INATIVO', 'FOLGA', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'];
+      if (!isActive) {
+          finalStatus = 'INATIVO';
+      } else if (inactiveStatuses.includes(p.status || '')) {
+          finalStatus = p.status;
+          isActive = false;
+      }
 
       const mission = getActiveMission(p.warName);
       if (isActive) {
@@ -140,26 +160,29 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
     });
   }, [teamMembers, activeShift, activeCategory, searchTerm]);
 
-  return (
-    <div className="w-full h-full flex flex-col bg-slate-950 overflow-hidden font-sans">
-        
+  const headers = (
+    <div className="w-full shrink-0 flex flex-col font-sans">
         {/* TOP HUD NAV */}
-        <div className="h-16 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-8 shrink-0 z-30">
+        <div className={`h-16 border-b flex items-center justify-between px-8 z-30 ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'bg-[#3CA317] border-[#29824a] text-white shadow-sm'}`}>
             <div className="flex items-center gap-6">
                 <button
                     onClick={onClose}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 font-bold uppercase tracking-wider text-xs transition-colors bg-slate-900 hover:bg-slate-800 text-slate-300"
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border font-bold uppercase tracking-wider text-xs transition-colors ${
+                        isDarkMode ? 'border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300' : 'border-white/20 bg-black/10 hover:bg-black/20 text-white'
+                    }`}
                 >
                     <ArrowLeft size={16} />
                     Voltar
                 </button>
-                <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-md border border-slate-800 shadow-inner">
+                <div className={`flex items-center gap-1.5 p-1 rounded-md border shadow-inner ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-black/10 border-white/10'}`}>
                     {['AERODROMO', 'VIP', 'ILHA'].map((cat) => (
                         <button 
                             key={cat} 
                             onClick={() => setActiveCategory(cat as OperatorCategory)} 
                             className={`px-5 py-2 rounded-md text-[10px] font-black tracking-widest uppercase transition-all duration-300 ${
-                                activeCategory === cat ? 'bg-emerald-500 text-slate-950 shadow-neon' : 'text-slate-600 hover:text-slate-400'
+                                activeCategory === cat 
+                                    ? (isDarkMode ? 'bg-emerald-500 text-slate-950 shadow-neon' : 'bg-white text-[#2D8E48] shadow-md') 
+                                    : (isDarkMode ? 'text-slate-600 hover:text-slate-400' : 'text-white/60 hover:text-white')
                             }`}
                         >
                             {cat === 'AERODROMO' ? 'PÁTIO' : cat}
@@ -170,22 +193,26 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
 
             <div className="flex items-center gap-4">
                 <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700" />
+                    <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDarkMode ? 'text-slate-700' : 'text-white/60'}`} />
                     <input 
                         type="text" 
                         placeholder="PESQUISAR..." 
-                        className="bg-slate-950 border border-slate-800 rounded-md pl-9 pr-4 py-2 text-[11px] text-white outline-none focus:border-emerald-500/50 w-56 font-bold tracking-widest transition-all" 
+                        className={`border rounded-md pl-9 pr-4 py-2 text-[11px] outline-none w-56 font-bold tracking-widest transition-all ${
+                            isDarkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500/50' : 'bg-black/10 border-white/20 text-white placeholder:text-white/40 focus:border-white'
+                        }`} 
                         value={searchTerm} 
                         onChange={(e) => setSearchTerm(e.target.value)} 
                     />
                 </div>
-                <div className="flex bg-slate-950 p-1 rounded-md border border-slate-800 gap-1 shadow-sm">
+                <div className={`flex p-1 rounded-md border gap-1 shadow-sm ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-black/10 border-white/10'}`}>
                     {(['GERAL', 'MANHÃ', 'TARDE', 'NOITE'] as ShiftCycle[]).map(cycle => (
                         <button 
                             key={cycle} 
                             onClick={() => setActiveShift(cycle)} 
                             className={`px-4 py-2 rounded-md text-[9px] font-black tracking-widest transition-all ${
-                                activeShift === cycle ? 'bg-slate-800 text-emerald-400 border border-emerald-500/10' : 'text-slate-700 hover:text-slate-500'
+                                activeShift === cycle 
+                                    ? (isDarkMode ? 'bg-slate-800 text-emerald-400 border border-emerald-500/10' : 'bg-white text-[#2D8E48] border-transparent shadow-sm') 
+                                    : (isDarkMode ? 'text-slate-700 hover:text-slate-500' : 'text-white/60 hover:text-white')
                             }`}
                         >
                             {cycle}
@@ -196,72 +223,78 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
         </div>
 
         {/* TEAM TELEMETRY BAR */}
-        <div className="h-16 bg-slate-950 border-b border-slate-800/40 px-8 flex items-center justify-between shrink-0">
+        <div className={`h-16 border-b px-8 flex items-center justify-between z-30 ${isDarkMode ? 'bg-slate-950 border-slate-800/40' : 'bg-[#2D8E48] border-[#206a34] text-white shadow-sm'}`}>
             <div className="flex items-center gap-10">
                 {/* Localização */}
                 <div className="flex items-center gap-6">
                     <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Pátio</span>
+                        <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Pátio</span>
                         <div className="flex items-center gap-2">
-                            <span className="text-xl font-black text-white font-mono">{teamStats.patio}</span>
-                            <div className="w-1 h-1 rounded-full bg-slate-700"></div>
+                            <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.patio}</span>
+                            <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
                         </div>
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Vip</span>
+                        <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Vip</span>
                         <div className="flex items-center gap-2">
-                            <span className="text-xl font-black text-white font-mono">{teamStats.vip}</span>
-                            <div className="w-1 h-1 rounded-full bg-slate-700"></div>
+                            <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.vip}</span>
+                            <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
                         </div>
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Ilha</span>
+                        <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Ilha</span>
                         <div className="flex items-center gap-2">
-                            <span className="text-xl font-black text-white font-mono">{teamStats.ilha}</span>
+                            <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.ilha}</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="h-8 w-px bg-slate-800"></div>
+                <div className={`h-8 w-px ${isDarkMode ? 'bg-slate-800' : 'bg-white/20'}`}></div>
 
                 {/* Status Operacional */}
                 <div className="flex items-center gap-8">
-                    <div className="flex items-center gap-3 bg-emerald-500/5 px-4 py-1.5 rounded-md border border-emerald-500/10">
+                    <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-white/10 border-white/20'}`}>
                         <div className="text-center">
-                            <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest block mb-0.5">Disponíveis</span>
-                            <span className="text-lg font-black text-emerald-500 font-mono leading-none">{teamStats.disponivel}</span>
+                            <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-emerald-500/60' : 'text-emerald-100'}`}>Disponíveis</span>
+                            <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-emerald-500' : 'text-emerald-300'}`}>{teamStats.disponivel}</span>
                         </div>
-                        <Users size={16} className="text-emerald-500 opacity-30" />
+                        <Users size={16} className={`${isDarkMode ? 'text-emerald-500 opacity-30' : 'text-white opacity-60'}`} />
                     </div>
-                    <div className="flex items-center gap-3 bg-yellow-500/5 px-4 py-1.5 rounded-md border border-yellow-500/10">
+                    <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-yellow-500/5 border-yellow-500/10' : 'bg-white/10 border-white/20'}`}>
                         <div className="text-center">
-                            <span className="text-[8px] font-black text-yellow-500/60 uppercase tracking-widest block mb-0.5">Ocupados</span>
-                            <span className="text-lg font-black text-yellow-500 font-mono leading-none">{teamStats.enchendo + teamStats.designado}</span>
+                            <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-yellow-500/60' : 'text-yellow-100'}`}>Ocupados</span>
+                            <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-yellow-500' : 'text-yellow-300'}`}>{teamStats.enchendo + teamStats.designado}</span>
                         </div>
-                        <Droplet size={16} className="text-yellow-500 opacity-30" />
+                        <Droplet size={16} className={`${isDarkMode ? 'text-yellow-500 opacity-30' : 'text-white opacity-60'}`} />
                     </div>
-                    <div className="flex items-center gap-3 bg-blue-500/5 px-4 py-1.5 rounded-md border border-blue-500/10">
+                    <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-blue-500/5 border-blue-500/10' : 'bg-white/10 border-white/20'}`}>
                         <div className="text-center">
-                            <span className="text-[8px] font-black text-blue-400/60 uppercase tracking-widest block mb-0.5">Designados</span>
-                            <span className="text-lg font-black text-blue-400 font-mono leading-none">{teamStats.designado}</span>
+                            <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-blue-400/60' : 'text-blue-100'}`}>Designados</span>
+                            <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-blue-400' : 'text-blue-300'}`}>{teamStats.designado}</span>
                         </div>
-                        <BusFront size={16} className="text-blue-400 opacity-30" />
+                        <BusFront size={16} className={`${isDarkMode ? 'text-blue-400 opacity-30' : 'text-white opacity-60'}`} />
                     </div>
                 </div>
             </div>
 
             <div className="flex flex-col items-end">
-                <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Turno Ativo</span>
+                <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Turno Ativo</span>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-slate-400 font-mono">{activeShift}</span>
-                    <Zap size={12} className="text-emerald-500 animate-pulse" />
+                    <span className={`text-xs font-black font-mono ${isDarkMode ? 'text-slate-400' : 'text-white'}`}>{activeShift}</span>
+                    <Zap size={12} className={`${isDarkMode ? 'text-emerald-500' : 'text-emerald-300'} animate-pulse`} />
                 </div>
             </div>
         </div>
+    </div>
+  );
+
+  return (
+    <div className={`w-full h-full flex flex-col overflow-hidden font-sans ${isDarkMode ? 'bg-slate-950' : 'bg-slate-200'}`}>
+        {portalTarget ? createPortal(headers, portalTarget) : headers}
 
         {/* OPERATIONAL GRID - DISPONÍVEIS NO TOPO */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
                     {filteredTeam.map(op => {
                         const mission = getActiveMission(op.warName);
                         // @ts-ignore
@@ -272,99 +305,92 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                         const isDesignated = mission && mission.status === 'DESIGNADO';
                         const isHandsOn = (mission && mission.status === 'ABASTECENDO') || op.status === 'ENCHIMENTO' || op.status === 'OCUPADO';
                         
-                        let cardStyle = 'bg-slate-900 text-slate-500 border-slate-800 opacity-60'; // Inativo/Default
-                        let badgeStyle = 'bg-slate-800 text-slate-500 border-slate-800';
+                        let cardStyle = isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-slate-700 border-slate-300 shadow-sm'; // Inativo/Default
+                        let badgeStyle = isDarkMode ? 'bg-slate-900 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200';
                         let statusLabel = op.status;
 
                         if (isAvailable) {
-                            cardStyle = 'bg-emerald-500 text-slate-950 border-emerald-500 shadow-[0_10px_25px_rgba(16,185,129,0.2)]';
-                            badgeStyle = 'bg-slate-950 text-emerald-400 border-slate-950/5';
+                            cardStyle = isDarkMode ? 'bg-emerald-500 text-slate-950 border-emerald-500 shadow-[0_10px_25px_rgba(16,185,129,0.2)]' : 'bg-emerald-600 text-white border-emerald-600 shadow-md';
+                            badgeStyle = isDarkMode ? 'bg-slate-950 text-emerald-400 border-slate-950/5' : 'bg-emerald-800 text-white border-transparent';
                             statusLabel = 'DISPONÍVEL';
                         } else if (isDesignated) {
-                            cardStyle = 'bg-blue-500 text-slate-950 border-blue-400 shadow-[0_10px_25px_rgba(59,130,246,0.3)]';
-                            badgeStyle = 'bg-slate-950 text-blue-400 border-slate-950/5';
+                            cardStyle = isDarkMode ? 'bg-blue-500 text-slate-950 border-blue-400 shadow-[0_10px_25px_rgba(59,130,246,0.3)]' : 'bg-blue-700 text-white border-blue-700 shadow-md';
+                            badgeStyle = isDarkMode ? 'bg-slate-950 text-blue-400 border-slate-950/5' : 'bg-blue-900 text-white border-transparent';
                             statusLabel = 'DESIGNADO';
                         } else if (isHandsOn) {
-                            cardStyle = 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-[0_10px_25px_rgba(250,204,21,0.3)]';
-                            badgeStyle = 'bg-slate-950 text-yellow-400 border-slate-950/5';
+                            cardStyle = isDarkMode ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-[0_10px_25px_rgba(250,204,21,0.3)]' : 'bg-amber-500 text-slate-900 border-amber-600 shadow-md';
+                            badgeStyle = isDarkMode ? 'bg-slate-950 text-yellow-500 border-slate-950/5' : 'bg-amber-700 text-white border-transparent';
                             statusLabel = op.status === 'ENCHIMENTO' ? 'ENCHIMENTO' : 'OCUPADO';
                         }
                         
+                        // Determinar se o operador está em algum estado inativo para aplicar uma opacidade condicional no card inteiro (se desejado, ou não colocar para evitar que fique 'opaco')
+                        const isInactive = ['INATIVO', 'FOLGA', 'INTERVALO', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'].includes(op.status || '');
+
                         return (
                             <div 
                                 key={op.id}
-                                className={`group relative flex items-stretch h-[90px] rounded-md border-2 transition-all duration-300 shadow-2xl overflow-hidden ${cardStyle}`}
+                                className={`group relative flex items-stretch h-[68px] rounded-md border transition-all duration-300 overflow-hidden ${cardStyle} ${isInactive ? 'opacity-70 grayscale-[30%]' : ''}`}
                             >
                                 {/* Foto/Ícone do Operador */}
-                                <OperatorAvatar op={op} isActive={isAvailable || !!isDesignated || isHandsOn} />
+                                <OperatorAvatar op={op} isActive={!isInactive} isDarkMode={isDarkMode} />
 
                                 {/* Conteúdo */}
-                                <div className="flex-1 flex flex-col justify-center p-3 pl-4 min-w-0 text-left relative">
+                                <div className="flex-1 flex flex-col justify-center p-2 pl-3 min-w-0 text-left relative">
                                     
                                     {/* HUD SUPERIOR DIREITO: FROTA + CONTADOR */}
-                                    <div className="absolute top-2 right-2 flex items-center gap-2">
+                                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1.5">
                                         {op.assignedVehicle && (
-                                            <span className={`text-xl font-mono font-black ${isAvailable || isDesignated || isHandsOn ? 'text-slate-950/60' : 'text-slate-600'}`}>
+                                            <span className={`text-sm font-mono font-black ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950/60' : 'text-white/80') : (isDarkMode ? 'text-slate-600' : 'text-slate-400')}`}>
                                                 {op.assignedVehicle.replace('SRV-', '').replace('CTA-', '')}
                                             </span>
                                         )}
-                                        <div className={`flex items-center justify-center w-7 h-7 rounded-md font-mono font-black text-sm border shadow-sm ${
+                                        <div className={`flex items-center justify-center w-5 h-5 rounded-sm font-mono font-black text-[10px] border shadow-sm ${
                                             isAvailable || isDesignated || isHandsOn
-                                                ? 'bg-slate-950 text-white border-slate-900' 
-                                                : 'bg-slate-900 text-slate-600 border-slate-800'
+                                                ? (isDarkMode ? 'bg-slate-950 text-white border-slate-900' : 'bg-white/20 text-white border-white/10')
+                                                : (isDarkMode ? 'bg-slate-900 text-slate-600 border-slate-800' : 'bg-white text-slate-400 border-slate-200')
                                         }`}>
                                             {flightsToday}
                                         </div>
                                     </div>
 
-                                    <div className="flex flex-col items-start mb-1 pr-16">
-                                        <h3 className="font-black tracking-tighter uppercase leading-none truncate w-full text-xl">
+                                    <div className="flex flex-col items-start pr-[42px]">
+                                        <h3 className={`font-black tracking-tighter uppercase leading-none truncate w-full text-base ${!isAvailable && !isDesignated && !isHandsOn && !isDarkMode ? 'text-slate-800' : ''}`}>
                                             {op.warName}
                                         </h3>
-                                        <span className={`text-[7px] font-black uppercase tracking-[0.3em] opacity-40 mt-1 ${isAvailable || isDesignated || isHandsOn ? 'text-slate-950' : 'text-slate-500'}`}>
+                                        <span className={`text-[8px] font-black uppercase tracking-[0.1em] opacity-70 mt-1 ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950' : 'text-white') : (isDarkMode ? 'text-slate-500' : 'text-slate-500')}`}>
                                             {op.category}
                                         </span>
                                     </div>
 
                                     {/* Telemetria de Solo */}
-                                    <div className="flex flex-col gap-0.5">
+                                    <div className={`flex flex-col mt-0.5 ${!isAvailable && !isDesignated && !isHandsOn && !isDarkMode ? 'text-slate-600' : ''}`}>
                                         {mission ? (
-                                            <div className="flex items-center gap-1.5 font-mono text-base font-black tracking-tighter truncate">
-                                                <span className="opacity-70">{mission.destination}</span>
-                                                <span className="opacity-20">/</span>
-                                                <span>{mission.registration}</span>
-                                                <span className="opacity-20">/</span>
-                                                <span className="bg-slate-950/10 px-1.5 rounded-md">{mission.positionId}</span>
+                                            <div className="flex items-center gap-1 font-mono text-xs font-black tracking-tighter truncate">
+                                                <span className="opacity-90">{mission.destination}</span>
+                                                <span className="opacity-40">•</span>
+                                                <span className="opacity-90">{mission.registration}</span>
+                                                <span className="opacity-40">•</span>
+                                                <span className={`px-1 rounded ${isDarkMode ? 'bg-slate-950/20' : 'bg-black/10'}`}>{mission.positionId}</span>
                                             </div>
                                         ) : (
-                                            <div className={`flex items-center gap-1.5 font-mono font-black tracking-tight ${isAvailable || isHandsOn ? 'text-sm' : 'text-xs'}`}>
+                                            <div className={`flex items-center gap-1 font-mono font-black tracking-tight ${isAvailable || isHandsOn ? 'text-[11px]' : 'text-[9px]'}`}>
                                                 {isHandsOn ? (
-                                                    <Droplet size={14} className="shrink-0 opacity-60 animate-pulse" />
+                                                    <Droplet size={12} className="shrink-0 opacity-80 animate-pulse" />
                                                 ) : (
-                                                    <MapPin size={isAvailable ? 12 : 10} className="shrink-0 opacity-40" />
+                                                    <MapPin size={isAvailable ? 10 : 8} className="shrink-0 opacity-60" />
                                                 )}
                                                 
                                                 <span className="truncate uppercase opacity-60">
                                                     {(() => {
-                                                        const currentRealShift = getCurrentShiftCycle();
-                                                        const isSameShift = op.shift && op.shift.cycle === currentRealShift;
-                                                        const isCurrentlyActive = op.status !== 'INATIVO';
-
-                                                        if (!isSameShift) return op.shift ? `TURNO ${op.shift.cycle}` : 'SEM TURNO';
-                                                        if (!isCurrentlyActive) return 'FOLGA';
-                                                        if (op.status === 'INTERVALO') return 'INTERVALO';
+                                                        if (op.status === 'INATIVO') return 'FORA';
+                                                        if (op.status === 'INTERVALO') return 'PAUSA';
                                                         return op.lastPosition || 'PÁTIO';
                                                     })()}
                                                 </span>
 
-                                                <span className={`px-1.5 rounded-[4px] font-black uppercase border text-[10px] ${badgeStyle}`}>
+                                                <span className={`px-1 rounded-sm font-black uppercase border text-[8px] whitespace-nowrap ${badgeStyle}`}>
                                                     {(() => {
-                                                        const currentRealShift = getCurrentShiftCycle();
-                                                        const isSameShift = op.shift && op.shift.cycle === currentRealShift;
-                                                        const isCurrentlyActive = op.status !== 'INATIVO';
-
-                                                        if (!isSameShift) return op.shift ? op.shift.cycle : 'N/A';
-                                                        if (!isCurrentlyActive) return 'FOLGA';
+                                                        if (op.status === 'INATIVO') return op.shift?.cycle || 'N/A';
                                                         return statusLabel;
                                                     })()}
                                                 </span>
@@ -375,8 +401,8 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                 
                                 {/* Decorativo Dinâmico de Avião */}
                                 {mission && (
-                                    <div className="absolute bottom-[-15px] right-[-15px] opacity-10 pointer-events-none rotate-12 scale-75">
-                                        <Plane size={80} className="text-slate-950" />
+                                    <div className={`absolute bottom-[-10px] right-[-10px] opacity-10 pointer-events-none rotate-12 scale-50 ${isDarkMode ? 'text-slate-950' : 'text-white'}`}>
+                                        <Plane size={60} />
                                     </div>
                                 )}
                             </div>
