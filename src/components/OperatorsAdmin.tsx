@@ -8,15 +8,25 @@ interface OperatorsAdminProps {
   isDarkMode: boolean;
 }
 
-type OperatorField = keyof OperatorProfile | 'actions';
+type OperatorField = keyof OperatorProfile | 'actions' | 'shiftCycle' | 'shiftStart' | 'shiftEnd';
 
 const COLUMNS: { key: OperatorField; label: string; width: string; isVariable: boolean }[] = [
-  { key: 'warName', label: 'Nome de Guerra', width: 'w-48', isVariable: true },
-  { key: 'fullName', label: 'Nome Completo', width: 'w-72', isVariable: true },
-  { key: 'category', label: 'Categoria', width: 'w-32', isVariable: true },
-  { key: 'status', label: 'Status', width: 'w-32', isVariable: true },
-  { key: 'fleetCapability', label: 'Frota', width: 'w-24', isVariable: true },
-  { key: 'actions', label: 'Ações', width: 'w-20', isVariable: false },
+  { key: 'photoUrl', label: 'Foto (URL)', width: 'w-[100px]', isVariable: true },
+  { key: 'warName', label: 'Nome de Guerra', width: 'w-[140px]', isVariable: true },
+  { key: 'fullName', label: 'Nome Completo', width: 'w-[260px]', isVariable: true },
+  { key: 'role', label: 'Função', width: 'w-[100px]', isVariable: true },
+  { key: 'isLT', label: 'LT?', width: 'w-[60px]', isVariable: true },
+  { key: 'companyId', label: 'Matr. VB', width: 'w-[100px]', isVariable: true },
+  { key: 'gruId', label: 'Matr. Gru', width: 'w-[100px]', isVariable: true },
+  { key: 'vestNumber', label: 'ISO', width: 'w-[70px]', isVariable: true },
+  { key: 'tmfLogin', label: 'Log. TMF', width: 'w-[90px]', isVariable: true },
+  { key: 'bloodType', label: 'TS', width: 'w-[60px]', isVariable: true },
+  { key: 'patio', label: 'Pátio', width: 'w-[100px]', isVariable: true },
+  { key: 'shiftCycle', label: 'Turno', width: 'w-[100px]', isVariable: true },
+  { key: 'shiftStart', label: 'Hr. Ent.', width: 'w-[80px]', isVariable: true },
+  { key: 'shiftEnd', label: 'Hr. Sai.', width: 'w-[80px]', isVariable: true },
+  { key: 'status', label: 'Status', width: 'w-[100px]', isVariable: true },
+  { key: 'actions', label: 'Ações', width: 'w-[70px]', isVariable: false },
 ];
 
 export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) => {
@@ -27,8 +37,72 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
   const [sortConfig, setSortConfig] = useState<{ key: OperatorField; direction: 'asc' | 'desc' }>({ key: 'warName', direction: 'asc' });
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoUploadRowId, setPhotoUploadRowId] = useState<string | null>(null);
   
   const tableRef = useRef<HTMLTableElement>(null);
+
+  const handlePhotoClick = (rowId: string) => {
+    setPhotoUploadRowId(rowId);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !photoUploadRowId) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 256;
+        const MAX_HEIGHT = 256;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          
+          // Update locally
+          handleFieldChange(photoUploadRowId, 'photoUrl', dataUrl);
+          // Persist to Supabase implicitly by calling handleFinishEdit logic later
+          // Wait, handleFieldChange just updates the state. We need to trigger save to supabase directly.
+          setTimeout(() => {
+             // Since handleFieldChange is synchronous but setting state is async, 
+             // it's better to force save.
+             const insertPayload = { photo_url: dataUrl };
+             if (!photoUploadRowId.startsWith('new-')) {
+               supabase.from('operators').update(insertPayload).eq('id', photoUploadRowId).then();
+             }
+          }, 0);
+        }
+      };
+      if (event.target?.result) {
+        img.src = event.target.result as string;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const fetchOperators = async () => {
     setIsLoading(true);
@@ -41,12 +115,21 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
         status: o.status,
         fleetCapability: o.fleet_capability,
         category: o.category,
+        role: o.role || '',
+        isLT: o.is_lt || 'NÃO',
+        patio: o.patio || '',
+        tmfLogin: o.tmf_login || '',
+        bloodType: o.blood_type || '',
         companyId: o.company_id || '',
         gruId: o.gru_id || '',
         vestNumber: o.vest_number || '',
         photoUrl: o.photo_url || '',
         lastPosition: o.last_position || '',
-        shift: { cycle: 'GERAL', start: '00:00', end: '23:59' } // default placeholder if needed
+        shift: { cycle: o.shift_cycle || 'GERAL', start: o.shift_start || '00:00', end: o.shift_end || '23:59' },
+        airlines: [],
+        ratings: { speed: 100, safety: 100, airlineSpecific: {} },
+        expertise: { servidor: 100, cta: 100 },
+        stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 }
       } as OperatorProfile)));
     }
     setIsLoading(false);
@@ -72,6 +155,18 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
     if (colKey === 'status') supabasePayload.status = op.status;
     if (colKey === 'fleetCapability') supabasePayload.fleet_capability = op.fleetCapability;
     if (colKey === 'category') supabasePayload.category = op.category;
+    if (colKey === 'role') supabasePayload.role = op.role;
+    if (colKey === 'isLT') supabasePayload.is_lt = op.isLT;
+    if (colKey === 'companyId') supabasePayload.company_id = op.companyId;
+    if (colKey === 'gruId') supabasePayload.gru_id = op.gruId;
+    if (colKey === 'vestNumber') supabasePayload.vest_number = op.vestNumber;
+    if (colKey === 'tmfLogin') supabasePayload.tmf_login = op.tmfLogin;
+    if (colKey === 'bloodType') supabasePayload.blood_type = op.bloodType;
+    if (colKey === 'patio') supabasePayload.patio = op.patio;
+    if (colKey === 'shiftCycle') supabasePayload.shift_cycle = op.shift?.cycle;
+    if (colKey === 'shiftStart') supabasePayload.shift_start = op.shift?.start;
+    if (colKey === 'shiftEnd') supabasePayload.shift_end = op.shift?.end;
+    if (colKey === 'photoUrl') supabasePayload.photo_url = op.photoUrl;
 
     if (Object.keys(supabasePayload).length > 0) {
       if (rowId.startsWith('new-')) {
@@ -81,12 +176,21 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
               const insertPayload = {
                   full_name: op.fullName,
                   war_name: op.warName,
-                  status: op.status || 'DISPONÍVEL',
+                  status: op.status || 'ATIVO',
                   fleet_capability: op.fleetCapability || 'SRV',
                   category: op.category || 'JUNIOR',
+                  role: op.role || '',
+                  is_lt: op.isLT || 'NÃO',
+                  patio: op.patio || '',
+                  tmf_login: op.tmfLogin || '',
+                  blood_type: op.bloodType || '',
                   company_id: op.companyId || '',
                   gru_id: op.gruId || '',
                   vest_number: op.vestNumber || '',
+                  shift_cycle: op.shift?.cycle || '',
+                  shift_start: op.shift?.start || '',
+                  shift_end: op.shift?.end || '',
+                  photo_url: op.photoUrl || '',
               };
               const { data, error } = await supabase.from('operators').insert([insertPayload]).select('id').single();
               if (!error && data) {
@@ -109,11 +213,39 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
 
     let newValue: any = value.toUpperCase();
     
+    if (field === 'companyId' || field === 'gruId') {
+      const digits = newValue.replace(/\D/g, '');
+      if (digits.length <= 6) {
+         if (digits.length > 3) newValue = `${digits.slice(0,3)}.${digits.slice(3)}`;
+         else newValue = digits;
+      } else {
+         newValue = `${digits.slice(0,3)}.${digits.slice(3,6)}`;
+      }
+    } else if (field === 'vestNumber' || field === 'tmfLogin') {
+      newValue = newValue.replace(/\D/g, '').slice(0, 4);
+    } else if (field === 'shiftStart' || field === 'shiftEnd') {
+      const digits = newValue.replace(/\D/g, '');
+      if (digits.length > 2) {
+         newValue = `${digits.slice(0,2)}:${digits.slice(2,4)}`;
+      } else {
+         newValue = digits;
+      }
+      if (newValue.length > 5) newValue = newValue.slice(0,5);
+    }
+    
     setOperators(prev => {
         const updated = [...prev];
         const idx = updated.findIndex(f => f.id === id);
         if (idx !== -1) {
-            updated[idx] = { ...updated[idx], [field]: newValue };
+            if (field === 'shiftCycle') {
+                updated[idx] = { ...updated[idx], shift: { ...updated[idx].shift, cycle: newValue } };
+            } else if (field === 'shiftStart') {
+                updated[idx] = { ...updated[idx], shift: { ...updated[idx].shift, start: newValue } };
+            } else if (field === 'shiftEnd') {
+                updated[idx] = { ...updated[idx], shift: { ...updated[idx].shift, end: newValue } };
+            } else {
+                updated[idx] = { ...updated[idx], [field]: newValue };
+            }
         }
         return updated;
     });
@@ -124,7 +256,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
       id: `new-${Date.now()}`,
       fullName: '',
       warName: '',
-      status: 'DISPONÍVEL',
+      status: 'ATIVO',
       category: 'JUNIOR',
       fleetCapability: 'SRV',
       companyId: '',
@@ -132,7 +264,11 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
       vestNumber: '',
       photoUrl: '',
       lastPosition: '',
-      shift: { cycle: 'GERAL', start: '00:00', end: '23:59' }
+      shift: { cycle: 'GERAL', start: '00:00', end: '23:59' },
+      airlines: [],
+      ratings: { speed: 100, safety: 100, airlineSpecific: {} },
+      expertise: { servidor: 100, cta: 100 },
+      stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 }
     };
     setOperators(prev => [newOp, ...prev]);
     setFocusedCell({ rowId: newOp.id, col: 0 });
@@ -180,6 +316,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
 
     switch (e.key) {
       case 'ArrowDown':
+        if (isEditing) return; // Allow native dropdown navigation
         e.preventDefault();
         if (rowIndex < filteredOperators.length - 1) {
           setFocusedCell({ rowId: filteredOperators[rowIndex + 1].id, col: colIndex });
@@ -187,6 +324,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
         setEditingCell(null);
         break;
       case 'ArrowUp':
+        if (isEditing) return; // Allow native dropdown navigation
         e.preventDefault();
         if (rowIndex > 0) {
           setFocusedCell({ rowId: filteredOperators[rowIndex - 1].id, col: colIndex });
@@ -225,7 +363,11 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
             setFocusedCell({ rowId: op.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
             handleFinishEdit(op.id, colIndex);
         } else if (COLUMNS[colIndex].isVariable) {
-          startEditingCell(op.id, colIndex);
+          if (COLUMNS[colIndex].key === 'photoUrl') {
+            handlePhotoClick(op.id);
+          } else {
+            startEditingCell(op.id, colIndex);
+          }
         } else {
           setFocusedCell({ rowId: op.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
         }
@@ -298,7 +440,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
   }, []);
 
   const headerContent = (
-    <div className={`px-4 h-auto min-h-[3.5rem] py-1.5 shrink-0 flex items-center flex-wrap md:flex-nowrap justify-between gap-2 border-b ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#000021] border-transparent text-white'} z-[60] w-full shadow-md`}>
+    <div className={`px-4 h-auto min-h-[3.5rem] py-1.5 shrink-0 flex items-center flex-wrap md:flex-nowrap justify-between gap-2 border-b ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#3CA317] border-transparent text-white'} z-[60] w-full shadow-md`}>
       <div className="flex items-center gap-2 md:gap-4 flex-wrap md:flex-nowrap">
         {/* Brand & Quick Stats */}
         <div className="flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
@@ -352,6 +494,19 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
 
         {/* Spreadsheet Area */}
         <div className={`flex-1 min-w-0 overflow-auto ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
+          <datalist id="datalist-role">
+            {['OP. JR.', 'OP. PL', 'OP. SR.', 'OP. LT'].map(v => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="datalist-isLT">
+            {['SIM', 'NÃO'].map(v => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="datalist-patio">
+            {['AEROD.', 'VIP', 'AMBOS'].map(v => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="datalist-shiftCycle">
+            {['MANHÃ', 'TARDE', 'NOITE', 'GERAL'].map(v => <option key={v} value={v} />)}
+          </datalist>
+          
           <table ref={tableRef} className="w-full border-collapse table-fixed select-none min-w-[800px]">
             <thead className="sticky top-0 z-[40]">
                 <tr className={`${isDarkMode ? 'bg-slate-800/95 text-slate-400' : 'bg-slate-800 text-slate-200'} backdrop-blur-sm shadow-md`}>
@@ -361,7 +516,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
                       onClick={() => handleSort(col.key)}
                       className={`
                         ${col.width} px-2 py-3 text-[10px] font-black uppercase tracking-widest border-b border-r ${isDarkMode ? 'border-slate-700' : 'border-slate-700/50'} text-center
-                        ${col.isVariable ? (isDarkMode ? 'bg-[#FEDC00]/10 text-[#FEDC00]' : 'bg-[#FEDC00]/20 text-slate-900') : ''}
+                        ${col.isVariable ? (isDarkMode ? 'bg-emerald-950/20 text-emerald-400' : 'bg-emerald-500/10 text-white') : ''}
                         ${col.key !== 'actions' ? 'cursor-pointer hover:bg-slate-700 transition-colors' : ''}
                       `}
                     >
@@ -369,8 +524,8 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
                         {col.label}
                         {col.key !== 'actions' && (
                           <div className="flex flex-col gap-0.5 opacity-30">
-                            <ChevronDown size={8} className={`-rotate-180 ${sortConfig.key === col.key && sortConfig.direction === 'asc' ? 'opacity-100 text-[#FEDC00]' : ''}`} />
-                            <ChevronDown size={8} className={`${sortConfig.key === col.key && sortConfig.direction === 'desc' ? 'opacity-100 text-[#FEDC00]' : ''}`} />
+                            <ChevronDown size={8} className={`-rotate-180 ${sortConfig.key === col.key && sortConfig.direction === 'asc' ? 'opacity-100 text-emerald-400' : ''}`} />
+                            <ChevronDown size={8} className={`${sortConfig.key === col.key && sortConfig.direction === 'desc' ? 'opacity-100 text-emerald-400' : ''}`} />
                           </div>
                         )}
                       </div>
@@ -393,9 +548,18 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
                     {COLUMNS.map((col, cIdx) => {
                       const isCellFocused = focusedCell?.rowId === op.id && focusedCell?.col === cIdx;
                       const isCellEditing = editingCell?.rowId === op.id && editingCell?.col === cIdx;
-                      const cellValue = op[col.key as OperatorField] || '';
+                      const getCellValue = (opAny: any, key: string) => {
+                        if (key === 'shiftCycle') return opAny.shift?.cycle || '';
+                        if (key === 'shiftStart') return opAny.shift?.start || '';
+                        if (key === 'shiftEnd') return opAny.shift?.end || '';
+                        return opAny[key] || '';
+                      };
+                      
+                      const cellValue = getCellValue(op, col.key);
                       const isMandatoryField = col.key === 'warName' || col.key === 'fullName';
                       const isMandatoryEmpty = isMandatoryField && (cellValue === '' || cellValue === '?');
+                      const isSelectField = ['status'].includes(col.key);
+                      const isDatalistField = ['role', 'isLT', 'patio', 'shiftCycle'].includes(col.key);
                       
                       if (col.key === 'actions') {
                         return (
@@ -424,6 +588,10 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
                           key={`${op.id}-${col.key}`} 
                           data-col={cIdx}
                           onClick={() => {
+                            if (col.key === 'photoUrl') {
+                              handlePhotoClick(op.id);
+                              return;
+                            }
                             if (isCellFocused) {
                               startEditingCell(op.id, cIdx);
                             } else {
@@ -433,23 +601,41 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
                           }}
                           className={`
                             p-0 border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} relative transition-all h-10
-                            ${col.isVariable ? (isDarkMode ? 'bg-[#FEDC00]/5' : 'bg-[#FEDC00]/5') : ''}
-                            ${isCellFocused ? 'ring-2 ring-[#FEDC00] ring-inset z-20 shadow-xl' : ''}
+                            ${col.isVariable ? (isDarkMode ? 'bg-emerald-950/5' : 'bg-emerald-500/5') : ''}
+                            ${isCellFocused ? 'ring-2 ring-emerald-500 ring-inset z-20 shadow-xl' : ''}
                           `}
                         >
                           {isCellEditing ? (
-                            <input 
-                              type="text"
-                              autoFocus
-                              value={String(op[col.key as OperatorField] || '')}
-                              onChange={(e) => handleFieldChange(op.id, col.key as OperatorField, e.target.value)}
-                              onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
-                              onBlur={() => handleFinishEdit(op.id, cIdx)}
-                              className={`
-                                absolute inset-0 w-full h-full px-3 bg-[#e5c600] text-slate-950 font-mono text-[11px] uppercase font-black outline-none
-                                ${col.key === 'fullName' ? 'text-left' : 'text-center'}
-                              `}
-                            />
+                            isSelectField ? (
+                              <select
+                                autoFocus
+                                value={String(cellValue)}
+                                onChange={(e) => handleFieldChange(op.id, col.key as OperatorField, e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
+                                onBlur={() => handleFinishEdit(op.id, cIdx)}
+                                className={`
+                                  absolute inset-0 w-full h-full px-3 bg-emerald-500 text-slate-950 font-mono text-[11px] uppercase font-black outline-none appearance-none text-center cursor-pointer
+                                `}
+                              >
+                                <option value=""></option>
+                                {col.key === 'status' && ['ATIVO', 'FOLG.', 'FÉRIAS', 'AFAST.'].map(v => <option key={v} value={v}>{v}</option>)}
+                              </select>
+                            ) : (
+                              <input 
+                                type="text"
+                                autoFocus
+                                list={isDatalistField ? `datalist-${col.key}` : undefined}
+                                placeholder={col.key === 'photoUrl' ? 'URL da Imagem' : undefined}
+                                value={String(cellValue)}
+                                onChange={(e) => handleFieldChange(op.id, col.key as OperatorField, e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
+                                onBlur={() => handleFinishEdit(op.id, cIdx)}
+                                className={`
+                                  absolute inset-0 w-full h-full px-3 bg-emerald-500 text-slate-950 font-mono text-[11px] uppercase font-black outline-none
+                                  ${col.key === 'fullName' ? 'text-left' : 'text-center'}
+                                `}
+                              />
+                            )
                           ) : (
                             <div 
                               tabIndex={0}
@@ -459,12 +645,28 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
                                 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}
                                 ${col.key === 'fullName' ? 'justify-start text-left' : 'justify-center text-center'}
                                 ${isMandatoryEmpty ? 'text-red-500 animate-pulse font-black text-xs' : ''}
-                                ${col.key === 'status' && cellValue === 'DISPONÍVEL' ? 'text-emerald-500' : ''}
-                                ${col.key === 'status' && (cellValue === 'FÉRIAS' || cellValue === 'AFASTADO') ? 'text-amber-500' : ''}
-                                ${col.key === 'status' && cellValue === 'OCUPADO' ? 'text-indigo-500' : ''}
+                                ${col.key === 'status' && cellValue === 'ATIVO' ? 'text-emerald-500' : ''}
+                                ${col.key === 'status' && (cellValue === 'FÉRIAS' || cellValue === 'AFAST.') ? 'text-amber-500' : ''}
+                                ${col.key === 'status' && cellValue === 'FOLG.' ? 'text-indigo-500' : ''}
                               `}
                             >
-                              <span>{isMandatoryEmpty ? '?' : (String(cellValue) || '-')}</span>
+                              {col.key === 'photoUrl' ? (
+                                cellValue ? (
+                                  <div className={`group w-8 h-8 rounded-full border bg-slate-200 flex-shrink-0 overflow-hidden relative cursor-pointer ${isDarkMode ? 'border-slate-700' : 'border-slate-300'}`}>
+                                    <img src={String(cellValue)} alt="Foto" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-slate-900 bg-black/20">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className={`group w-8 h-8 rounded-full border border-dashed flex items-center justify-center text-[10px] flex-shrink-0 cursor-pointer transition-all ${isDarkMode ? 'border-slate-600 bg-slate-800 hover:bg-slate-700' : 'border-slate-400 bg-slate-100 hover:bg-slate-200'}`}>
+                                    <span className="opacity-40 group-hover:hidden">Sem</span>
+                                    <svg className="hidden group-hover:block opacity-60" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                  </div>
+                                )
+                              ) : (
+                                <span>{isMandatoryEmpty ? '?' : (String(cellValue) || '-')}</span>
+                              )}
                               {isMandatoryEmpty && op.id === focusedCell?.rowId && (
                                   <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
                               )}
@@ -491,13 +693,22 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode }) =>
           <div className="flex gap-4">
             <span>Registros: {filteredOperators.length}</span>
             <span className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-[#FEDC00]"></div>
+              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
               Salvo automaticamente
             </span>
           </div>
           <div>Dica: 1 clique seleciona, 2 cliques editam. Setas navegam, Enter pula para a direita.</div>
         </div>
       </div>
+      
+      {/* Hidden inputs & portals */}
+      <input 
+        type="file" 
+        accept="image/jpeg, image/png, image/webp" 
+        ref={fileInputRef} 
+        className="hidden" 
+        onChange={handlePhotoFileChange} 
+      />
     </div>
   );
 };

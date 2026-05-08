@@ -10,7 +10,7 @@ export enum FlightStatus {
   CANCELADO = 'CANCELADO'      // Voo cancelado ou não abastecido
 }
 
-export type OperatorStatus = 'DISPONÍVEL' | 'OCUPADO' | 'INTERVALO' | 'DESCONECTADO' | 'ENCHIMENTO' | 'DESIGNADO';
+export type OperatorStatus = 'DISPONÍVEL' | 'OCUPADO' | 'INTERVALO' | 'DESCONECTADO' | 'ENCHIMENTO' | 'DESIGNADO' | 'ATIVO' | 'FOLG.' | 'FÉRIAS' | 'AFAST.' | string;
 export type VehicleType = 'SERVIDOR' | 'CTA';
 export type VehicleStatus = 'DISPONÍVEL' | 'OCUPADO' | 'INATIVO' | 'ENCHIMENTO';
 
@@ -63,12 +63,17 @@ export interface OperatorProfile {
   id: string;
   fullName: string;
   warName: string;
-  companyId: string;
-  gruId: string;
-  vestNumber: string;
+  companyId: string; // Matr. VB
+  gruId: string; // Matr. Gru
+  vestNumber: string; // ISO
+  tmfLogin?: string; // Log. TMF (4 digits)
+  bloodType?: string; // TS (e.g. O+)
+  isLT?: 'SIM' | 'NÃO'; // LT
+  patio?: 'AERODROMO' | 'VIP' | 'AMBOS' | string; // Pátio
+  role?: 'Op. Jr.' | 'Op. Pl' | 'Op. Sr.' | 'Op. LT' | string; // Função
   photoUrl: string;
   status: OperatorStatus;
-  category: OperatorCategory;
+  category: string; // Changed to string to support JUNIOR/PLENO/SENIOR without complaining
   lastPosition: string;
   fleetCapability?: 'CTA' | 'SRV' | 'BOTH';
   lastFlightEnd?: Date;
@@ -76,9 +81,9 @@ export interface OperatorProfile {
   pausedAt?: string; // Hora em que entrou em pausa (HH:mm)
   resumedAt?: string; // Hora em que retornou da pausa (HH:mm)
   shift: {
-    cycle: ShiftCycle;
-    start: string;
-    end: string;
+    cycle: ShiftCycle | string; // Turno - Lista - Manhã Tarde e Noite
+    start: string; // Horá de entrada
+    end: string; // Hora de saída
   };
   airlines: string[];
   ratings: {

@@ -1973,7 +1973,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} />
+                                            <OperatorCell operatorName={row.operator} operators={operators} />
                                         </div>
                                     ) : (
                                         <button 
@@ -2021,7 +2021,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} />
+                                            <OperatorCell operatorName={row.operator} operators={operators} />
                                         </div>
                                     ) : (
                                         <button 
@@ -2094,7 +2094,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden truncate`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} />
+                                            <OperatorCell operatorName={row.operator} operators={operators} />
                                         </div>
                                     ) : <span className={`${isDarkMode ? 'text-slate-700' : 'text-slate-400'} italic uppercase text-[9px] pl-2`}>--</span>}
                                 </td>
@@ -2154,7 +2154,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
                                     {row.operator ? (
                                         <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} />
+                                            <OperatorCell operatorName={row.operator} operators={operators} />
                                         </div>
                                     ) : (
                                         <button 
