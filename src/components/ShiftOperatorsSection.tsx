@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { OperatorProfile, FlightData, Vehicle } from '../types';
 import { X, Plus, Trash2, BusFront, User, ArrowLeft, Upload, UserPlus, AlertCircle, Check, Pause, Play, Search } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { FleetSelectDropdown } from './FleetSelectDropdown';
 
 interface ShiftOperatorsSectionProps {
     onClose: () => void;
@@ -254,31 +255,14 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({ on
                 </div>
 
                 <div className="w-16 shrink-0">
-                    <select 
+                    <FleetSelectDropdown
                         value={op.assignedVehicle || ''}
-                        onChange={(e) => handleUpdateOperator(op.id, 'assignedVehicle', e.target.value)}
-                        className={`w-full border text-[10px] px-1 py-1.5 rounded-md font-mono font-bold outline-none focus:ring-2 text-center uppercase shadow-sm appearance-none cursor-pointer ${
-                            isCTA ? 'focus:ring-yellow-500/20 focus:border-yellow-500' : 'focus:ring-emerald-500/20 focus:border-emerald-500'
-                        } ${
-                            isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                        } ${isPaused ? 'opacity-50 pointer-events-none' : ''}`}
-                        disabled={isPaused}
-                        title="Selecione a Frota"
-                    >
-                        <option value="">N/A</option>
-                        {vehicles.length === 0 ? (
-                            <option value="" disabled>BANCO VAZIO</option>
-                        ) : (
-                            vehicles.filter(v => 
-                                (op.fleetCapability === 'CTA' && v.type === 'CTA') || 
-                                (op.fleetCapability === 'SRV' && v.type === 'SERVIDOR') || 
-                                (!op.fleetCapability) ||
-                                (op.fleetCapability === 'BOTH')
-                            ).map(v => (
-                                <option key={v.id} value={v.id}>{v.id}</option>
-                            ))
-                        )}
-                    </select>
+                        onChange={(val) => handleUpdateOperator(op.id, 'assignedVehicle', val)}
+                        vehicles={vehicles}
+                        fleetCapability={op.fleetCapability as any || undefined}
+                        isDarkMode={isDarkMode}
+                        isPaused={isPaused}
+                    />
                 </div>
 
                 <div className="w-20 shrink-0 text-center font-mono font-bold text-xs text-slate-500">{op.pausedAt || '-'}</div>
@@ -432,27 +416,13 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({ on
                 </div>
 
                 <div className="w-16 shrink-0">
-                    <select 
+                    <FleetSelectDropdown
                         value={fleet}
-                        onChange={(e) => setFleet(e.target.value)}
-                        className={`w-full border text-[10px] px-1 py-1.5 rounded-md font-mono font-bold outline-none focus:ring-2 text-center uppercase shadow-sm appearance-none cursor-pointer ${
-                            isDarkMode ? 'bg-slate-950 border-slate-700 text-white placeholder:text-slate-600' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
-                        }`}
-                        title="Selecione a Frota"
-                    >
-                        <option value="">N/A</option>
-                        {vehicles.length === 0 ? (
-                            <option value="" disabled>BANCO VAZIO</option>
-                        ) : (
-                            vehicles.filter(v => 
-                                (fleetType === 'CTA' && v.type === 'CTA') || 
-                                (fleetType === 'SRV' && v.type === 'SERVIDOR') || 
-                                (!fleetType)
-                            ).map(v => (
-                                <option key={v.id} value={v.id}>{v.id}</option>
-                            ))
-                        )}
-                    </select>
+                        onChange={setFleet}
+                        vehicles={vehicles}
+                        fleetCapability={fleetType as 'SRV' | 'CTA' | '' || undefined}
+                        isDarkMode={isDarkMode}
+                    />
                 </div>
 
                 <div className="w-20 shrink-0 text-center font-mono font-bold text-xs text-slate-500">-</div>
@@ -509,34 +479,13 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({ on
                 
                 <div className="flex items-center gap-1.5 shrink-0 pr-1">
                     <div className="relative w-16">
-                        <select 
+                        <FleetSelectDropdown
                             value={op.assignedVehicle || ''}
-                            onChange={(e) => handleUpdateOperator(op.id, 'assignedVehicle', e.target.value)}
-                            className={`w-full px-[2px] py-[3px] text-[10px] font-mono font-bold rounded shadow-sm focus:ring-2 outline-none uppercase text-center transition-all appearance-none cursor-pointer ${
-                                isCTA
-                                ? 'focus:ring-yellow-500/20 focus:border-yellow-500'
-                                : 'focus:ring-emerald-500/20 focus:border-emerald-500'
-                            } ${
-                                isDarkMode 
-                                ? 'bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500' 
-                                : 'bg-white border-slate-200 text-slate-700 placeholder:text-slate-400'
-                            }`}
-                            title="Selecione a Frota"
-                        >
-                            <option value="">N/A</option>
-                            {vehicles.length === 0 ? (
-                                <option value="" disabled>BANCO VAZIO</option>
-                            ) : (
-                                vehicles.filter(v => 
-                                    (op.fleetCapability === 'CTA' && v.type === 'CTA') || 
-                                    (op.fleetCapability === 'SRV' && v.type === 'SERVIDOR') || 
-                                    (!op.fleetCapability) ||
-                                    (op.fleetCapability === 'BOTH')
-                                ).map(v => (
-                                    <option key={v.id} value={v.id}>{v.id}</option>
-                                ))
-                            )}
-                        </select>
+                            onChange={(val) => handleUpdateOperator(op.id, 'assignedVehicle', val)}
+                            vehicles={vehicles}
+                            fleetCapability={op.fleetCapability as any || undefined}
+                            isDarkMode={isDarkMode}
+                        />
                     </div>
                     {op.assignedVehicle && (
                         <button
