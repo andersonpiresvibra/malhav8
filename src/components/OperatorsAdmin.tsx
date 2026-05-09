@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Plus, Trash2, Edit2, ChevronDown, RefreshCw, Save, X, Settings, Upload, Download } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, ChevronDown, RefreshCw, Save, X, Settings, Upload, Download, Calendar as CalendarIcon, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { updateOperatorWorkDays } from '../services/supabaseService';
 import { OperatorProfile } from '../types';
 import * as XLSX from 'xlsx';
 
@@ -29,6 +30,7 @@ const COLUMNS: { key: OperatorField; label: string; width: string; isVariable: b
   { key: 'shiftStart', label: 'Hr. Ent.', width: 'w-[80px]', isVariable: true },
   { key: 'shiftEnd', label: 'Hr. Sai.', width: 'w-[80px]', isVariable: true },
   { key: 'status', label: 'Status', width: 'w-[100px]', isVariable: true },
+  { key: 'workDays', label: 'Escala', width: 'w-[80px]', isVariable: false },
   { key: 'actions', label: 'Ações', width: 'w-[70px]', isVariable: false },
 ];
 
@@ -56,6 +58,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
   const tableRef = useRef<HTMLTableElement>(null);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
+  const [schedulingOperator, setSchedulingOperator] = useState<OperatorProfile | null>(null);
 
   const handlePhotoClick = (rowId: string) => {
     setPhotoUploadRowId(rowId);
@@ -799,6 +802,35 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                       const isMandatoryEmpty = isMandatoryField && (cellValue === '' || cellValue === '?');
                       const isSelectField = ['status', 'role', 'isLT', 'patio', 'shiftCycle'].includes(col.key);
                       
+                      if (col.key === 'workDays') {
+                        const hasScale = op.workDays && op.workDays.length > 0;
+                        return (
+                          <td 
+                            key={`${op.id}-workDays`}
+                            className={`p-0 border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} relative h-10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer group`}
+                            onClick={() => setSchedulingOperator(op)}
+                          >
+                            <div className="w-full h-full flex items-center justify-center gap-1.5">
+                              <CalendarIcon 
+                                size={14} 
+                                className={hasScale ? 'text-emerald-500' : 'text-slate-400 opacity-40'} 
+                              />
+                              <span className={`text-[10px] font-black font-mono transition-all ${
+                                hasScale 
+                                  ? (isDarkMode ? 'text-emerald-400' : 'text-emerald-600')
+                                  : 'text-slate-400 opacity-40'
+                              }`}>
+                                {op.workDays?.length || 0}
+                              </span>
+                              
+                              {hasScale && op.workDays?.some(wd => wd.date === new Date().toISOString().split('T')[0]) && (
+                                <div className="absolute right-0 top-0 w-2 h-2 bg-emerald-500" />
+                              )}
+                            </div>
+                          </td>
+                        );
+                      }
+
                       if (col.key === 'actions') {
                         return (
                           <td 
@@ -956,6 +988,335 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         className="hidden" 
         onChange={handlePhotoFileChange} 
       />
+
+      {schedulingOperator && (
+        <ScheduleModal 
+          isDarkMode={isDarkMode}
+          operator={schedulingOperator}
+          onClose={() => setSchedulingOperator(null)}
+          onSave={async (days) => {
+            try {
+              await updateOperatorWorkDays(schedulingOperator.id, days);
+              setOperators(prev => prev.map(o => o.id === schedulingOperator.id ? { ...o, workDays: days } : o));
+              setSchedulingOperator(null);
+            } catch (err) {
+              console.error('Erro ao salvar escala:', err);
+              alert('Erro ao salvar escala. Verifique sua conexão.');
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
+
+interface ScheduleModalProps {
+  isDarkMode: boolean;
+  operator: OperatorProfile;
+  onClose: () => void;
+  onSave: (days: Array<{ date: string; type: 'TRABALHO' | 'CIPA' | 'EXAME' | 'BRIGADA' }>) => void;
+}
+
+const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onClose, onSave }) => {
+  const [selectedDates, setSelectedDates] = useState<Array<{ date: string; type: 'TRABALHO' | 'CIPA' | 'EXAME' | 'BRIGADA' | 'B_HORAS' | 'CT' | 'AT' | 'AF' }>>(operator.workDays || []);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [contextMenu, setContextMenu] = useState<{ date: string; x: number; y: number } | null>(null);
+  const [bulkAbsence, setBulkAbsence] = useState<{ start: string; end: string; type: 'AT' | 'AF' } | null>(null);
+
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const numDays = daysInMonth(year, month);
+  const startDay = firstDayOfMonth(year, month);
+  
+  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+  const requiredOffDays = numDays === 31 ? 9 : 8;
+  const currentWorkDays = selectedDates.filter(d => d.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`) && (d.type === 'TRABALHO' || d.type === 'CIPA' || d.type === 'EXAME' || d.type === 'BRIGADA' || d.type === 'B_HORAS' || d.type === 'CT')).length;
+  const currentOffDays = numDays - currentWorkDays;
+  const offDayDiff = currentOffDays - requiredOffDays;
+
+  // Lógica de Ciclo (Dias Consecutivos)
+  const getConsecutiveDays = (dateStr: string) => {
+    let count = 1;
+    const date = new Date(dateStr);
+    
+    // Contar para trás
+    let current = new Date(date);
+    current.setDate(current.getDate() - 1);
+    while (selectedDates.some(d => d.date === current.toISOString().split('T')[0] && d.type === 'TRABALHO')) {
+      count++;
+      current.setDate(current.getDate() - 1);
+    }
+    
+    // Contar para frente
+    current = new Date(date);
+    current.setDate(current.getDate() + 1);
+    while (selectedDates.some(d => d.date === current.toISOString().split('T')[0] && d.type === 'TRABALHO')) {
+      count++;
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return count;
+  };
+
+  const toggleDay = (dateStr: string) => {
+    setSelectedDates(prev => {
+      const existing = prev.find(d => d.date === dateStr);
+      if (existing) {
+        return prev.filter(d => d.date !== dateStr);
+      }
+      return [...prev, { date: dateStr, type: 'TRABALHO' }];
+    });
+  };
+
+  const setDayType = (dateStr: string, type: 'TRABALHO' | 'CIPA' | 'EXAME' | 'BRIGADA' | 'B_HORAS' | 'CT' | 'AT' | 'AF' | 'FOLGA') => {
+    if (type === 'FOLGA') {
+      setSelectedDates(prev => prev.filter(d => d.date !== dateStr));
+    } else {
+      setSelectedDates(prev => {
+        const existing = prev.find(d => d.date === dateStr);
+        if (existing) {
+          return prev.map(d => d.date === dateStr ? { ...d, type } : d);
+        }
+        return [...prev, { date: dateStr, type }];
+      });
+    }
+    setContextMenu(null);
+  };
+
+  const applyBulkAbsence = () => {
+    if (!bulkAbsence || !bulkAbsence.start || !bulkAbsence.end) return;
+    
+    const start = new Date(bulkAbsence.start);
+    const end = new Date(bulkAbsence.end);
+    const newDates = [...selectedDates];
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      const index = newDates.findIndex(ed => ed.date === dateStr);
+      if (index !== -1) {
+        newDates[index] = { date: dateStr, type: bulkAbsence.type };
+      } else {
+        newDates.push({ date: dateStr, type: bulkAbsence.type });
+      }
+    }
+    
+    setSelectedDates(newDates);
+    setBulkAbsence(null);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      
+      <div className={`relative w-full max-w-sm rounded shadow-2xl overflow-hidden border animate-in zoom-in-95 duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+        
+        {/* HEADER MODAL */}
+        <div className={`p-4 border-b ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center overflow-hidden">
+                {operator.photoUrl ? <img src={operator.photoUrl} className="w-full h-full object-cover" /> : <User size={20} className="text-emerald-500" />}
+              </div>
+              <div>
+                <h3 className={`text-sm font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{operator.warName}</h3>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[9px] font-black bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded border border-blue-500/20">{operator.shift?.cycle}</span>
+                  <span className="text-[9px] font-bold text-slate-400 font-mono tracking-tighter">{operator.shift?.start} - {operator.shift?.end}</span>
+                </div>
+              </div>
+            </div>
+            <button onClick={onClose} className={`p-1.5 hover:bg-black/10 transition-colors ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* CALENDARIO */}
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+              {monthNames[month]} {year}
+            </h4>
+            <div className="flex gap-1">
+              <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className={`p-1 rounded bg-slate-500/5 hover:bg-slate-500/10 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                <ChevronLeft size={16} />
+              </button>
+              <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className={`p-1 rounded bg-slate-500/5 hover:bg-slate-500/10 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center mb-1">
+            {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
+              <div key={`${d}-${i}`} className="text-[9px] font-black text-slate-400 py-1">{d}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 relative">
+            {Array.from({ length: startDay }).map((_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+            {Array.from({ length: numDays }).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const workDay = selectedDates.find(d => d.date === dateStr);
+              const isToday = new Date().toISOString().split('T')[0] === dateStr;
+              
+              const consecutiveCount = workDay?.type === 'TRABALHO' ? getConsecutiveDays(dateStr) : 0;
+              const isSixthDay = consecutiveCount === 6;
+              const isCritical = consecutiveCount > 6;
+
+              return (
+                <button
+                  key={day}
+                  onClick={() => toggleDay(dateStr)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setContextMenu({ date: dateStr, x: rect.left, y: rect.bottom });
+                  }}
+                  className={`
+                    h-9 rounded-sm text-[10px] font-black transition-all flex flex-col items-center justify-center relative border
+                    ${workDay 
+                      ? (['AT', 'AF'].includes(workDay.type) ? 'bg-red-500 text-white border-red-600' : 
+                         isSixthDay ? 'bg-amber-400 text-amber-950 border-amber-500' : 
+                         (workDay.type === 'TRABALHO' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-blue-500 text-white border-blue-600')) 
+                      : (isDarkMode ? 'bg-slate-800/40 text-slate-500 border-slate-800' : 'bg-slate-50 text-slate-400 border-slate-100')
+                    }
+                    ${isToday ? 'ring-1 ring-amber-500/50' : ''}
+                    ${isCritical && workDay?.type === 'TRABALHO' ? 'ring-2 ring-red-500 ring-inset' : ''}
+                  `}
+                >
+                  <span>{day}</span>
+                  {workDay && workDay.type !== 'TRABALHO' && (
+                    <span className="text-[6px] opacity-80 leading-none mt-0.5">{workDay.type === 'EXAME' ? 'EX.PER' : workDay.type === 'B_HORAS' ? 'B.HORAS' : workDay.type}</span>
+                  )}
+                  {isSixthDay && workDay?.type === 'TRABALHO' && (
+                    <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-950/40" title="6º dia consecutivo" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* INDICADORES DE REGRAS */}
+          <div className="mt-4 flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className={`p-2 rounded-sm border ${isDarkMode ? 'bg-slate-850 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Saldo de Folgas</span>
+                <div className="flex items-center justify-between mt-1">
+                  <span className={`text-base font-black font-mono ${offDayDiff < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                    {currentOffDays}/{requiredOffDays}
+                  </span>
+                  <span className={`text-[9px] font-black uppercase ${offDayDiff < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                    {offDayDiff === 0 ? 'OK' : offDayDiff > 0 ? `+${offDayDiff}` : offDayDiff}
+                  </span>
+                </div>
+              </div>
+              <div className={`p-2 rounded-sm border ${isDarkMode ? 'bg-slate-850 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Plantão Atual</span>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-base font-black font-mono text-blue-500">{currentWorkDays}d</span>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => setBulkAbsence({ start: '', end: '', type: 'AT' })}
+                      className="px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded"
+                    >
+                      AT
+                    </button>
+                    <button 
+                      onClick={() => setBulkAbsence({ start: '', end: '', type: 'AF' })}
+                      className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded"
+                    >
+                      AF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {bulkAbsence && (
+              <div className={`p-3 rounded-sm border animate-in slide-in-from-top-2 ${isDarkMode ? 'bg-slate-800 border-red-500/20' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-black text-red-500 uppercase">Lançamento em Massa: {bulkAbsence.type === 'AT' ? 'Atestado' : 'Afastamento'}</span>
+                  <button onClick={() => setBulkAbsence(null)}><X size={12} className="text-red-400" /></button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-bold text-slate-400 uppercase">Início</label>
+                    <input 
+                      type="date" 
+                      value={bulkAbsence.start}
+                      onChange={(e) => setBulkAbsence({ ...bulkAbsence, start: e.target.value })}
+                      className={`w-full text-[10px] p-1 border rounded-sm outline-none ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-bold text-slate-400 uppercase">Término</label>
+                    <input 
+                      type="date" 
+                      value={bulkAbsence.end}
+                      onChange={(e) => setBulkAbsence({ ...bulkAbsence, end: e.target.value })}
+                      className={`w-full text-[10px] p-1 border rounded-sm outline-none ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={applyBulkAbsence}
+                  className="w-full py-1.5 bg-red-500 hover:bg-red-600 text-white text-[9px] font-black uppercase rounded-sm transition-all"
+                >
+                  Aplicar Período
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* FOOTER */}
+        <div className={`p-4 border-t flex gap-2 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+          <button onClick={onClose} className={`flex-1 px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+            Cancelar
+          </button>
+          <button onClick={() => onSave(selectedDates)} className="flex-1 px-4 py-2 rounded-sm bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/20">
+            Confirmar
+          </button>
+        </div>
+
+        {/* CONTEXT MENU */}
+        {contextMenu && (
+          <>
+            <div className="fixed inset-0 z-[110]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
+            <div 
+              className={`fixed z-[120] w-36 py-1 rounded shadow-xl border animate-in fade-in zoom-in-95 duration-100 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+            >
+              {[
+                { id: 'FOLGA', label: 'Limpar / Folga', color: 'text-slate-400' },
+                { id: 'TRABALHO', label: 'TRABALHO', color: 'text-emerald-500' },
+                { id: 'BRIGADA', label: 'Brigada', color: 'text-blue-500' },
+                { id: 'CIPA', label: 'CIPA', color: 'text-blue-500' },
+                { id: 'EXAME', label: 'EX. PER.', color: 'text-blue-500' },
+                { id: 'B_HORAS', label: 'B. Horas', color: 'text-blue-500' },
+                { id: 'CT', label: 'CT (Treinam.)', color: 'text-blue-500' },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setDayType(contextMenu.date, opt.id as any)}
+                  className={`w-full text-left px-3 py-1.5 text-[9px] font-black uppercase hover:bg-black/5 dark:hover:bg-white/5 ${opt.color}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+

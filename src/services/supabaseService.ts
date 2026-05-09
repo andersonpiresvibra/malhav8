@@ -29,7 +29,7 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
 
 export const getOperators = async (): Promise<OperatorProfile[]> => {
   checkConfig();
-  const { data, error } = await supabase.from('operators').select('*');
+  const { data, error } = await supabase.from('operators').select('*, operator_work_days(work_date, day_type)');
   if (error) throw error;
   
   return data.map((o: any) => ({
@@ -52,8 +52,35 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
     airlines: ['G3'],
     ratings: { speed: 4.5, safety: 5.0, airlineSpecific: {} },
     expertise: { servidor: 80, cta: 50 },
-    stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 }
+    stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 },
+    workDays: o.operator_work_days?.map((wd: any) => ({
+      date: wd.work_date,
+      type: wd.day_type || 'TRABALHO'
+    })) || []
   })) as OperatorProfile[];
+};
+
+export const updateOperatorWorkDays = async (operatorId: string, workDays: Array<{ date: string; type: string }>): Promise<void> => {
+  checkConfig();
+  
+  const { error: deleteError } = await supabase
+    .from('operator_work_days')
+    .delete()
+    .eq('operator_id', operatorId);
+    
+  if (deleteError) throw deleteError;
+  
+  if (workDays.length === 0) return;
+  
+  const { error: insertError } = await supabase
+    .from('operator_work_days')
+    .insert(workDays.map(wd => ({
+      operator_id: operatorId,
+      work_date: wd.date,
+      day_type: wd.type
+    })));
+    
+  if (insertError) throw insertError;
 };
 
 export const getAircrafts = async (): Promise<AircraftType[]> => {

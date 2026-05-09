@@ -45,6 +45,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
   const [activeShift, setActiveShift] = useState<ShiftCycle>('MANHÃ');
   const [activeCategory, setActiveCategory] = useState<OperatorCategory>('AERODROMO');
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
 
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -68,10 +69,17 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
     const currentHour = currentTime.getHours();
     const currentMinute = currentTime.getMinutes();
 
+    const todayStr = new Date().toISOString().split('T')[0];
+
     return operators.map(p => {
+      let isOnSchedule = true;
+      if (p.workDays && p.workDays.length > 0) {
+        isOnSchedule = p.workDays.some(wd => wd.date === todayStr);
+      }
+
       let isActive = false;
       
-      if (p.shift && p.shift.start && p.shift.end && p.shift.start.includes(':') && p.shift.end.includes(':')) {
+      if (isOnSchedule && p.shift && p.shift.start && p.shift.end && p.shift.start.includes(':') && p.shift.end.includes(':')) {
           const [sH, sM] = p.shift.start.split(':').map(Number);
           const [eH, eM] = p.shift.end.split(':').map(Number);
           
@@ -165,15 +173,28 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
         {/* TOP HUD NAV */}
         <div className={`h-16 border-b flex items-center justify-between px-8 z-30 ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'bg-[#3CA317] border-[#29824a] text-white shadow-sm'}`}>
             <div className="flex items-center gap-6">
-                <button
-                    onClick={onClose}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border font-bold uppercase tracking-wider text-xs transition-colors ${
-                        isDarkMode ? 'border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300' : 'border-white/20 bg-black/10 hover:bg-black/20 text-white'
-                    }`}
-                >
-                    <ArrowLeft size={16} />
-                    Voltar
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={onClose}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border font-bold uppercase tracking-wider text-xs transition-colors ${
+                            isDarkMode ? 'border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300' : 'border-white/20 bg-black/10 hover:bg-black/20 text-white'
+                        }`}
+                    >
+                        <ArrowLeft size={16} />
+                        Voltar
+                    </button>
+                    
+                    <button
+                        onClick={() => setViewMode(viewMode === 'CARDS' ? 'TABLE' : 'CARDS')}
+                        className={`px-3 py-1.5 rounded-lg border font-bold uppercase tracking-wider text-xs transition-all duration-300 ${
+                            isDarkMode 
+                                ? 'border-slate-700 bg-slate-900 hover:bg-slate-800 text-emerald-400' 
+                                : 'border-white/20 bg-black/10 hover:bg-black/20 text-white'
+                        } ${viewMode === 'TABLE' ? 'bg-emerald-500/10 border-emerald-500/30' : ''}`}
+                    >
+                        {viewMode === 'CARDS' ? 'Ver Tabela' : 'Ver Cards'}
+                    </button>
+                </div>
                 <div className={`flex items-center gap-1.5 p-1 rounded-md border shadow-inner ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-black/10 border-white/10'}`}>
                     {['AERODROMO', 'VIP', 'ILHA'].map((cat) => (
                         <button 
@@ -294,121 +315,203 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
 
         {/* OPERATIONAL GRID - DISPONÍVEIS NO TOPO */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    {filteredTeam.map(op => {
-                        const mission = getActiveMission(op.warName);
-                        // @ts-ignore
-                        const flightsToday = op.stats ? Math.floor((op.stats.flightsWeekly || 0) / 6) + (mission ? 1 : 0) : 0;
-                        
-                        // LÓGICA DE CORES
-                        const isAvailable = op.status === 'DISPONÍVEL' && !mission;
-                        const isDesignated = mission && mission.status === 'DESIGNADO';
-                        const isHandsOn = (mission && mission.status === 'ABASTECENDO') || op.status === 'ENCHIMENTO' || op.status === 'OCUPADO';
-                        
-                        let cardStyle = isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-slate-700 border-slate-300 shadow-sm'; // Inativo/Default
-                        let badgeStyle = isDarkMode ? 'bg-slate-900 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200';
-                        let statusLabel = op.status;
+            {viewMode === 'CARDS' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        {filteredTeam.map(op => {
+                            const mission = getActiveMission(op.warName);
+                            // @ts-ignore
+                            const flightsToday = op.stats ? Math.floor((op.stats.flightsWeekly || 0) / 6) + (mission ? 1 : 0) : 0;
+                            
+                            // LÓGICA DE CORES
+                            const isAvailable = op.status === 'DISPONÍVEL' && !mission;
+                            const isDesignated = mission && mission.status === 'DESIGNADO';
+                            const isHandsOn = (mission && mission.status === 'ABASTECENDO') || op.status === 'ENCHIMENTO' || op.status === 'OCUPADO';
+                            
+                            let cardStyle = isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-slate-700 border-slate-300 shadow-sm'; // Inativo/Default
+                            let badgeStyle = isDarkMode ? 'bg-slate-900 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200';
+                            let statusLabel = op.status;
 
-                        if (isAvailable) {
-                            cardStyle = isDarkMode ? 'bg-emerald-500 text-slate-950 border-emerald-500 shadow-[0_10px_25px_rgba(16,185,129,0.2)]' : 'bg-emerald-600 text-white border-emerald-600 shadow-md';
-                            badgeStyle = isDarkMode ? 'bg-slate-950 text-emerald-400 border-slate-950/5' : 'bg-emerald-800 text-white border-transparent';
-                            statusLabel = 'DISPONÍVEL';
-                        } else if (isDesignated) {
-                            cardStyle = isDarkMode ? 'bg-blue-500 text-slate-950 border-blue-400 shadow-[0_10px_25px_rgba(59,130,246,0.3)]' : 'bg-blue-700 text-white border-blue-700 shadow-md';
-                            badgeStyle = isDarkMode ? 'bg-slate-950 text-blue-400 border-slate-950/5' : 'bg-blue-900 text-white border-transparent';
-                            statusLabel = 'DESIGNADO';
-                        } else if (isHandsOn) {
-                            cardStyle = isDarkMode ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-[0_10px_25px_rgba(250,204,21,0.3)]' : 'bg-amber-500 text-slate-900 border-amber-600 shadow-md';
-                            badgeStyle = isDarkMode ? 'bg-slate-950 text-yellow-500 border-slate-950/5' : 'bg-amber-700 text-white border-transparent';
-                            statusLabel = op.status === 'ENCHIMENTO' ? 'ENCHIMENTO' : 'OCUPADO';
-                        }
-                        
-                        // Determinar se o operador está em algum estado inativo para aplicar uma opacidade condicional no card inteiro (se desejado, ou não colocar para evitar que fique 'opaco')
-                        const isInactive = ['INATIVO', 'FOLGA', 'INTERVALO', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'].includes(op.status || '');
+                            if (isAvailable) {
+                                cardStyle = isDarkMode ? 'bg-emerald-500 text-slate-950 border-emerald-500 shadow-[0_10px_25px_rgba(16,185,129,0.2)]' : 'bg-emerald-600 text-white border-emerald-600 shadow-md';
+                                badgeStyle = isDarkMode ? 'bg-slate-950 text-emerald-400 border-slate-950/5' : 'bg-emerald-800 text-white border-transparent';
+                                statusLabel = 'DISPONÍVEL';
+                            } else if (isDesignated) {
+                                cardStyle = isDarkMode ? 'bg-blue-500 text-slate-950 border-blue-400 shadow-[0_10px_25px_rgba(59,130,246,0.3)]' : 'bg-blue-700 text-white border-blue-700 shadow-md';
+                                badgeStyle = isDarkMode ? 'bg-slate-950 text-blue-400 border-slate-950/5' : 'bg-blue-900 text-white border-transparent';
+                                statusLabel = 'DESIGNADO';
+                            } else if (isHandsOn) {
+                                cardStyle = isDarkMode ? 'bg-yellow-400 text-slate-950 border-yellow-500 shadow-[0_10px_25px_rgba(250,204,21,0.3)]' : 'bg-amber-500 text-slate-900 border-amber-600 shadow-md';
+                                badgeStyle = isDarkMode ? 'bg-slate-950 text-yellow-500 border-slate-950/5' : 'bg-amber-700 text-white border-transparent';
+                                statusLabel = op.status === 'ENCHIMENTO' ? 'ENCHIMENTO' : 'OCUPADO';
+                            }
+                            
+                            // Determinar se o operador está em algum estado inativo para aplicar uma opacidade condicional no card inteiro (se desejado, ou não colocar para evitar que fique 'opaco')
+                            const isInactive = ['INATIVO', 'FOLGA', 'INTERVALO', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'].includes(op.status || '');
 
-                        return (
-                            <div 
-                                key={op.id}
-                                className={`group relative flex items-stretch h-[68px] rounded-md border transition-all duration-300 overflow-hidden ${cardStyle} ${isInactive ? 'opacity-70 grayscale-[30%]' : ''}`}
-                            >
-                                {/* Foto/Ícone do Operador */}
-                                <OperatorAvatar op={op} isActive={!isInactive} isDarkMode={isDarkMode} />
+                            return (
+                                <div 
+                                    key={op.id}
+                                    className={`group relative flex items-stretch h-[68px] rounded-md border transition-all duration-300 overflow-hidden ${cardStyle} ${isInactive ? 'opacity-70 grayscale-[30%]' : ''}`}
+                                >
+                                    {/* Foto/Ícone do Operador */}
+                                    <OperatorAvatar op={op} isActive={!isInactive} isDarkMode={isDarkMode} />
 
-                                {/* Conteúdo */}
-                                <div className="flex-1 flex flex-col justify-center p-2 pl-3 min-w-0 text-left relative">
-                                    
-                                    {/* HUD SUPERIOR DIREITO: FROTA + CONTADOR */}
-                                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1.5">
-                                        {op.assignedVehicle && (
-                                            <span className={`text-sm font-mono font-black ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950/60' : 'text-white/80') : (isDarkMode ? 'text-slate-600' : 'text-slate-400')}`}>
-                                                {op.assignedVehicle.replace('SRV-', '').replace('CTA-', '')}
+                                    {/* Conteúdo */}
+                                    <div className="flex-1 flex flex-col justify-center p-2 pl-3 min-w-0 text-left relative">
+                                        
+                                        {/* HUD SUPERIOR DIREITO: FROTA + CONTADOR */}
+                                        <div className="absolute top-1.5 right-1.5 flex items-center gap-1.5">
+                                            {op.assignedVehicle && (
+                                                <span className={`text-sm font-mono font-black ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950/60' : 'text-white/80') : (isDarkMode ? 'text-slate-600' : 'text-slate-400')}`}>
+                                                    {op.assignedVehicle.replace('SRV-', '').replace('CTA-', '')}
+                                                </span>
+                                            )}
+                                            <div className={`flex items-center justify-center w-5 h-5 rounded-sm font-mono font-black text-[10px] border shadow-sm ${
+                                                isAvailable || isDesignated || isHandsOn
+                                                    ? (isDarkMode ? 'bg-slate-950 text-white border-slate-900' : 'bg-white/20 text-white border-white/10')
+                                                    : (isDarkMode ? 'bg-slate-900 text-slate-600 border-slate-800' : 'bg-white text-slate-400 border-slate-200')
+                                            }`}>
+                                                {flightsToday}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col items-start pr-[42px]">
+                                            <h3 className={`font-black tracking-tighter uppercase leading-none truncate w-full text-base ${!isAvailable && !isDesignated && !isHandsOn && !isDarkMode ? 'text-slate-800' : ''}`}>
+                                                {op.warName}
+                                            </h3>
+                                            <span className={`text-[8px] font-black uppercase tracking-[0.1em] opacity-70 mt-1 ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950' : 'text-white') : (isDarkMode ? 'text-slate-500' : 'text-slate-500')}`}>
+                                                {op.category}
                                             </span>
-                                        )}
-                                        <div className={`flex items-center justify-center w-5 h-5 rounded-sm font-mono font-black text-[10px] border shadow-sm ${
-                                            isAvailable || isDesignated || isHandsOn
-                                                ? (isDarkMode ? 'bg-slate-950 text-white border-slate-900' : 'bg-white/20 text-white border-white/10')
-                                                : (isDarkMode ? 'bg-slate-900 text-slate-600 border-slate-800' : 'bg-white text-slate-400 border-slate-200')
-                                        }`}>
-                                            {flightsToday}
+                                        </div>
+
+                                        {/* Telemetria de Solo */}
+                                        <div className={`flex flex-col mt-0.5 ${!isAvailable && !isDesignated && !isHandsOn && !isDarkMode ? 'text-slate-600' : ''}`}>
+                                            {mission ? (
+                                                <div className="flex items-center gap-1 font-mono text-xs font-black tracking-tighter truncate">
+                                                    <span className="opacity-90">{mission.destination}</span>
+                                                    <span className="opacity-40">•</span>
+                                                    <span className="opacity-90">{mission.registration}</span>
+                                                    <span className="opacity-40">•</span>
+                                                    <span className={`px-1 rounded ${isDarkMode ? 'bg-slate-950/20' : 'bg-black/10'}`}>{mission.positionId}</span>
+                                                </div>
+                                            ) : (
+                                                <div className={`flex items-center gap-1 font-mono font-black tracking-tight ${isAvailable || isHandsOn ? 'text-[11px]' : 'text-[9px]'}`}>
+                                                    {isHandsOn ? (
+                                                        <Droplet size={12} className="shrink-0 opacity-80 animate-pulse" />
+                                                    ) : (
+                                                        <MapPin size={isAvailable ? 10 : 8} className="shrink-0 opacity-60" />
+                                                    )}
+                                                    
+                                                    <span className="truncate uppercase opacity-60">
+                                                        {(() => {
+                                                            if (op.status === 'INATIVO') return 'FORA';
+                                                            if (op.status === 'INTERVALO') return 'PAUSA';
+                                                            return op.lastPosition || 'PÁTIO';
+                                                        })()}
+                                                    </span>
+
+                                                    <span className={`px-1 rounded-sm font-black uppercase border text-[8px] whitespace-nowrap ${badgeStyle}`}>
+                                                        {(() => {
+                                                            if (op.status === 'INATIVO') return op.shift?.cycle || 'N/A';
+                                                            return statusLabel;
+                                                        })()}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-
-                                    <div className="flex flex-col items-start pr-[42px]">
-                                        <h3 className={`font-black tracking-tighter uppercase leading-none truncate w-full text-base ${!isAvailable && !isDesignated && !isHandsOn && !isDarkMode ? 'text-slate-800' : ''}`}>
-                                            {op.warName}
-                                        </h3>
-                                        <span className={`text-[8px] font-black uppercase tracking-[0.1em] opacity-70 mt-1 ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950' : 'text-white') : (isDarkMode ? 'text-slate-500' : 'text-slate-500')}`}>
-                                            {op.category}
-                                        </span>
-                                    </div>
-
-                                    {/* Telemetria de Solo */}
-                                    <div className={`flex flex-col mt-0.5 ${!isAvailable && !isDesignated && !isHandsOn && !isDarkMode ? 'text-slate-600' : ''}`}>
-                                        {mission ? (
-                                            <div className="flex items-center gap-1 font-mono text-xs font-black tracking-tighter truncate">
-                                                <span className="opacity-90">{mission.destination}</span>
-                                                <span className="opacity-40">•</span>
-                                                <span className="opacity-90">{mission.registration}</span>
-                                                <span className="opacity-40">•</span>
-                                                <span className={`px-1 rounded ${isDarkMode ? 'bg-slate-950/20' : 'bg-black/10'}`}>{mission.positionId}</span>
-                                            </div>
-                                        ) : (
-                                            <div className={`flex items-center gap-1 font-mono font-black tracking-tight ${isAvailable || isHandsOn ? 'text-[11px]' : 'text-[9px]'}`}>
-                                                {isHandsOn ? (
-                                                    <Droplet size={12} className="shrink-0 opacity-80 animate-pulse" />
-                                                ) : (
-                                                    <MapPin size={isAvailable ? 10 : 8} className="shrink-0 opacity-60" />
-                                                )}
-                                                
-                                                <span className="truncate uppercase opacity-60">
-                                                    {(() => {
-                                                        if (op.status === 'INATIVO') return 'FORA';
-                                                        if (op.status === 'INTERVALO') return 'PAUSA';
-                                                        return op.lastPosition || 'PÁTIO';
-                                                    })()}
-                                                </span>
-
-                                                <span className={`px-1 rounded-sm font-black uppercase border text-[8px] whitespace-nowrap ${badgeStyle}`}>
-                                                    {(() => {
-                                                        if (op.status === 'INATIVO') return op.shift?.cycle || 'N/A';
-                                                        return statusLabel;
-                                                    })()}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
+                                    
+                                    {/* Decorativo Dinâmico de Avião */}
+                                    {mission && (
+                                        <div className={`absolute bottom-[-10px] right-[-10px] opacity-10 pointer-events-none rotate-12 scale-50 ${isDarkMode ? 'text-slate-950' : 'text-white'}`}>
+                                            < Plane size={60} />
+                                        </div>
+                                    )}
                                 </div>
+                            );
+                        })}
+                    </div>
+            ) : (
+                <div className={`w-full overflow-hidden rounded-lg border animate-in fade-in zoom-in-95 duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className={`${isDarkMode ? 'bg-slate-950 text-slate-500' : 'bg-slate-50 text-slate-500'} border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Operador</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Guerra</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Categoria</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Frota</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Status</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Missão Atual</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-right">Voos Hoje</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                            {filteredTeam.map(op => {
+                                const mission = getActiveMission(op.warName);
+                                // @ts-ignore
+                                const flightsToday = op.stats ? Math.floor((op.stats.flightsWeekly || 0) / 6) + (mission ? 1 : 0) : 0;
+                                const isInactive = ['INATIVO', 'FOLGA', 'INTERVALO', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'].includes(op.status || '');
                                 
-                                {/* Decorativo Dinâmico de Avião */}
-                                {mission && (
-                                    <div className={`absolute bottom-[-10px] right-[-10px] opacity-10 pointer-events-none rotate-12 scale-50 ${isDarkMode ? 'text-slate-950' : 'text-white'}`}>
-                                        <Plane size={60} />
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                                return (
+                                    <tr 
+                                        key={op.id} 
+                                        className={`hover:bg-slate-500/5 transition-colors ${isDarkMode ? 'text-slate-300' : 'text-slate-700'} ${isInactive ? 'opacity-60' : ''}`}
+                                    >
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 border dark:border-slate-700 flex items-center justify-center">
+                                                    {op.photoUrl ? (
+                                                        <img src={op.photoUrl} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <User size={16} className="opacity-30" />
+                                                    )}
+                                                </div>
+                                                <span className="text-xs font-bold uppercase tracking-tight">{op.fullName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="text-sm font-black uppercase tracking-tighter text-emerald-500">{op.warName}</span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border dark:border-slate-700">
+                                                {op.category}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-sm font-mono font-black">
+                                            {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : '---'}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${
+                                                    op.status === 'DISPONÍVEL' && !mission ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                                                    mission ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' :
+                                                    'bg-slate-400'
+                                                }`} />
+                                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                                    {mission ? (mission.status === 'ABASTECENDO' ? 'ENCHIMENTO' : 'DESIGNADO') : op.status}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {mission ? (
+                                                <div className="flex items-center gap-2 font-mono text-[11px] font-black bg-blue-500/10 text-blue-500 px-3 py-1 rounded border border-blue-500/20">
+                                                    <Plane size={12} />
+                                                    {mission.departureFlightNumber} • {mission.registration} • {mission.positionId}
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">---</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-right text-sm font-mono font-black text-emerald-500">
+                                            {flightsToday}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
+            )}
         </div>
     </div>
   );

@@ -101,6 +101,7 @@ export interface OperatorProfile {
     volumeWeekly: number;
     volumeMonthly: number;
   };
+  workDays?: Array<{ date: string; type: 'TRABALHO' | 'CIPA' | 'EXAME' | 'BRIGADA' | 'B_HORAS' | 'CT' | 'AT' | 'AF' }>;
 }
 
 export interface TankData {
