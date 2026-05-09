@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy, Network } from 'lucide-react';
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
 import { FlightData, FlightStatus } from '../types';
+import { getCurrentShift } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
@@ -160,7 +161,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
   const currentMeshDate = targetMonth + '-01'; // Dummy for internal hooks
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeShift, setActiveShift] = useState<MeshShift>('TODOS');
+  const [activeShift, setActiveShift] = useState<MeshShift>(getCurrentShift(false) as MeshShift);
   const [readyStateFilter, setReadyStateFilter] = useState<'ALL' | 'READY' | 'ERROR'>('ALL');
   const [sortConfig, setSortConfig] = useState<{ key: MeshField; direction: 'asc' | 'desc' }>({ key: 'etd', direction: 'asc' });
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);

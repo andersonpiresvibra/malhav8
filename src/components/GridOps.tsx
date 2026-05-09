@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FlightStatus, FlightData, FlightLog, LogType, OperatorProfile } from '../types';
+import { getCurrentShift } from '../utils/shiftUtils';
  // Importando perfis para designação
 
 import { FlightDetailsModal } from './FlightDetailsModal';
@@ -227,7 +228,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const { isDarkMode } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
-  const [activeShift, setActiveShift] = useState<MeshShift>('TODOS');
+  const [activeShift, setActiveShift] = useState<MeshShift>(getCurrentShift(false) as MeshShift);
   const [activeDateOffset, setActiveDateOffset] = useState<number>(0);
   
   useEffect(() => {

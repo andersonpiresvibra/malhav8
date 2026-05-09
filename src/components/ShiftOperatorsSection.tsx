@@ -6,6 +6,7 @@ import {
     Activity, Radar, User, ChevronRight, Droplet, Users, BusFront, Zap
 } from 'lucide-react';
 import { OperatorProfile, ShiftCycle, OperatorCategory, FlightData, Vehicle } from '../types';
+import { getCurrentShift } from '../utils/shiftUtils';
 
 interface ShiftOperatorsSectionProps {
     onClose: () => void;
@@ -42,7 +43,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
 }) => {
   const { isDarkMode } = useTheme();
 
-  const [activeShift, setActiveShift] = useState<ShiftCycle>('MANHÃ');
+  const [activeShift, setActiveShift] = useState<ShiftCycle>(getCurrentShift(true) as ShiftCycle);
   const [activeCategory, setActiveCategory] = useState<OperatorCategory>('AERODROMO');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
