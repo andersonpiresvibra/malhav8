@@ -665,7 +665,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         </div>
       </div>
 
-      <div className="flex items-center gap-4 h-full overflow-hidden">
+      <div className="flex items-center gap-4 h-full">
           {/* Filters */}
         <div className="flex items-center gap-2">
           <select 

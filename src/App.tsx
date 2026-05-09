@@ -346,7 +346,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
+      <div id="subheader-portal-target" className="w-full shrink-0 z-[150] relative"></div>
 
       <div className={`flex flex-1 w-full ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'} transition-colors duration-500 font-sans overflow-hidden relative`}>
         <Sidebar 

@@ -1552,7 +1552,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         </button>
 
         {showOptionsDropdown && (
-            <div className={`absolute right-0 top-11 w-56 ${isDarkMode ? 'bg-slate-900 border-emerald-500/30 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]' : 'bg-white border-emerald-500/30 shadow-xl'} border rounded-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2`}>
+            <div className={`absolute right-0 top-11 w-56 ${isDarkMode ? "bg-slate-900 border-emerald-500/30 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-emerald-500/30 shadow-xl"} border rounded-xl z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2`}>
                 <div className="p-1.5 space-y-0.5">
                     <div className="px-3 py-2 border-b border-white/5 mb-1">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Ações da Malha</span>
@@ -1648,7 +1648,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   );
 
   const subheaderContent = (
-      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[60] w-full shadow-md`}>
+      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[70] w-full shadow-md`}>
         <div className="flex items-center gap-6 h-full">
             <div className="flex items-center gap-3">
                 <div>

@@ -628,7 +628,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
   }, []);
 
   const headerContent = (
-    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[60] w-full shadow-md`}>
+    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[70] w-full shadow-md`}>
       <div className="flex items-center gap-2 md:gap-4 h-full">
         {/* Brand & Quick Stats */}
         <div className="flex items-center gap-2 shrink-0 pr-4 border-r border-white/10 h-10">
@@ -706,7 +706,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
           </div>
         </div>
 
-        <div className="flex items-center gap-4 h-full overflow-hidden">
+        <div className="flex items-center gap-4 h-full">
         {/* Search Engine - COMPACT */}
         <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -732,7 +732,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
           </button>
 
           {showOptionsDropdown && (
-            <div className={`absolute right-0 top-full mt-2 w-56 ${isDarkMode ? 'bg-slate-900 border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]' : 'bg-white border-slate-200 shadow-xl'} border rounded-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2`}>
+            <div className={`absolute right-0 top-full mt-2 w-56 ${isDarkMode ? "bg-slate-900 border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-slate-200 shadow-xl"} border rounded-xl z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2`}>
               <div className="p-1.5 space-y-0.5">
                 <div className="px-3 py-2 border-b border-white/5 mb-1">
                   <span className={`text-[9px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Ações da Malha Base</span>
