@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, User, Edit2, Maximize, Minimize, Plane, Search, RefreshCw } from 'lucide-react';
+import { Sun, Moon, User, Edit2, Maximize, Minimize, Plane, Search, RefreshCw, Power } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DashboardHeaderProps {
   isDarkMode: boolean;
@@ -9,10 +10,12 @@ interface DashboardHeaderProps {
   globalSearchTerm: string;
   setGlobalSearchTerm: (term: string) => void;
   ltName: string;
+  ltPhotoUrl?: string;
   setLtName: (name: string) => void;
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, setLtName }) => {
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName }) => {
+  const { signOut } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [editingField, setEditingField] = useState<'density' | 'temperature' | 'ltName' | null>(null);
   const [densityN, setDensityN] = useState(0.803);
@@ -47,8 +50,12 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
           <div className="w-px h-10 bg-white/20"></div>
 
           <div className="flex items-center gap-3 group cursor-pointer">
-              <div className="w-11 h-11 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center group-hover:border-white/40 transition-colors">
-                  <User size={18} className="text-white" />
+              <div className="w-11 h-11 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center group-hover:border-white/40 transition-colors overflow-hidden">
+                  {ltPhotoUrl ? (
+                      <img src={ltPhotoUrl} alt={ltName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                      <User size={18} className="text-white" />
+                  )}
               </div>
               <div className="text-left">
                   {editingField === 'ltName' ? (
@@ -176,6 +183,13 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
             className="p-2.5 text-emerald-100 hover:text-white hover:bg-white/10 transition-all rounded-md"
           >
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button 
+            onClick={() => signOut()} 
+            title="Sair do sistema"
+            className="p-2.5 text-emerald-100 hover:text-red-400 hover:bg-white/10 transition-all rounded-md ml-1"
+          >
+              <Power size={20} />
           </button>
           <div id="header-options-portal-target"></div>
         </div>

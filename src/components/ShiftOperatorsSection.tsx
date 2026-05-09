@@ -72,10 +72,9 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
     const todayStr = new Date().toISOString().split('T')[0];
 
     return operators.map(p => {
-      let isOnSchedule = true;
-      if (p.workDays && p.workDays.length > 0) {
-        isOnSchedule = p.workDays.some(wd => wd.date === todayStr);
-      }
+      const dayEntry = p.workDays?.find(wd => wd.date === todayStr);
+      const isNotWorking = dayEntry && ['FOLGA', 'AT', 'AF'].includes(dayEntry.type);
+      const isOnSchedule = !isNotWorking;
 
       let isActive = false;
       
@@ -170,7 +169,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
 
   const headers = (
     <div className="w-full shrink-0 flex flex-col font-sans">
-        {/* TOP HUD NAV */}
+        {/* Line 2: TOP HUD NAV - FULLWIDTH */}
         <div className={`h-16 border-b flex items-center justify-between px-8 z-30 ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'bg-[#3CA317] border-[#29824a] text-white shadow-sm'}`}>
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
@@ -242,76 +241,78 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                 </div>
             </div>
         </div>
+    </div>
+  );
 
-        {/* TEAM TELEMETRY BAR */}
-        <div className={`h-16 border-b px-8 flex items-center justify-between z-30 ${isDarkMode ? 'bg-slate-950 border-slate-800/40' : 'bg-[#2D8E48] border-[#206a34] text-white shadow-sm'}`}>
-            <div className="flex items-center gap-10">
-                {/* Localização */}
-                <div className="flex items-center gap-6">
-                    <div className="flex flex-col">
-                        <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Pátio</span>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.patio}</span>
-                            <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
-                        </div>
-                    </div>
-                    <div className="flex flex-col">
-                        <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Vip</span>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.vip}</span>
-                            <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
-                        </div>
-                    </div>
-                    <div className="flex flex-col">
-                        <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Ilha</span>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.ilha}</span>
-                        </div>
+  const telemetryBar = (
+    <div className={`h-16 shrink-0 border-b px-8 flex items-center justify-between z-30 ${isDarkMode ? "bg-slate-950 border-slate-800/40 text-slate-200" : "bg-[#2D8E48] border-[#206a34] text-white shadow-sm"} w-full`}>
+        <div className="flex items-center gap-10">
+            {/* Localização */}
+            <div className="flex items-center gap-6">
+                <div className="flex flex-col">
+                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Pátio</span>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.patio}</span>
+                        <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
                     </div>
                 </div>
-
-                <div className={`h-8 w-px ${isDarkMode ? 'bg-slate-800' : 'bg-white/20'}`}></div>
-
-                {/* Status Operacional */}
-                <div className="flex items-center gap-8">
-                    <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-white/10 border-white/20'}`}>
-                        <div className="text-center">
-                            <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-emerald-500/60' : 'text-emerald-100'}`}>Disponíveis</span>
-                            <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-emerald-500' : 'text-emerald-300'}`}>{teamStats.disponivel}</span>
-                        </div>
-                        <Users size={16} className={`${isDarkMode ? 'text-emerald-500 opacity-30' : 'text-white opacity-60'}`} />
+                <div className="flex flex-col">
+                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Vip</span>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.vip}</span>
+                        <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
                     </div>
-                    <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-yellow-500/5 border-yellow-500/10' : 'bg-white/10 border-white/20'}`}>
-                        <div className="text-center">
-                            <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-yellow-500/60' : 'text-yellow-100'}`}>Ocupados</span>
-                            <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-yellow-500' : 'text-yellow-300'}`}>{teamStats.enchendo + teamStats.designado}</span>
-                        </div>
-                        <Droplet size={16} className={`${isDarkMode ? 'text-yellow-500 opacity-30' : 'text-white opacity-60'}`} />
-                    </div>
-                    <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-blue-500/5 border-blue-500/10' : 'bg-white/10 border-white/20'}`}>
-                        <div className="text-center">
-                            <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-blue-400/60' : 'text-blue-100'}`}>Designados</span>
-                            <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-blue-400' : 'text-blue-300'}`}>{teamStats.designado}</span>
-                        </div>
-                        <BusFront size={16} className={`${isDarkMode ? 'text-blue-400 opacity-30' : 'text-white opacity-60'}`} />
+                </div>
+                <div className="flex flex-col">
+                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Ilha</span>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.ilha}</span>
                     </div>
                 </div>
             </div>
 
-            <div className="flex flex-col items-end">
-                <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Turno Ativo</span>
-                <div className="flex items-center gap-2">
-                    <span className={`text-xs font-black font-mono ${isDarkMode ? 'text-slate-400' : 'text-white'}`}>{activeShift}</span>
-                    <Zap size={12} className={`${isDarkMode ? 'text-emerald-500' : 'text-emerald-300'} animate-pulse`} />
+            <div className={`h-8 w-px ${isDarkMode ? 'bg-slate-800' : 'bg-white/20'}`}></div>
+
+            {/* Status Operacional */}
+            <div className="flex items-center gap-8">
+                <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-white/10 border-white/20'}`}>
+                    <div className="text-center">
+                        <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-emerald-500/60' : 'text-emerald-100'}`}>Disponíveis</span>
+                        <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-emerald-500' : 'text-emerald-300'}`}>{teamStats.disponivel}</span>
+                    </div>
+                    <Users size={16} className={`${isDarkMode ? 'text-emerald-500 opacity-30' : 'text-white opacity-60'}`} />
                 </div>
+                <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-yellow-500/5 border-yellow-500/10' : 'bg-white/10 border-white/20'}`}>
+                    <div className="text-center">
+                        <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-yellow-500/60' : 'text-yellow-100'}`}>Ocupados</span>
+                        <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-yellow-500' : 'text-yellow-300'}`}>{teamStats.enchendo + teamStats.designado}</span>
+                    </div>
+                    <Droplet size={16} className={`${isDarkMode ? 'text-yellow-500 opacity-30' : 'text-white opacity-60'}`} />
+                </div>
+                <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-blue-500/5 border-blue-500/10' : 'bg-white/10 border-white/20'}`}>
+                    <div className="text-center">
+                        <span className={`text-[8px] font-black uppercase tracking-widest block mb-0.5 ${isDarkMode ? 'text-blue-400/60' : 'text-blue-100'}`}>Designados</span>
+                        <span className={`text-lg font-black font-mono leading-none ${isDarkMode ? 'text-blue-400' : 'text-blue-300'}`}>{teamStats.designado}</span>
+                    </div>
+                    <BusFront size={16} className={`${isDarkMode ? 'text-blue-400 opacity-30' : 'text-white opacity-60'}`} />
+                </div>
+            </div>
+        </div>
+
+        <div className="flex flex-col items-end">
+            <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Turno Ativo</span>
+            <div className="flex items-center gap-2">
+                <span className={`text-xs font-black font-mono ${isDarkMode ? 'text-slate-400' : 'text-white'}`}>{activeShift}</span>
             </div>
         </div>
     </div>
   );
 
   return (
-    <div className={`w-full h-full flex flex-col overflow-hidden font-sans ${isDarkMode ? 'bg-slate-950' : 'bg-slate-200'}`}>
+    <div className={`w-full h-full flex flex-col overflow-hidden font-sans ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-200 text-slate-800'}`}>
         {portalTarget ? createPortal(headers, portalTarget) : headers}
+        
+        {telemetryBar}
 
         {/* OPERATIONAL GRID - DISPONÍVEIS NO TOPO */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3">

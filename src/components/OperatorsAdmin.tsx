@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Plus, Trash2, Edit2, ChevronDown, RefreshCw, Save, X, Settings, Upload, Download, Calendar as CalendarIcon, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, ChevronDown, RefreshCw, Save, X, Settings, Upload, Download, Calendar as CalendarIcon, ChevronLeft, ChevronRight, User, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { updateOperatorWorkDays } from '../services/supabaseService';
 import { OperatorProfile } from '../types';
@@ -25,6 +25,7 @@ const COLUMNS: { key: OperatorField; label: string; width: string; isVariable: b
   { key: 'vestNumber', label: 'ISO', width: 'w-[70px]', isVariable: true },
   { key: 'tmfLogin', label: 'Log. TMF', width: 'w-[90px]', isVariable: true },
   { key: 'bloodType', label: 'TS', width: 'w-[60px]', isVariable: true },
+  { key: 'email', label: 'Email Corp.', width: 'w-[260px]', isVariable: true },
   { key: 'patio', label: 'Pátio', width: 'w-[100px]', isVariable: true },
   { key: 'shiftCycle', label: 'Turno', width: 'w-[100px]', isVariable: true },
   { key: 'shiftStart', label: 'Hr. Ent.', width: 'w-[80px]', isVariable: true },
@@ -124,7 +125,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
   const fetchOperators = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase.from('operators').select('*').order('war_name');
+    const { data, error } = await supabase.from('operators').select('*, operator_work_days(work_date, day_type)').order('war_name');
     if (!error && data) {
       setOperators(prev => {
         const newUnsaved = prev.filter(o => o.id.startsWith('new-'));
@@ -140,6 +141,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           patio: o.patio || '',
           tmfLogin: o.tmf_login || '',
           bloodType: o.blood_type || '',
+          email: o.email || '',
           companyId: o.company_id || '',
           gruId: o.gru_id || '',
           vestNumber: o.vest_number || '',
@@ -149,7 +151,11 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           airlines: [],
           ratings: { speed: 100, safety: 100, airlineSpecific: {} },
           expertise: { servidor: 100, cta: 100 },
-          stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 }
+          stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 },
+          workDays: o.operator_work_days?.map((wd: any) => ({
+            date: wd.work_date,
+            type: wd.day_type || 'TRABALHO'
+          })) || []
         } as OperatorProfile));
         return [...newUnsaved, ...fetched];
       });
@@ -184,6 +190,14 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     if (colKey === 'vestNumber') supabasePayload.vest_number = op.vestNumber || null;
     if (colKey === 'tmfLogin') supabasePayload.tmf_login = op.tmfLogin || null;
     if (colKey === 'bloodType') supabasePayload.blood_type = op.bloodType || null;
+    if (colKey === 'email') {
+        let emailVal = op.email?.toLowerCase().trim() || null;
+        if (emailVal && !emailVal.includes('@')) {
+            emailVal = `${emailVal}@vibraenergia.com.br`;
+        }
+        supabasePayload.email = emailVal;
+        setOperators(prev => prev.map(o => o.id === rowId ? { ...o, email: emailVal || '' } : o));
+    }
     if (colKey === 'patio') supabasePayload.patio = op.patio || null;
     if (colKey === 'shiftCycle') supabasePayload.shift_cycle = op.shift?.cycle || null;
     if (colKey === 'shiftStart') supabasePayload.shift_start = op.shift?.start || null;
@@ -195,6 +209,9 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           // It's a new unsaved row, wait until they finish editing something or manually dispatch. 
           // Actually, let's auto-save new rows if they have warName and fullName at least
           if ((op.warName || op.fullName) && !op.id.startsWith('saved-')) {
+              const emailVal = op.email?.toLowerCase().trim();
+              const finalEmail = emailVal ? (emailVal.includes('@') ? emailVal : `${emailVal}@vibraenergia.com.br`) : null;
+              
               const insertPayload = {
                   full_name: op.fullName || op.warName || 'Sem Nome',
                   war_name: op.warName || op.fullName || 'Sem Nome',
@@ -206,6 +223,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                   patio: op.patio || null,
                   tmf_login: op.tmfLogin || null,
                   blood_type: op.bloodType || null,
+                  email: finalEmail,
                   company_id: op.companyId || null,
                   gru_id: op.gruId || null,
                   vest_number: op.vestNumber || null,
@@ -226,7 +244,12 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           }
       } else {
         const { error } = await supabase.from('operators').update(supabasePayload).eq('id', rowId);
-        if (error) console.error('Error updating operator:', error);
+        if (error) {
+            console.error('Error updating operator:', error);
+            if (error.message?.includes('column "email" of relation "operators" does not exist') || error.message?.includes('could not find the "email" column')) {
+                alert('ERRO: A coluna "email" não existe na tabela "operators". Por favor, acesse o painel do Supabase e rode no SQL Editor:\n\nALTER TABLE public.operators ADD COLUMN IF NOT EXISTS email VARCHAR(255);');
+            }
+        }
       }
     }
   };
@@ -238,7 +261,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
   const handleFieldChange = (id: string, field: OperatorField, value: string) => {
     if (field === 'actions') return;
 
-    let newValue: any = field === 'photoUrl' ? value : value.toUpperCase();
+    let newValue: any = (field === 'photoUrl' || field === 'email') ? value : value.toUpperCase();
     
     if (field === 'companyId' || field === 'gruId') {
       const digits = newValue.replace(/\D/g, '');
@@ -278,29 +301,34 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     });
   };
 
-  const handleAddOperator = () => {
-    const newOp: OperatorProfile = {
-      id: `new-${Date.now()}`,
-      fullName: '',
-      warName: '',
-      status: 'ATIVO',
-      category: 'JUNIOR',
-      fleetCapability: 'SRV',
-      companyId: '',
-      gruId: '',
-      vestNumber: '',
-      photoUrl: '',
-      lastPosition: '',
-      shift: { cycle: 'GERAL', start: '00:00', end: '23:59' },
-      airlines: [],
-      ratings: { speed: 100, safety: 100, airlineSpecific: {} },
-      expertise: { servidor: 100, cta: 100 },
-      stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 }
+  const handleAddOperator = async () => {
+    const insertPayload = {
+        full_name: 'Novo Operador',
+        war_name: 'Novo Operador',
+        status: 'ATIVO',
+        category: 'JUNIOR',
+        fleet_capability: 'SRV',
+        is_lt: 'NÃO',
+        shift_cycle: 'GERAL',
+        shift_start: '00:00',
+        shift_end: '23:59'
     };
-    lastStableOperatorsRef.current = [newOp, ...lastStableOperatorsRef.current];
-    setOperators(prev => [newOp, ...prev]);
-    setFocusedCell({ rowId: newOp.id, col: 0 });
-    setEditingCell({ rowId: newOp.id, col: 0 });
+    
+    try {
+        const { data, error } = await supabase.from('operators').insert([insertPayload]).select().single();
+        if (error) {
+            alert('Erro ao criar operador: ' + error.message);
+            return;
+        }
+        
+        if (data) {
+            fetchOperators(); // reload all to get perfect relations
+            setFocusedCell({ rowId: data.id, col: 0 });
+            setEditingCell({ rowId: data.id, col: 0 });
+        }
+    } catch (e) {
+        console.error(e);
+    }
   };
 
   const handleBatchImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,18 +342,15 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         const worksheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<any>(worksheet);
 
-        const newOps: OperatorProfile[] = json.map((row: any) => ({
-          id: `new-${Math.random().toString(36).substr(2, 9)}`,
-          fullName: row['Nome Completo'] || '',
-          warName: row['Nome de Guerra'] || '',
+        const newOpsDrafts = json.map((row: any) => ({
+          fullName: row['Nome Completo'] || 'Operador',
+          warName: row['Nome de Guerra'] || 'Operador',
           status: 'ATIVO',
           category: 'JUNIOR',
           fleetCapability: 'SRV',
-          companyId: row['Matrícula'] || '',
-          gruId: row['Credencial GRU'] || '',
-          vestNumber: row['Colete'] || '',
-          photoUrl: '',
-          lastPosition: '',
+          companyId: row['Matrícula'] || null,
+          gruId: row['Credencial GRU'] || null,
+          vestNumber: row['Colete'] || null,
           shift: { 
             cycle: row['Turno'] || 'GERAL', 
             start: row['Entrada'] || '00:00', 
@@ -333,14 +358,37 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           },
           isLT: row['Líder de Turno'] || 'NÃO',
           patio: row['Pátio'] || 'AERODROMO',
-          airlines: [],
-          ratings: { speed: 100, safety: 100, airlineSpecific: {} },
-          expertise: { servidor: 100, cta: 100 },
-          stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 }
         }));
         
-        lastStableOperatorsRef.current = [...newOps, ...lastStableOperatorsRef.current];
-        setOperators(prev => [...newOps, ...prev]);
+        // Prepare bulk insert
+        const insertPayloads = newOpsDrafts.map((op: any) => ({
+          full_name: op.fullName,
+          war_name: op.warName,
+          status: op.status,
+          category: op.category,
+          fleet_capability: op.fleetCapability,
+          company_id: op.companyId,
+          gru_id: op.gruId,
+          vest_number: op.vestNumber,
+          shift_cycle: op.shift.cycle,
+          shift_start: op.shift.start,
+          shift_end: op.shift.end,
+          is_lt: op.isLT,
+          patio: op.patio
+        }));
+        
+        try {
+          const { data: inserted, error } = await supabase.from('operators').insert(insertPayloads).select();
+          if (error) {
+             alert('Erro ao importar para o banco: ' + error.message);
+             return;
+          }
+          if (inserted) {
+            fetchOperators(); // Reload from DB
+          }
+        } catch (err) {
+          console.error('Import error', err);
+        }
         setShowOptionsDropdown(false);
       };
       reader.readAsArrayBuffer(file);
@@ -606,10 +654,10 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
   }, []);
 
   const headerContent = (
-    <div className={`px-4 h-auto min-h-[3.5rem] py-1.5 shrink-0 flex items-center flex-wrap md:flex-nowrap justify-between gap-2 border-b ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#3CA317] border-transparent text-white'} z-[60] w-full shadow-md`}>
-      <div className="flex items-center gap-2 md:gap-4 flex-wrap md:flex-nowrap">
+    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[60] w-full shadow-md`}>
+      <div className="flex items-center gap-2 md:gap-4 h-full">
         {/* Brand & Quick Stats */}
-        <div className="flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
+        <div className="flex items-center gap-2 shrink-0 pr-4 border-r border-white/10 h-10">
           <div className="flex flex-col">
             <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">DB Operadores</h2>
             <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter mt-1">{filteredOperators.length} REGISTROS</p>
@@ -617,8 +665,8 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         </div>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap md:flex-nowrap">
-        {/* Filters */}
+      <div className="flex items-center gap-4 h-full overflow-hidden">
+          {/* Filters */}
         <div className="flex items-center gap-2">
           <select 
             className="bg-black/20 hover:bg-black/40 border border-white/10 rounded-md text-[9px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer"
@@ -803,7 +851,11 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                       const isSelectField = ['status', 'role', 'isLT', 'patio', 'shiftCycle'].includes(col.key);
                       
                       if (col.key === 'workDays') {
-                        const hasScale = op.workDays && op.workDays.length > 0;
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const dayEntry = op.workDays?.find(wd => wd.date === todayStr);
+                        const isWorkingToday = !dayEntry || !['FOLGA', 'AT', 'AF'].includes(dayEntry.type);
+                        const hasScaleExceptions = op.workDays && op.workDays.length > 0;
+
                         return (
                           <td 
                             key={`${op.id}-workDays`}
@@ -813,18 +865,21 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                             <div className="w-full h-full flex items-center justify-center gap-1.5">
                               <CalendarIcon 
                                 size={14} 
-                                className={hasScale ? 'text-emerald-500' : 'text-slate-400 opacity-40'} 
+                                className={hasScaleExceptions ? 'text-indigo-400' : 'text-slate-400 opacity-40'} 
                               />
                               <span className={`text-[10px] font-black font-mono transition-all ${
-                                hasScale 
-                                  ? (isDarkMode ? 'text-emerald-400' : 'text-emerald-600')
+                                hasScaleExceptions 
+                                  ? (isDarkMode ? 'text-indigo-300' : 'text-indigo-600')
                                   : 'text-slate-400 opacity-40'
                               }`}>
                                 {op.workDays?.length || 0}
                               </span>
                               
-                              {hasScale && op.workDays?.some(wd => wd.date === new Date().toISOString().split('T')[0]) && (
-                                <div className="absolute right-0 top-0 w-2 h-2 bg-emerald-500" />
+                              {isWorkingToday && (
+                                <div className="absolute right-0 top-0 w-2 h-2 bg-emerald-500" title="Trabalhando Hoje" />
+                              )}
+                              {!isWorkingToday && dayEntry && (
+                                <div className="absolute right-0 top-0 w-2 h-2 bg-red-500" title={dayEntry.type} />
                               )}
                             </div>
                           </td>
@@ -936,7 +991,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                               tabIndex={0}
                               onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
                               className={`
-                                w-full h-full px-3 flex items-center gap-2 font-bold text-[11px] uppercase select-none cursor-default outline-none tracking-tight relative
+                                w-full h-full px-3 flex items-center gap-2 font-bold text-[11px] uppercase select-none cursor-default outline-none tracking-tight relative overflow-hidden min-w-0
                                 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}
                                 ${col.key === 'fullName' ? 'justify-start text-left' : 'justify-center text-center'}
                                 ${isMandatoryEmpty ? 'text-red-500 animate-pulse font-black text-xs' : ''}
@@ -945,7 +1000,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                                 ${col.key === 'status' && cellValue === 'FOLG.' ? 'text-indigo-500' : ''}
                               `}
                             >
-                              <span>{isMandatoryEmpty ? '?' : (String(cellValue) || '-')}</span>
+                              <span className="block truncate w-full min-w-0">{isMandatoryEmpty ? '?' : (String(cellValue) || '-')}</span>
                               {isMandatoryEmpty && op.id === focusedCell?.rowId && (
                                   <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
                               )}
@@ -995,13 +1050,34 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           operator={schedulingOperator}
           onClose={() => setSchedulingOperator(null)}
           onSave={async (days) => {
+            let currentId = schedulingOperator.id;
+            console.log('Tentando salvar escala para:', schedulingOperator.warName, 'ID:', currentId);
+            
+            // Se o ID ainda for temporário "new-", buscar o ID real que o Supabase retornou no salvamento automático
+            if (currentId.startsWith('new-')) {
+              const latestOp = operators.find(o => o.warName === schedulingOperator.warName && !o.id.startsWith('new-'));
+              if (latestOp) {
+                currentId = latestOp.id;
+                console.log('ID real encontrado:', currentId);
+              } else {
+                console.warn('ID real ainda não disponível para:', schedulingOperator.warName);
+                alert('Aguarde: o perfil do operador está sendo criado. Tente novamente em 3 segundos.');
+                return;
+              }
+            }
+
             try {
-              await updateOperatorWorkDays(schedulingOperator.id, days);
-              setOperators(prev => prev.map(o => o.id === schedulingOperator.id ? { ...o, workDays: days } : o));
+              console.log('Enviando dados para o Supabase (ID:', currentId + '):', days);
+              await updateOperatorWorkDays(currentId, days);
+              setOperators(prev => prev.map(o => o.id === currentId ? { ...o, workDays: days } : o));
               setSchedulingOperator(null);
-            } catch (err) {
-              console.error('Erro ao salvar escala:', err);
-              alert('Erro ao salvar escala. Verifique sua conexão.');
+            } catch (err: any) {
+              console.error('Erro detalhado ao salvar escala:', err);
+              // Verificar se o erro é de coluna faltante (day_type)
+              if (err.message?.includes('column "day_type" does not exist')) {
+                alert('ERRO CRÍTICO: Sua tabela "operator_work_days" no Supabase precisa da coluna "day_type". Por favor, execute o SQL de atualização no painel do Supabase.');
+              }
+              throw err;
             }
           }}
         />
@@ -1014,14 +1090,16 @@ interface ScheduleModalProps {
   isDarkMode: boolean;
   operator: OperatorProfile;
   onClose: () => void;
-  onSave: (days: Array<{ date: string; type: 'TRABALHO' | 'CIPA' | 'EXAME' | 'BRIGADA' }>) => void;
+  onSave: (days: Array<{ date: string; type: string }>) => void;
 }
 
 const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onClose, onSave }) => {
-  const [selectedDates, setSelectedDates] = useState<Array<{ date: string; type: 'TRABALHO' | 'CIPA' | 'EXAME' | 'BRIGADA' | 'B_HORAS' | 'CT' | 'AT' | 'AF' }>>(operator.workDays || []);
+  const [selectedDates, setSelectedDates] = useState<Array<{ date: string; type: string }>>(operator.workDays || []);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [contextMenu, setContextMenu] = useState<{ date: string; x: number; y: number } | null>(null);
   const [bulkAbsence, setBulkAbsence] = useState<{ start: string; end: string; type: 'AT' | 'AF' } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
@@ -1034,29 +1112,45 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const requiredOffDays = numDays === 31 ? 9 : 8;
-  const currentWorkDays = selectedDates.filter(d => d.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`) && (d.type === 'TRABALHO' || d.type === 'CIPA' || d.type === 'EXAME' || d.type === 'BRIGADA' || d.type === 'B_HORAS' || d.type === 'CT')).length;
-  const currentOffDays = numDays - currentWorkDays;
+  
+  // Um dia é FOLGA se estiver no array com tipo 'FOLGA', 'AT' ou 'AF'
+  const currentOffDays = selectedDates.filter(d => 
+    d.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`) && 
+    ['FOLGA', 'AT', 'AF'].includes(d.type)
+  ).length;
+  
+  const currentWorkDays = numDays - currentOffDays;
   const offDayDiff = currentOffDays - requiredOffDays;
 
-  // Lógica de Ciclo (Dias Consecutivos)
-  const getConsecutiveDays = (dateStr: string) => {
+  // Lógica de Ciclo (Dias Consecutivos de Trabalho REAL)
+  const getConsecutiveWorkDays = (dateStr: string) => {
+    const isWorking = (dStr: string) => {
+      const entry = selectedDates.find(d => d.date === dStr);
+      // Trabalho se não tem entrada ou se a entrada é de um tipo de dever especial (não folga/afastamento)
+      return !entry || !['FOLGA', 'AT', 'AF'].includes(entry.type);
+    };
+
+    if (!isWorking(dateStr)) return 0;
+    
     let count = 1;
     const date = new Date(dateStr);
     
     // Contar para trás
     let current = new Date(date);
     current.setDate(current.getDate() - 1);
-    while (selectedDates.some(d => d.date === current.toISOString().split('T')[0] && d.type === 'TRABALHO')) {
+    while (isWorking(current.toISOString().split('T')[0])) {
       count++;
       current.setDate(current.getDate() - 1);
+      if (count > 31) break; // Safety
     }
     
     // Contar para frente
     current = new Date(date);
     current.setDate(current.getDate() + 1);
-    while (selectedDates.some(d => d.date === current.toISOString().split('T')[0] && d.type === 'TRABALHO')) {
+    while (isWorking(current.toISOString().split('T')[0])) {
       count++;
       current.setDate(current.getDate() + 1);
+      if (count > 31) break; // Safety
     }
     
     return count;
@@ -1065,17 +1159,50 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
   const toggleDay = (dateStr: string) => {
     setSelectedDates(prev => {
       const existing = prev.find(d => d.date === dateStr);
+      
+      // Se já existe uma entrada (Folga ou Especial), e clicamos, resetamos para Trabalho (remove da lista)
       if (existing) {
         return prev.filter(d => d.date !== dateStr);
       }
-      return [...prev, { date: dateStr, type: 'TRABALHO' }];
+      
+      // Se não existe, estamos transformando Trabalho -> FOLGA (Verde)
+      const currentMonthFolgas = prev.filter(d => 
+        d.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`) && 
+        d.type === 'FOLGA'
+      ).length;
+
+      if (currentMonthFolgas + 1 > requiredOffDays) {
+        if (!window.confirm(`ALERTA DE SEGURANÇA: Este mês requer ${requiredOffDays} folgas. Você está tentando inserir a ${currentMonthFolgas + 1}ª folga. Deseja prosseguir com o excesso?`)) {
+          return prev;
+        }
+      }
+
+      return [...prev, { date: dateStr, type: 'FOLGA' }];
     });
   };
 
-  const setDayType = (dateStr: string, type: 'TRABALHO' | 'CIPA' | 'EXAME' | 'BRIGADA' | 'B_HORAS' | 'CT' | 'AT' | 'AF' | 'FOLGA') => {
-    if (type === 'FOLGA') {
+  const setDayType = (dateStr: string, type: string) => {
+    if (type === 'TRABALHO') {
       setSelectedDates(prev => prev.filter(d => d.date !== dateStr));
     } else {
+      // Validação rápida de limite se estiver setando FOLGA via menu
+      if (type === 'FOLGA') {
+        const currentMonthFolgas = selectedDates.filter(d => 
+          d.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`) && 
+          d.type === 'FOLGA'
+        ).length;
+        
+        const existing = selectedDates.find(d => d.date === dateStr);
+        if (!existing || existing.type !== 'FOLGA') {
+          if (currentMonthFolgas + 1 > requiredOffDays) {
+            if (!window.confirm(`ALERTA: Limite de ${requiredOffDays} folgas atingido. Confirmar ${currentMonthFolgas + 1}ª folga?`)) {
+              setContextMenu(null);
+              return;
+            }
+          }
+        }
+      }
+
       setSelectedDates(prev => {
         const existing = prev.find(d => d.date === dateStr);
         if (existing) {
@@ -1112,41 +1239,41 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       
-      <div className={`relative w-full max-w-sm rounded shadow-2xl overflow-hidden border animate-in zoom-in-95 duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+      <div className={`relative w-full max-w-sm max-h-[85vh] flex flex-col rounded shadow-2xl overflow-hidden border animate-in zoom-in-95 duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
         
         {/* HEADER MODAL */}
-        <div className={`p-4 border-b ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+        <div className={`p-2 shrink-0 border-b ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center overflow-hidden">
-                {operator.photoUrl ? <img src={operator.photoUrl} className="w-full h-full object-cover" /> : <User size={20} className="text-emerald-500" />}
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center overflow-hidden">
+                {operator.photoUrl ? <img src={operator.photoUrl} className="w-full h-full object-cover" /> : <User size={14} className="text-emerald-500" />}
               </div>
               <div>
-                <h3 className={`text-sm font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{operator.warName}</h3>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[9px] font-black bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded border border-blue-500/20">{operator.shift?.cycle}</span>
-                  <span className="text-[9px] font-bold text-slate-400 font-mono tracking-tighter">{operator.shift?.start} - {operator.shift?.end}</span>
+                <h3 className={`text-[10px] font-black uppercase tracking-widest leading-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{operator.warName}</h3>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[7px] font-black bg-blue-500/10 text-blue-500 px-1 py-0 rounded border border-blue-500/20 uppercase">{operator.shift?.cycle}</span>
+                  <span className="text-[7px] font-bold text-slate-400 font-mono italic">{operator.shift?.start}-{operator.shift?.end}</span>
                 </div>
               </div>
             </div>
-            <button onClick={onClose} className={`p-1.5 hover:bg-black/10 transition-colors ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              <X size={18} />
+            <button onClick={onClose} className={`p-1 hover:bg-slate-500/10 rounded-full transition-colors ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              <X size={14} />
             </button>
           </div>
         </div>
 
-        {/* CALENDARIO */}
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+        {/* CONTENÚDO SCROLLABLE */}
+        <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className={`text-[9px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
               {monthNames[month]} {year}
             </h4>
             <div className="flex gap-1">
-              <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className={`p-1 rounded bg-slate-500/5 hover:bg-slate-500/10 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                <ChevronLeft size={16} />
+              <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className={`p-0.5 rounded bg-slate-500/5 hover:bg-slate-500/10 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                <ChevronLeft size={12} />
               </button>
-              <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className={`p-1 rounded bg-slate-500/5 hover:bg-slate-500/10 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                <ChevronRight size={16} />
+              <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className={`p-0.5 rounded bg-slate-500/5 hover:bg-slate-500/10 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                <ChevronRight size={12} />
               </button>
             </div>
           </div>
@@ -1164,10 +1291,12 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
             {Array.from({ length: numDays }).map((_, i) => {
               const day = i + 1;
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const workDay = selectedDates.find(d => d.date === dateStr);
+              const entry = selectedDates.find(d => d.date === dateStr);
               const isToday = new Date().toISOString().split('T')[0] === dateStr;
               
-              const consecutiveCount = workDay?.type === 'TRABALHO' ? getConsecutiveDays(dateStr) : 0;
+              // Um dia é de trabalho por padrão se não houver entrada de folga ou ausência
+              const isWorking = !entry || !['FOLGA', 'AT', 'AF'].includes(entry.type);
+              const consecutiveCount = isWorking ? getConsecutiveWorkDays(dateStr) : 0;
               const isSixthDay = consecutiveCount === 6;
               const isCritical = consecutiveCount > 6;
 
@@ -1182,22 +1311,25 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
                   }}
                   className={`
                     h-9 rounded-sm text-[10px] font-black transition-all flex flex-col items-center justify-center relative border
-                    ${workDay 
-                      ? (['AT', 'AF'].includes(workDay.type) ? 'bg-red-500 text-white border-red-600' : 
-                         isSixthDay ? 'bg-amber-400 text-amber-950 border-amber-500' : 
-                         (workDay.type === 'TRABALHO' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-blue-500 text-white border-blue-600')) 
-                      : (isDarkMode ? 'bg-slate-800/40 text-slate-500 border-slate-800' : 'bg-slate-50 text-slate-400 border-slate-100')
+                    ${entry 
+                      ? (entry.type === 'FOLGA' ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm' : 
+                         ['AT', 'AF'].includes(entry.type) ? 'bg-red-500 text-white border-red-600' : 
+                         'bg-blue-500 text-white border-blue-600') 
+                      : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700/50' : 'bg-slate-100 text-slate-500 border-slate-200')
                     }
-                    ${isToday ? 'ring-1 ring-amber-500/50' : ''}
-                    ${isCritical && workDay?.type === 'TRABALHO' ? 'ring-2 ring-red-500 ring-inset' : ''}
+                    ${isToday ? 'ring-2 ring-amber-500/50 z-10 scale-105' : ''}
+                    ${isWorking && isSixthDay ? 'bg-amber-400 text-amber-950 border-amber-500' : ''}
+                    ${isWorking && isCritical ? 'ring-2 ring-red-500 ring-inset' : ''}
                   `}
                 >
-                  <span>{day}</span>
-                  {workDay && workDay.type !== 'TRABALHO' && (
-                    <span className="text-[6px] opacity-80 leading-none mt-0.5">{workDay.type === 'EXAME' ? 'EX.PER' : workDay.type === 'B_HORAS' ? 'B.HORAS' : workDay.type}</span>
+                  <span className="leading-none">{day}</span>
+                  {entry && entry.type !== 'FOLGA' && (
+                    <span className="text-[6px] opacity-90 leading-none mt-1 uppercase font-black truncate w-full px-0.5">
+                      {entry.type === 'EXAME' ? 'EX.PER' : entry.type === 'B_HORAS' ? 'B.HORAS' : entry.type}
+                    </span>
                   )}
-                  {isSixthDay && workDay?.type === 'TRABALHO' && (
-                    <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-950/40" title="6º dia consecutivo" />
+                  {isWorking && isSixthDay && (
+                    <div className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-amber-950/40" />
                   )}
                 </button>
               );
@@ -1205,37 +1337,35 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
           </div>
 
           {/* INDICADORES DE REGRAS */}
-          <div className="mt-4 flex flex-col gap-2">
+          <div className="mt-3 flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
-              <div className={`p-2 rounded-sm border ${isDarkMode ? 'bg-slate-850 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Saldo de Folgas</span>
-                <div className="flex items-center justify-between mt-1">
-                  <span className={`text-base font-black font-mono ${offDayDiff < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                    {currentOffDays}/{requiredOffDays}
-                  </span>
-                  <span className={`text-[9px] font-black uppercase ${offDayDiff < 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                    {offDayDiff === 0 ? 'OK' : offDayDiff > 0 ? `+${offDayDiff}` : offDayDiff}
+              <div className={`p-2 rounded-md border flex flex-col justify-center ${isDarkMode ? 'bg-slate-850 border-slate-700' : 'bg-slate-50 border-slate-200 shadow-sm'}`}>
+                <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Status da Escala</span>
+                <div className="flex items-baseline gap-1">
+                  <span className={`text-lg font-black font-mono leading-none ${offDayDiff !== 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                    {currentWorkDays}T / {currentOffDays}F
                   </span>
                 </div>
+                <div className="mt-1 flex items-center justify-between text-[7px] font-bold text-slate-400 uppercase tracking-tighter">
+                  <span>Alvo: {numDays - requiredOffDays}T / {requiredOffDays}F</span>
+                  {offDayDiff !== 0 && <span className="text-amber-600 font-black">!</span>}
+                </div>
               </div>
-              <div className={`p-2 rounded-sm border ${isDarkMode ? 'bg-slate-850 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Plantão Atual</span>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-base font-black font-mono text-blue-500">{currentWorkDays}d</span>
-                  <div className="flex gap-1">
-                    <button 
-                      onClick={() => setBulkAbsence({ start: '', end: '', type: 'AT' })}
-                      className="px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded"
-                    >
-                      AT
-                    </button>
-                    <button 
-                      onClick={() => setBulkAbsence({ start: '', end: '', type: 'AF' })}
-                      className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded"
-                    >
-                      AF
-                    </button>
-                  </div>
+              <div className={`p-2 rounded-md border flex flex-col justify-center ${isDarkMode ? 'bg-slate-850 border-slate-700' : 'bg-slate-50 border-slate-200 shadow-sm'}`}>
+                <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Ausências</span>
+                <div className="flex gap-1">
+                  <button 
+                    onClick={() => setBulkAbsence({ start: '', end: '', type: 'AT' })}
+                    className="flex-1 py-1 bg-red-500 hover:bg-red-600 active:scale-95 text-white text-[8px] font-black rounded transition-all shadow-sm"
+                  >
+                    ATEST.
+                  </button>
+                  <button 
+                    onClick={() => setBulkAbsence({ start: '', end: '', type: 'AF' })}
+                    className="flex-1 py-1 bg-red-700 hover:bg-red-800 active:scale-95 text-white text-[8px] font-black rounded transition-all shadow-sm"
+                  >
+                    AFAST.
+                  </button>
                 </div>
               </div>
             </div>
@@ -1279,13 +1409,59 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
 
         {/* FOOTER */}
         <div className={`p-4 border-t flex gap-2 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-          <button onClick={onClose} className={`flex-1 px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+          <button 
+            onClick={onClose} 
+            disabled={isSaving}
+            className={`flex-1 px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'} disabled:opacity-50`}
+          >
             Cancelar
           </button>
-          <button onClick={() => onSave(selectedDates)} className="flex-1 px-4 py-2 rounded-sm bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/20">
-            Confirmar
+          <button 
+            disabled={isSaving}
+            onClick={async () => {
+              if (offDayDiff !== 0) {
+                const confirmMsg = offDayDiff > 0 
+                  ? `AVISO DE ESCALA: O operador possui FOLGAS EXCEDENTES (${currentOffDays} de ${requiredOffDays} necessárias). Confirmar mesmo assim?`
+                  : `AVISO DE ESCALA: Saldo de folgas INSUFICIENTE (${currentOffDays} de ${requiredOffDays} necessárias). Confirmar escala incompleta?`;
+                
+                if (!window.confirm(confirmMsg)) return;
+              }
+              
+              setIsSaving(true);
+              setSaveError(null);
+              try {
+                await onSave(selectedDates);
+              } catch (e: any) {
+                console.error('Falha no salvamento:', e);
+                const errorStr = e?.message || e?.details || String(e);
+                if (errorStr.includes('check_day_type')) {
+                  setSaveError('ERRO DO SUPABASE: O banco bloqueou "FOLGA". Copie e rode no SQL Editor do Supabase: ALTER TABLE public.operator_work_days DROP CONSTRAINT check_day_type;');
+                } else {
+                  setSaveError(errorStr);
+                }
+              } finally {
+                setIsSaving(false);
+              }
+            }} 
+            className="flex-1 px-4 py-2 rounded-sm bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <RefreshCw size={14} className="animate-spin" />
+                <span>Salvando...</span>
+              </>
+            ) : (
+              <span>Confirmar</span>
+            )}
           </button>
         </div>
+
+        {saveError && (
+          <div className="absolute top-0 inset-x-0 p-4 bg-red-500/95 backdrop-blur text-white text-[11px] font-bold text-center z-[200] shadow-2xl flex flex-col gap-2 items-center justify-center">
+            <span className="select-all block max-w-sm">{saveError}</span>
+            <button onClick={() => setSaveError(null)} className="px-4 py-1 bg-white text-red-600 rounded-sm font-black mt-1 hover:bg-red-50">ENTENDI E VOU CORRIGIR NO SUPABASE</button>
+          </div>
+        )}
 
         {/* CONTEXT MENU */}
         {contextMenu && (
@@ -1296,8 +1472,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >
               {[
-                { id: 'FOLGA', label: 'Limpar / Folga', color: 'text-slate-400' },
-                { id: 'TRABALHO', label: 'TRABALHO', color: 'text-emerald-500' },
+                { id: 'TRABALHO', label: 'TRABALHO (Normal)', color: 'text-slate-400' },
+                { id: 'FOLGA', label: 'FOLGA (Prioridade)', color: 'text-emerald-500' },
                 { id: 'BRIGADA', label: 'Brigada', color: 'text-blue-500' },
                 { id: 'CIPA', label: 'CIPA', color: 'text-blue-500' },
                 { id: 'EXAME', label: 'EX. PER.', color: 'text-blue-500' },

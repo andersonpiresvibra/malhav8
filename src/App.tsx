@@ -5,6 +5,8 @@ import { MeshFlight, INITIAL_MESH_FLIGHTS } from './data/operationalMesh';
 import { DashboardHeader } from './components/DashboardHeader';
 import { Spinner } from './components/ui/Spinner';
 import { useTheme } from './contexts/ThemeContext';
+import { useAuth } from './contexts/AuthContext';
+import { LoginScreen } from './components/LoginScreen';
 import { Table, X, AlertCircle } from 'lucide-react';
 import { OperatorProfile } from './types';
 import { ShiftOperatorsSection } from './components/ShiftOperatorsSection';
@@ -17,6 +19,7 @@ import { OperatorsAdmin } from './components/OperatorsAdmin';
 const GridOps = lazy(() => import('./components/GridOps').then(m => ({ default: m.GridOps })));
 
 const App: React.FC = () => {
+  const { user, loading: authLoading, warName } = useAuth();
   const [view, setView] = useState<ViewState>('GRID_OPS');
   const [pendingAction, setPendingAction] = useState<'CREATE' | 'IMPORT' | null>(null);
 
@@ -184,6 +187,10 @@ const App: React.FC = () => {
   const [ltName, setLtName] = useState('');
   const [tempLtName, setTempLtName] = useState('');
 
+  useEffect(() => {
+    if (warName) setLtName(warName);
+  }, [warName]);
+
   const isNameInvalid = false; // !ltName || ltName.trim() === ''; // disabled temporarily per user request
 
   const toggleFullscreen = () => {
@@ -247,6 +254,27 @@ const App: React.FC = () => {
     setTargetView(null);
   };
 
+  if (authLoading) {
+    return (
+      <div className={`${isDarkMode ? 'dark bg-slate-950' : 'bg-slate-50'} min-h-screen flex items-center justify-center`}>
+        <Spinner size="lg" className="text-blue-500" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  const currentLtProfile = globalOperators.find(op => {
+    const normalizeString = (str?: string) => str?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase() || '';
+    const ln = normalizeString(ltName);
+    const wn = normalizeString(op.warName);
+    const fn = normalizeString(op.fullName);
+    if (!ln) return false;
+    return wn === ln || fn === ln || (fn && fn.includes(ln));
+  });
+
   return (
     <div className={`${isDarkMode ? 'dark bg-slate-950' : 'bg-slate-50'} ${isPseudoFullscreen ? 'fixed inset-0 z-[9999]' : 'h-[100dvh] w-full'} overflow-hidden flex flex-col`}>
       <DashboardHeader 
@@ -257,6 +285,7 @@ const App: React.FC = () => {
         globalSearchTerm={globalSearchTerm}
         setGlobalSearchTerm={setGlobalSearchTerm}
         ltName={ltName}
+        ltPhotoUrl={currentLtProfile?.photoUrl}
         setLtName={setLtName}
       />
 
@@ -317,6 +346,8 @@ const App: React.FC = () => {
         </div>
       )}
 
+      <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
+
       <div className={`flex flex-1 w-full ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'} transition-colors duration-500 font-sans overflow-hidden relative`}>
         <Sidebar 
           activeView={view} 
@@ -325,7 +356,6 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
-          <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
           <div className="flex-1 overflow-hidden relative">
               <Suspense fallback={<div className="flex items-center justify-center h-full w-full"><Spinner size={48} text="Carregando módulo..." /></div>}>
                 {view === 'GRID_OPS' && (

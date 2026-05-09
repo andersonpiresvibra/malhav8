@@ -19,7 +19,7 @@ import {
   PlaneLanding, ListOrdered, AlertTriangle, Play, Pause, XCircle, Plus, Anchor,
   MapPin, Eye, CheckCheck, X, Save, History, TimerOff, UserPlus, Building2, Bell, Zap,
   MessageCircle, MoreVertical, Search, Settings, Upload, RefreshCw, Network, Archive, Trash2, Printer, FileBarChart,
-  CalendarDays, ChevronLeft, ChevronRight
+  CalendarDays, ChevronLeft, ChevronRight, Table
 } from 'lucide-react';
 
 type Tab = 'GERAL' | 'CHEGADA' | 'FILA' | 'DESIGNADOS' | 'ABASTECENDO' | 'FINALIZADO' | 'MALHA';
@@ -1647,8 +1647,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
   );
 
   const subheaderContent = (
-      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#3CA317] border-transparent text-white'} z-[60] w-full`}>
-        <div className="flex items-center gap-6">
+      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[60] w-full shadow-md`}>
+        <div className="flex items-center gap-6 h-full">
             <div className="flex items-center gap-3">
                 <div>
                   <h2 className="text-sm font-black text-white tracking-tighter uppercase leading-none">MALHA OPER.</h2>
@@ -1704,10 +1704,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     </button>
                 ))}
             </div>
-        </div>
+          </div>
 
-        <div className="flex items-center gap-4">
-            <div className="relative w-[280px] h-9">
+          <div className="flex items-center gap-4 mr-6">
+              <div className="relative w-[280px] h-9">
                 <div className={`absolute inset-0 ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-white/20 text-slate-900'} shadow-sm border rounded flex items-center transition-all`}>
                     <Search size={14} className={`shrink-0 ml-3 ${isDarkMode ? 'text-slate-400' : 'text-slate-400'}`} />
                     <input 

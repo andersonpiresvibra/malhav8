@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy } from 'lucide-react';
+import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy, Network } from 'lucide-react';
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
 import { FlightData, FlightStatus } from '../types';
 import * as XLSX from 'xlsx';
@@ -627,10 +627,10 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
   }, []);
 
   const headerContent = (
-    <div className={`px-4 h-auto min-h-[3.5rem] py-1.5 shrink-0 flex items-center flex-wrap md:flex-nowrap justify-between gap-2 border-b ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#3CA317] border-transparent text-white'} z-[60] w-full shadow-md`}>
-      <div className="flex items-center gap-2 md:gap-4 flex-wrap md:flex-nowrap">
+    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[60] w-full shadow-md`}>
+      <div className="flex items-center gap-2 md:gap-4 h-full">
         {/* Brand & Quick Stats */}
-        <div className="flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
+        <div className="flex items-center gap-2 shrink-0 pr-4 border-r border-white/10 h-10">
           <div className="flex flex-col">
             <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">Malha Raiz</h2>
             <p className="text-[9px] font-bold text-emerald-100/40 uppercase tracking-tighter mt-1">{totalCount} REGISTROS</p>
@@ -638,74 +638,74 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
           
           <div className="h-4 w-px bg-white/10 mx-1 hidden md:block" />
 
-          {/* Custom Date Picker */}
-          <div className="flex items-center gap-0.5 bg-[#3a8b28] px-0.5 py-0.5 rounded-md hover:bg-[#327a23] transition-colors shadow-inner shrink-0 leading-none">
-            
-            <div className="flex items-center gap-1.5 px-2 relative cursor-pointer group hover:bg-white/10 rounded h-full py-1">
-              <Calendar size={14} className="text-emerald-400 shrink-0 group-hover:text-emerald-300 transition-colors" strokeWidth={2.5} />
+            {/* Custom Date Picker */}
+            <div className="flex items-center gap-0.5 bg-[#3a8b28] px-0.5 py-0.5 rounded-md hover:bg-[#327a23] transition-colors shadow-inner shrink-0 leading-none">
               
-              <span className="text-white font-mono text-[11px] font-black uppercase tracking-wider whitespace-nowrap">
-                {targetMonth}
-              </span>
-              <input 
-                  type="month"
-                  value={targetMonth}
-                  onChange={(e) => setTargetMonth(e.target.value)}
-                  onClick={(e) => {
-                     try { (e.target as any).showPicker(); } catch (err) {}
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
+              <div className="flex items-center gap-1.5 px-2 relative cursor-pointer group hover:bg-white/10 rounded h-full py-1">
+                <Calendar size={14} className="text-emerald-400 shrink-0 group-hover:text-emerald-300 transition-colors" strokeWidth={2.5} />
+                
+                <span className="text-white font-mono text-[11px] font-black uppercase tracking-wider whitespace-nowrap">
+                  {targetMonth}
+                </span>
+                <input 
+                    type="month"
+                    value={targetMonth}
+                    onChange={(e) => setTargetMonth(e.target.value)}
+                    onClick={(e) => {
+                       try { (e.target as any).showPicker(); } catch (err) {}
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </div>
+
             </div>
 
+            <div className="h-4 w-px bg-white/10 mx-1 hidden md:block" />
           </div>
 
-          <div className="h-4 w-px bg-white/10 mx-1 hidden md:block" />
+          {/* Unified Filters Controls */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap md:flex-nowrap">
+            {/* Shift Selector - COMPACT */}
+            <div className="flex items-center gap-0.5 bg-black/20 p-0.5 rounded-md border border-white/5">
+              {(['TODOS', 'MANHA', 'TARDE', 'NOITE'] as MeshShift[]).map(shift => (
+                <button
+                  key={shift}
+                  onClick={() => setActiveShift(shift)}
+                  className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${activeShift === shift ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-emerald-100/60 hover:text-white hover:bg-white/10'}`}
+                >
+                  {shift}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-5 w-px bg-white/10 mx-1 hidden md:block" />
+
+            {/* Status Integrity Selector - COMPACT */}
+            <div className="flex items-center gap-1 p-0.5 rounded-md">
+              {[
+                { id: 'ALL', label: 'TUDO', count: totalCount, dot: null },
+                { id: 'READY', label: 'PRONTOS', count: readyCount, dot: 'bg-emerald-500' },
+                { id: 'ERROR', label: 'PENDENTES', count: pendingCount, dot: 'bg-amber-500' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setReadyStateFilter(f.id as any)}
+                  className={`flex flex-col items-center justify-center px-1.5 py-0.5 rounded transition-all min-w-[50px] bg-white ${
+                    readyStateFilter === f.id ? 'shadow bg-white ring-2 ring-emerald-500 text-slate-900 border-none' : 'shadow-sm text-slate-400 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    {f.dot && <div className={`w-1.5 h-1.5 rounded-full ${f.dot}`} />}
+                    <span className="text-[10px] font-black uppercase tracking-widest">{f.label}</span>
+                  </div>
+                  <span className={`text-[10px] font-mono font-bold leading-none mt-0.5 ${readyStateFilter === f.id ? 'text-slate-600' : 'text-slate-500'}`}>{f.count || 0}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Unified Filters Controls */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap md:flex-nowrap">
-          {/* Shift Selector - COMPACT */}
-          <div className="flex items-center gap-0.5 bg-black/20 p-0.5 rounded-md border border-white/5">
-            {(['TODOS', 'MANHA', 'TARDE', 'NOITE'] as MeshShift[]).map(shift => (
-              <button
-                key={shift}
-                onClick={() => setActiveShift(shift)}
-                className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${activeShift === shift ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-emerald-100/60 hover:text-white hover:bg-white/10'}`}
-              >
-                {shift}
-              </button>
-            ))}
-          </div>
-
-          <div className="h-5 w-px bg-white/10 mx-1 hidden md:block" />
-
-          {/* Status Integrity Selector - COMPACT */}
-          <div className="flex items-center gap-1 p-0.5 rounded-md">
-            {[
-              { id: 'ALL', label: 'TUDO', count: totalCount, dot: null },
-              { id: 'READY', label: 'PRONTOS', count: readyCount, dot: 'bg-emerald-500' },
-              { id: 'ERROR', label: 'PENDENTES', count: pendingCount, dot: 'bg-amber-500' }
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setReadyStateFilter(f.id as any)}
-                className={`flex flex-col items-center justify-center px-1.5 py-0.5 rounded transition-all min-w-[50px] bg-white ${
-                  readyStateFilter === f.id ? 'shadow bg-white ring-2 ring-emerald-500 text-slate-900 border-none' : 'shadow-sm text-slate-400 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-1">
-                  {f.dot && <div className={`w-1.5 h-1.5 rounded-full ${f.dot}`} />}
-                  <span className="text-[10px] font-black uppercase tracking-widest">{f.label}</span>
-                </div>
-                <span className={`text-[10px] font-mono font-bold leading-none mt-0.5 ${readyStateFilter === f.id ? 'text-slate-600' : 'text-slate-500'}`}>{f.count || 0}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 h-full overflow-hidden">
         {/* Search Engine - COMPACT */}
         <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

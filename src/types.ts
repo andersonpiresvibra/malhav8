@@ -68,6 +68,7 @@ export interface OperatorProfile {
   vestNumber: string; // ISO
   tmfLogin?: string; // Log. TMF (4 digits)
   bloodType?: string; // TS (e.g. O+)
+  email?: string; // Email corporativo @vibraenergia.com.br
   isLT?: 'SIM' | 'NÃO'; // LT
   patio?: 'AERODROMO' | 'VIP' | 'AMBOS' | string; // Pátio
   role?: 'Op. Jr.' | 'Op. Pl' | 'Op. Sr.' | string; // Função

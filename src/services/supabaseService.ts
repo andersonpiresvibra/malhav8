@@ -40,6 +40,12 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
     gruId: o.gru_id || '',
     vestNumber: o.vest_number || '',
     photoUrl: o.photo_url || '',
+    email: o.email || '',
+    isLT: o.is_lt || 'NÃO',
+    patio: o.patio || '',
+    tmfLogin: o.tmf_login || '',
+    bloodType: o.blood_type || '',
+    role: o.role || '',
     status: o.status,
     category: o.category,
     lastPosition: '',
@@ -60,27 +66,58 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
   })) as OperatorProfile[];
 };
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 export const updateOperatorWorkDays = async (operatorId: string, workDays: Array<{ date: string; type: string }>): Promise<void> => {
   checkConfig();
+  console.log('[updateOperatorWorkDays] Iniciando salvamento...', { operatorId, workDaysCount: workDays.length });
   
-  const { error: deleteError } = await supabase
-    .from('operator_work_days')
-    .delete()
-    .eq('operator_id', operatorId);
+  const timeoutPromise = new Promise<never>((_, reject) => 
+    setTimeout(() => reject(new Error('Timeout de comunicação com o Supabase.')), 10000)
+  );
+
+  const saveOperation = async () => {
+    const { error: deleteError } = await supabase
+      .from('operator_work_days')
+      .delete()
+      .eq('operator_id', operatorId);
+      
+    console.log('[updateOperatorWorkDays] Delete result:', deleteError);
+    if (deleteError) throw deleteError;
     
-  if (deleteError) throw deleteError;
-  
-  if (workDays.length === 0) return;
-  
-  const { error: insertError } = await supabase
-    .from('operator_work_days')
-    .insert(workDays.map(wd => ({
+    if (workDays.length === 0) return;
+    
+    const insertPayload = workDays.map(wd => ({
       operator_id: operatorId,
       work_date: wd.date,
       day_type: wd.type
-    })));
+    }));
     
-  if (insertError) throw insertError;
+    console.log('[updateOperatorWorkDays] Insert payload preview:', insertPayload.slice(0, 2));
+
+    const { error: insertError, data: insertData } = await supabase
+      .from('operator_work_days')
+      .insert(insertPayload)
+      .select();
+      
+    console.log('[updateOperatorWorkDays] Insert result:', { error: insertError, dataCount: insertData?.length });
+    if (insertError) throw insertError;
+  };
+
+  try {
+    await Promise.race([saveOperation(), timeoutPromise]);
+  } catch (err: any) {
+    console.error('[updateOperatorWorkDays] Catch error:', err);
+    throw err;
+  }
 };
 
 export const getAircrafts = async (): Promise<AircraftType[]> => {
