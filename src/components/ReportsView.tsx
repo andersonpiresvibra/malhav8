@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { FlightStatus, FlightData, OperatorProfile } from '../types';
 import { OperatorCell } from './OperatorCell';
@@ -77,6 +78,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
   const [selectedFlight, setSelectedFlight] = useState<FlightData | null>(initialFlight || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: null });
+
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPortalTarget(document.getElementById('subheader-portal-target'));
+  }, []);
 
   const shiftCounts = useMemo(() => {
       const base = flights.filter(f => f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO);
@@ -252,28 +258,116 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
   return (
     <div className={`w-full h-full flex flex-col ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-white text-slate-900'} overflow-hidden`}>
         
+        {portalTarget && createPortal(
+            <div className={`px-4 h-auto min-h-[3.5rem] py-2 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-[#e2e8f0] border-transparent'} border-b flex items-center shrink-0 gap-4 z-[60] w-full shadow-sm`}>
+                {selectedFlight ? (
+                    <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-4">
+                            <button 
+                                onClick={() => setSelectedFlight(null)}
+                                className={`flex items-center gap-2 ${isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-700 hover:text-slate-900'} transition-all font-black text-[10px] uppercase tracking-widest bg-white/10 px-3 py-1.5 rounded border border-white/20`}
+                            >
+                                <ChevronLeft size={16} /> Voltar para lista
+                            </button>
+                            <div className="h-6 w-px bg-slate-300 dark:bg-slate-700" />
+                            <div>
+                                <h2 className={`text-xs font-black ${isDarkMode ? 'text-white' : 'text-slate-900'} uppercase tracking-tighter leading-none`}>
+                                    Relatório {selectedFlight.flightNumber}
+                                </h2>
+                                <p className={`text-[9px] ${isDarkMode ? 'text-slate-500' : 'text-slate-500'} font-bold uppercase tracking-tight mt-1`}>
+                                    ID: {selectedFlight.id.toUpperCase()} • {selectedFlight.airline}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={handlePrint}
+                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md shadow-emerald-600/20"
+                            >
+                                <Printer size={14} /> Imprimir
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex items-center gap-4 flex-1">
+                            <div className="shrink-0 flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-800">
+                                <div className="p-1.5 bg-emerald-500 rounded-md">
+                                    <FileBarChart className="text-white" size={18} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <h1 className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-slate-900'} uppercase tracking-tight leading-none`}>
+                                        Relatórios
+                                    </h1>
+                                    <span className={`text-[8px] ${isDarkMode ? 'text-slate-500' : 'text-slate-500'} font-black uppercase tracking-tighter mt-1`}>Operações Finalizadas</span>
+                                </div>
+                            </div>
+
+                            <div className={`flex ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-300'} p-0.5 rounded border gap-0.5 shrink-0`}>
+                                {tabs.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`
+                                            flex items-center gap-2 px-3 py-1.5 rounded-[3px] text-[9px] font-black uppercase tracking-widest transition-all
+                                            ${activeTab === tab.id 
+                                                ? isDarkMode ? 'bg-slate-800 text-white shadow-lg border-slate-700' : 'bg-[#004D24] text-white shadow-sm' 
+                                                : isDarkMode ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}
+                                        `}
+                                    >
+                                        <tab.icon size={11} className={activeTab === tab.id ? isDarkMode ? tab.color : 'text-white' : 'opacity-50'} />
+                                        {tab.label}
+                                        <span className={`ml-1 px-1 py-0.5 rounded-[2px] text-[8px] ${activeTab === tab.id ? isDarkMode ? 'bg-slate-950 text-white' : 'bg-[#00381a] text-white' : isDarkMode ? 'bg-slate-900 text-slate-600' : 'bg-slate-100 text-slate-400'}`}>
+                                            {tab.count}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 ml-2">
+                                {shiftTabs.map(shift => (
+                                    <button
+                                        key={shift.id}
+                                        onClick={() => setActiveShift(shift.id)}
+                                        className={`
+                                            flex items-center gap-2 px-2.5 py-1.5 rounded-[3px] text-[8px] font-black uppercase tracking-widest transition-all border
+                                            ${activeShift === shift.id 
+                                                ? isDarkMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-white text-slate-900 border-slate-400 shadow-sm'
+                                                : isDarkMode ? 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300' : 'bg-white/50 text-slate-400 border-slate-200 hover:text-slate-600'}
+                                        `}
+                                    >
+                                        {shift.label}
+                                        <span className={`ml-1 px-1 py-0.5 rounded-[2px] text-[7px] ${activeShift === shift.id ? isDarkMode ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-400'}`}>
+                                            {shiftCounts[shift.id]}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="relative w-56 h-8">
+                            <div className={`absolute inset-0 ${isDarkMode ? 'bg-slate-950 border-slate-800 focus-within:border-emerald-500/50' : 'bg-white border-slate-300 focus-within:border-[#004D24]'} border rounded-[3px] flex items-center transition-all shadow-inner`}>
+                                <Search size={12} className="shrink-0 text-slate-400 ml-2.5" />
+                                <input 
+                                    type="text" 
+                                    placeholder="BUSCAR VOO..." 
+                                    className={`bg-transparent border-none outline-none text-[10px] ${isDarkMode ? 'text-white' : 'text-slate-900'} font-mono uppercase w-full px-2 transition-all h-full`}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>,
+            portalTarget
+        )}
+        
         {selectedFlight ? (
             // === VISUALIZAÇÃO DE RELATÓRIO TÉCNICO ===
             <div className={`flex-1 flex flex-col items-center overflow-y-auto ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-100/90'} backdrop-blur-sm p-8 animate-in fade-in zoom-in-95 duration-300 relative z-50`}>
                 
-                {/* ACTIONS BAR (Classe no-print oculta isso na impressão) */}
-                <div className={`w-full max-w-[210mm] flex justify-between items-center mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'} no-print`}>
-                    <button 
-                        onClick={() => setSelectedFlight(null)}
-                        className={`flex items-center gap-2 ${isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'} transition-colors`}
-                    >
-                        <ChevronLeft size={20} /> Voltar
-                    </button>
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={handlePrint}
-                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-md transition-all text-sm font-medium shadow-lg shadow-emerald-600/20"
-                        >
-                            <Printer size={16} /> Imprimir
-                        </button>
-                    </div>
-                </div>
-
                 {/* A4 SHEET SIMULATION - ID usado pelo CSS @media print */}
                 <div id="printable-report-container" className="print-report w-[210mm] min-h-[297mm] bg-white text-slate-950 p-12 shadow-2xl rounded-sm flex flex-col font-sans">
                     
@@ -508,77 +602,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
         ) : (
             // === LISTA DE RELATÓRIOS (DASHBOARD) ===
             <>
-                <div className={`min-h-[160px] py-6 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'} border-b flex flex-col justify-center px-8 shrink-0 gap-6`}>
-                    <div className="flex items-center gap-8">
-                        <div className="shrink-0">
-                            <h1 className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-900'} uppercase tracking-tighter flex items-center gap-3 whitespace-nowrap`}>
-                                <FileBarChart className="text-emerald-500" size={28} />
-                                Relatórios de Operações
-                            </h1>
-                            <span className={`text-[10px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'} font-black uppercase tracking-[0.4em] mt-1 block`}>A caixa preta dos abastecimentos!</span>
-                        </div>
-                        
-                        <div className={`flex ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} p-1 rounded-md border gap-1 shrink-0 ml-auto`}>
-                            {tabs.map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`
-                                        flex items-center gap-2 px-4 py-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-all
-                                        ${activeTab === tab.id 
-                                            ? isDarkMode ? 'bg-slate-800 text-white shadow-lg border-slate-700' : 'bg-emerald-500 text-white shadow-md border-emerald-400' 
-                                            : isDarkMode ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}
-                                    `}
-                                >
-                                    <tab.icon size={14} className={activeTab === tab.id ? isDarkMode ? tab.color : 'text-white' : 'opacity-50'} />
-                                    {tab.label}
-                                    <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${activeTab === tab.id ? isDarkMode ? 'bg-slate-950 text-white' : 'bg-emerald-600 text-white' : isDarkMode ? 'bg-slate-900 text-slate-600' : 'bg-slate-100 text-slate-400'}`}>
-                                        {tab.count}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <span className={`text-[10px] font-black ${isDarkMode ? 'text-slate-600' : 'text-slate-400'} uppercase tracking-[0.2em] mr-2`}>Filtrar por Turno:</span>
-                            <div className="flex gap-2">
-                                {shiftTabs.map(shift => (
-                                    <button
-                                        key={shift.id}
-                                        onClick={() => setActiveShift(shift.id)}
-                                        className={`
-                                            flex items-center gap-2 px-5 py-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-all border
-                                            ${activeShift === shift.id 
-                                                ? isDarkMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-emerald-500 text-white border-emerald-400 shadow-sm'
-                                                : isDarkMode ? 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300 hover:border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-900 hover:border-slate-300'}
-                                        `}
-                                    >
-                                        {shift.label}
-                                        <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${activeShift === shift.id ? isDarkMode ? 'bg-emerald-500 text-slate-950' : 'bg-emerald-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-400'}`}>
-                                            {shiftCounts[shift.id]}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="relative w-72 h-10">
-                            <div className={`absolute inset-0 ${isDarkMode ? 'bg-slate-950 border-slate-800 focus-within:border-emerald-500/50' : 'bg-white border-slate-200 focus-within:border-emerald-400'} border rounded-md flex items-center transition-all`}>
-                                <Search size={14} className="shrink-0 text-slate-500 ml-3" />
-                                <input 
-                                    type="text" 
-                                    placeholder="BUSCAR POR VOO, PREFIXO, POSIÇÃO..." 
-                                    className={`bg-transparent border-none outline-none text-[10px] ${isDarkMode ? 'text-white' : 'text-slate-900'} font-mono uppercase w-full px-3 transition-all h-full`}
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <div className={`flex-1 overflow-hidden relative ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
                     <div className="w-full h-full overflow-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse min-w-max">

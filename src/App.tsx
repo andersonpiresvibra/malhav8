@@ -317,8 +317,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
-
       <div className={`flex flex-1 w-full ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'} transition-colors duration-500 font-sans overflow-hidden relative`}>
         <Sidebar 
           activeView={view} 
@@ -327,6 +325,7 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
+          <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
           <div className="flex-1 overflow-hidden relative">
               <Suspense fallback={<div className="flex items-center justify-center h-full w-full"><Spinner size={48} text="Carregando módulo..." /></div>}>
                 {view === 'GRID_OPS' && (

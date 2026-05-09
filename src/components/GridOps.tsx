@@ -225,17 +225,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
     ltName
 }) => {
   const { isDarkMode } = useTheme();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [activeShift, setActiveShift] = useState<MeshShift>('TODOS');
   const [activeDateOffset, setActiveDateOffset] = useState<number>(0);
   
   useEffect(() => {
-    // Simulate data fetching
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
+    // Manter o hook vazio por enquanto caso no futuro precise carregar dados reais, mas sem o delay simulado
   }, []);
 
   useEffect(() => {
@@ -1542,13 +1538,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       }
   }, [pendingAction, setPendingAction]);
 
-  if (isLoading) {
-    return (
-      <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
-        <Spinner size={48} text="Sincronizando Malha..." />
-      </div>
-    );
-  }
+  // Animação de sincronização removida a pedido do usuário
 
   const optionsDropdownContent = (
     <div className="relative" ref={optionsMenuRef}>

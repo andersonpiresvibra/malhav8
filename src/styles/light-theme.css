@@ -401,7 +401,7 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }
 
-:root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) {
+:root:not(.dark) #subheader-portal-target > div:nth-of-type(1) {
   background-color: #268200 !important;
   border-style: solid !important;
   border-width: 0px !important;
@@ -410,17 +410,17 @@
   border-color: #268200 !important;
 }
 
-:root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > h2:nth-of-type(1) {
+:root:not(.dark) #subheader-portal-target > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > h2:nth-of-type(1) {
   color: #ffffff !important;
 }
 
-:root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(1) {
+:root:not(.dark) #subheader-portal-target > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(1) {
   border-color: #ffffff !important;
   color: #4e4141 !important;
   border-width: 1px !important;
 }
 
-:root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) {
+:root:not(.dark) #subheader-portal-target > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) {
   background-color: #FEDC00 !important;
 }
 
@@ -428,10 +428,10 @@
   background-color: #268200 !important;
 }
 
-:root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) {
+:root:not(.dark) #subheader-portal-target > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) {
   background-color: #2d583a !important;
 }
 
-:root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) {
+:root:not(.dark) #subheader-portal-target > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) {
   color: #ffffff !important;
 }
