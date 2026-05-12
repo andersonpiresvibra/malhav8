@@ -52,20 +52,20 @@ const formatMeshDateDisplay = (dateString: string) => {
   const formattedDate = `${day}/${month}`;
 
   if (dateStr === todayStr) {
-    return `HOJE - ${formattedDate}`;
+    return `HOJE`;
   } 
   
   // check for yesterday/tomorrow
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   if (dateStr === yesterday.toISOString().split('T')[0]) {
-      return `ONTEM - ${formattedDate}`;
+      return `ONTEM`;
   }
   
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (dateStr === tomorrow.toISOString().split('T')[0]) {
-      return `AMANHÃ - ${formattedDate}`;
+      return `AMANHÃ`;
   }
 
   return formattedDate;
@@ -147,7 +147,8 @@ const formatImportTime = (rawVal: string) => {
 
 const COLUMNS: { key: MeshField | any; label: string; width: string; isVariable: boolean }[] = [
   { key: 'airline', label: 'Cia', width: 'w-[140px]', isVariable: false },
-  { key: 'departureFlightNumber', label: 'Voo', width: 'w-[70px]', isVariable: false },
+  { key: 'flightNumber', label: 'V.Cheg', width: 'w-[75px]', isVariable: false },
+  { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-[75px]', isVariable: false },
   { key: 'destination', label: 'Destino', width: 'w-[75px]', isVariable: false },
   { key: 'etd', label: 'ETD', width: 'w-[65px]', isVariable: false },
   { key: 'actions', label: 'Ações', width: 'w-[60px]', isVariable: false },
@@ -342,6 +343,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
     );
     
     const isPre = flight.etd === 'PRÉ';
+    const isArrivalFlight = !!(flight.flightNumber && flight.flightNumber.trim() !== '');
     const checkField = (val: any) => !val || String(val).trim() === '' || String(val).trim() === '?';
 
     // Campos obrigatórios definidos pelo usuário: Voo, Destino e Saída (ETD)
@@ -349,9 +351,10 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
     const isIncomplete = checkField(flight.airline) || 
                          checkField(flight.departureFlightNumber) || 
                          checkField(flight.destination) || 
-                         checkField(flight.etd);
+                         checkField(flight.etd) || 
+                         (isArrivalFlight && checkField(flight.eta));
     
-    const hasFormatError = (flight.etd === '?' || flight.eta === '?' || flight.actualArrivalTime === '?') && !isPre;
+    const hasFormatError = (flight.etd === '?' || (isArrivalFlight && flight.eta === '?') || flight.actualArrivalTime === '?') && !isPre;
     
     return { 
       isDuplicated, 
@@ -1037,7 +1040,9 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                         const isCellFocused = focusedCell?.rowId === flight.id && focusedCell?.col === cIdx;
                         const isCellEditing = editingCell?.rowId === flight.id && editingCell?.col === cIdx;
                         const cellValue = flight[col.key as keyof MeshFlight] || '';
-                        const isMandatoryField = col.key === 'airline' || col.key === 'departureFlightNumber' || col.key === 'destination' || col.key === 'etd';
+                        const isPre = flight.etd === 'PRÉ' || flight.etd === 'PRE';
+                        const isArrivalFlight = !!(flight.flightNumber && flight.flightNumber.trim() !== '');
+                        const isMandatoryField = col.key === 'airline' || col.key === 'departureFlightNumber' || col.key === 'destination' || col.key === 'etd' || (isArrivalFlight && col.key === 'eta');
                         const isMandatoryEmpty = isMandatoryField && (cellValue === '' || cellValue === '?');
                         
                         if (col.key === 'actions') {

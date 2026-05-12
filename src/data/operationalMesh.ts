@@ -10,6 +10,7 @@ export interface MeshFlight {
   // Variable fields
   registration: string;
   eta: string;
+  flightNumber?: string; // V. Chegada
   positionId: string;
   actualArrivalTime: string;
   model: string;
@@ -29,6 +30,17 @@ const parseData = (dataStr: string, airline: string, airlineCode: string): MeshF
   return dataStr.split('|').map(item => item.trim()).filter(Boolean).map((item, index) => {
     const [departureFlightNumber, destination, etd] = item.split(',');
     
+    // Generate an ETA for mock data (ETD - 40 mins approx, handling underflow loosely for mock)
+    let eta = '';
+    if (etd) {
+        const [h, m] = etd.split(':').map(Number);
+        let totalMins = h * 60 + m - 40;
+        if (totalMins < 0) totalMins += 24 * 60;
+        const etaH = Math.floor(totalMins / 60).toString().padStart(2, '0');
+        const etaM = (totalMins % 60).toString().padStart(2, '0');
+        eta = `${etaH}:${etaM}`;
+    }
+
     return {
       id: `${airlineCode}-${departureFlightNumber}-${index}`,
       airline,
@@ -37,7 +49,7 @@ const parseData = (dataStr: string, airline: string, airlineCode: string): MeshF
       destination,
       etd,
       registration: '',
-      eta: '',
+      eta,
       positionId: '',
       actualArrivalTime: '',
       model: ''

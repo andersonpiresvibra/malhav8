@@ -183,7 +183,10 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     if (colKey === 'status') supabasePayload.status = op.status;
     if (colKey === 'fleetCapability') supabasePayload.fleet_capability = op.fleetCapability;
     if (colKey === 'category') supabasePayload.category = op.category;
-    if (colKey === 'role') supabasePayload.role = op.role || null;
+    if (colKey === 'role') {
+        supabasePayload.role = op.role || null;
+        supabasePayload.category = op.role || 'JUNIOR'; // Keep category in sync with role in Supabase
+    }
     if (colKey === 'isLT') supabasePayload.is_lt = op.isLT || 'NÃO';
     if (colKey === 'companyId') supabasePayload.company_id = op.companyId || null;
     if (colKey === 'gruId') supabasePayload.gru_id = op.gruId || null;
@@ -217,7 +220,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                   war_name: op.warName || op.fullName || 'Sem Nome',
                   status: op.status || 'ATIVO',
                   fleet_capability: op.fleetCapability || 'SRV',
-                  category: op.category || 'JUNIOR',
+                  category: op.role || op.category || 'JUNIOR',
                   role: op.role || null,
                   is_lt: op.isLT || 'NÃO',
                   patio: op.patio || null,
@@ -306,6 +309,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         full_name: 'Novo Operador',
         war_name: 'Novo Operador',
         status: 'ATIVO',
+        role: null,
         category: 'JUNIOR',
         fleet_capability: 'SRV',
         is_lt: 'NÃO',
@@ -342,23 +346,27 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         const worksheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<any>(worksheet);
 
-        const newOpsDrafts = json.map((row: any) => ({
-          fullName: row['Nome Completo'] || 'Operador',
-          warName: row['Nome de Guerra'] || 'Operador',
-          status: 'ATIVO',
-          category: 'JUNIOR',
-          fleetCapability: 'SRV',
-          companyId: row['Matrícula'] || null,
-          gruId: row['Credencial GRU'] || null,
-          vestNumber: row['Colete'] || null,
-          shift: { 
-            cycle: row['Turno'] || 'GERAL', 
-            start: row['Entrada'] || '00:00', 
-            end: row['Saída'] || '23:59' 
-          },
-          isLT: row['Líder de Turno'] || 'NÃO',
-          patio: row['Pátio'] || 'AERODROMO',
-        }));
+        const newOpsDrafts = json.map((row: any) => {
+          const roleVal = row['Função'] || null;
+          return {
+            fullName: row['Nome Completo'] || 'Operador',
+            warName: row['Nome de Guerra'] || 'Operador',
+            status: 'ATIVO',
+            role: roleVal,
+            category: roleVal || 'JUNIOR',
+            fleetCapability: 'SRV',
+            companyId: row['Matrícula'] || null,
+            gruId: row['Credencial GRU'] || null,
+            vestNumber: row['Colete'] || null,
+            shift: { 
+              cycle: row['Turno'] || 'GERAL', 
+              start: row['Entrada'] || '00:00', 
+              end: row['Saída'] || '23:59' 
+            },
+            isLT: row['Líder de Turno'] || 'NÃO',
+            patio: row['Pátio'] || 'AERODROMO',
+          };
+        });
         
         // Prepare bulk insert
         const insertPayloads = newOpsDrafts.map((op: any) => ({

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, User, Edit2, Maximize, Minimize, Plane, Search, RefreshCw, Power } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Sun, Moon, User, Edit2, Maximize, Minimize, Plane, Search, RefreshCw, Power, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface DashboardHeaderProps {
@@ -12,15 +13,15 @@ interface DashboardHeaderProps {
   ltName: string;
   ltPhotoUrl?: string;
   setLtName: (name: string) => void;
+  operators?: any[];
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName }) => {
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName, operators = [] }) => {
   const { signOut } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [editingField, setEditingField] = useState<'density' | 'temperature' | 'ltName' | null>(null);
   const [densityN, setDensityN] = useState(0.803);
   const [temperature, setTemperature] = useState(24.5);
-  const [tempLtName, setTempLtName] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -49,7 +50,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
 
           <div className="w-px h-10 bg-white/20"></div>
 
-          <div className="flex items-center gap-3 group cursor-pointer">
+          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setEditingField('ltName')}>
               <div className="w-11 h-11 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center group-hover:border-white/40 transition-colors overflow-hidden">
                   {ltPhotoUrl ? (
                       <img src={ltPhotoUrl} alt={ltName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -58,33 +59,69 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                   )}
               </div>
               <div className="text-left">
-                  {editingField === 'ltName' ? (
-                        <input 
-                            type="text" 
-                            value={tempLtName}
-                            onChange={(e) => setTempLtName(e.target.value)}
-                            onBlur={() => { setLtName(tempLtName); setEditingField(null); }}
-                            onKeyDown={(e) => { 
-                                if (e.key === 'Enter') { 
-                                    setLtName(tempLtName); 
-                                    setEditingField(null); 
-                                } 
-                            }}
-                            placeholder="INSIRA SEU NOME"
-                            autoFocus
-                            className={`font-bold text-sm rounded outline-none border border-emerald-500/50 px-1 uppercase w-36 ${isDarkMode ? 'bg-black/20 text-white placeholder:text-white/50' : 'bg-white text-slate-900 placeholder:text-slate-400'}`}
-                        />
-                  ) : (
-                      <span 
-                          className="text-sm font-bold transition-colors uppercase block select-none text-white group-hover:text-emerald-200"
-                          onClick={() => { setTempLtName(ltName); setEditingField('ltName'); }}
-                      >
-                          {ltName || 'INSIRA SEU NOME'}
-                      </span>
-                  )}
+                  <span className="text-sm font-bold transition-colors uppercase block select-none text-white group-hover:text-emerald-200">
+                      {ltName || 'SELECIONE O LÍDER'}
+                  </span>
                   <span className="text-[10px] text-emerald-200 font-black tracking-widest uppercase block">Líder de Turno</span>
               </div>
           </div>
+
+          {editingField === 'ltName' && createPortal(
+              <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                  <div className={`w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#1a1f2e] border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'} border flex flex-col max-h-[80vh]`}>
+                      <div className={`flex items-center justify-between p-4 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'} shrink-0`}>
+                          <h3 className="text-lg font-bold">Selecionar Líder de Turno</h3>
+                          <button 
+                              onClick={() => setEditingField(null)}
+                              className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                          >
+                              <X size={20} />
+                          </button>
+                      </div>
+                      
+                      <div className="p-4 overflow-y-auto">
+                          {operators?.length === 0 ? (
+                              <p className={`text-center py-8 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} italic`}>
+                                  Nenhum operador encontrado.
+                              </p>
+                          ) : (
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                  {operators?.map(op => (
+                                      <button
+                                          key={op.id}
+                                          onClick={() => {
+                                              setLtName(op.name || op.warName || '');
+                                              setEditingField(null);
+                                          }}
+                                          className={`flex items-center gap-3 p-2 rounded-xl transition-all select-none text-left w-full
+                                              ${ltName === (op.name || op.warName) 
+                                                  ? (isDarkMode ? 'bg-emerald-500/20 border-emerald-500/50' : 'bg-emerald-50 border-emerald-200') 
+                                                  : (isDarkMode ? 'bg-slate-800/50 border-transparent hover:bg-slate-800' : 'bg-slate-50 border-transparent hover:bg-slate-100')} 
+                                              border`}
+                                      >
+                                          <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden shrink-0 ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                                              {op.photoUrl ? (
+                                                  <img src={op.photoUrl} alt={op.warName} className="w-full h-full object-cover" />
+                                              ) : (
+                                                  <User size={16} className={isDarkMode ? 'text-slate-400' : 'text-slate-500'} />
+                                              )}
+                                          </div>
+                                          <div className="flex-1 min-w-0 w-full">
+                                              <p className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                                  {op.warName || op.name}
+                                              </p>
+                                              <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                  {op.role || 'LT'}
+                                              </p>
+                                          </div>
+                                      </button>
+                                  ))}
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          , document.body)}
 
           <div className="w-px h-10 bg-white/20"></div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Database } from 'lucide-react';
+import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Database, History } from 'lucide-react';
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
 import { FlightData, FlightStatus } from '../types';
 import { getCurrentShift } from '../utils/shiftUtils';
@@ -9,6 +9,7 @@ import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
 import { TimeConflictModal } from './TimeConflictModal';
 import { BulkNextDayModal } from './BulkNextDayModal';
+import { InlineCalendar } from './ui/InlineCalendar';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     if (!targetTimeStr) return 0;
@@ -57,20 +58,20 @@ const formatMeshDateDisplay = (dateString: string) => {
   const formattedDate = `${day}/${month}`;
 
   if (dateStr === todayStr) {
-    return `HOJE - ${formattedDate}`;
+    return `HOJE`;
   } 
   
   // check for yesterday/tomorrow
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   if (dateStr === yesterday.toISOString().split('T')[0]) {
-      return `ONTEM - ${formattedDate}`;
+      return `ONTEM`;
   }
   
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (dateStr === tomorrow.toISOString().split('T')[0]) {
-      return `AMANHÃ - ${formattedDate}`;
+      return `AMANHÃ`;
   }
 
   return formattedDate;
@@ -152,7 +153,8 @@ const formatImportTime = (rawVal: string) => {
 
 const COLUMNS: { key: MeshField; label: string; width: string; isVariable: boolean }[] = [
   { key: 'airline', label: 'Cia', width: 'w-24', isVariable: false },
-  { key: 'departureFlightNumber', label: 'Voo', width: 'w-24', isVariable: false },
+  { key: 'flightNumber', label: 'V.Cheg', width: 'w-24', isVariable: false },
+  { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-24', isVariable: false },
   { key: 'destination', label: 'Destino', width: 'w-24', isVariable: false },
   { key: 'etd', label: 'ETD', width: 'w-20', isVariable: false },
   { key: 'registration', label: 'Prefixo', width: 'w-28', isVariable: true },
@@ -197,6 +199,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
   const [bulkConflictData, setBulkConflictData] = useState<{fileName: string; nonDuplicates: MeshFlight[]; ignoredCount: number; crossedFlightsIds: string[]}|null>(null);
   const confirmedConflictsRef = useRef<Set<string>>(new Set());
   const [editingCellOriginalValue, setEditingCellOriginalValue] = useState<string>('');
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const handlePrevDay = () => {
     const d = new Date(currentMeshDate + 'T00:00:00');
@@ -406,6 +409,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
     );
     
     const isPre = flight.etd === 'PRÉ';
+    const isArrivalFlight = !!(flight.flightNumber && flight.flightNumber.trim() !== '');
     const checkField = (val: any) => !val || String(val).trim() === '' || String(val).trim() === '?';
 
     // Campos obrigatórios definidos pelo usuário: Voo, Destino e Saída (ETD)
@@ -413,9 +417,10 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
     const isIncomplete = checkField(flight.airline) || 
                          checkField(flight.departureFlightNumber) || 
                          checkField(flight.destination) || 
-                         checkField(flight.etd);
+                         checkField(flight.etd) || 
+                         (isArrivalFlight && checkField(flight.eta));
     
-    const hasFormatError = (flight.etd === '?' || flight.eta === '?' || flight.actualArrivalTime === '?') && !isPre;
+    const hasFormatError = (flight.etd === '?' || (isArrivalFlight && flight.eta === '?') || flight.actualArrivalTime === '?') && !isPre;
     const isUltrapassado = !checkField(flight.etd) && !isPre && getMinutesDiff(flight.etd, flight.date || currentMeshDate) < 0;
     
     return { 
@@ -423,7 +428,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
       hasFormatError, 
       isIncomplete,
       isUltrapassado,
-      isValid: !isDuplicated && !isIncomplete && !flight.disabled && !isUltrapassado
+      isValid: !isDuplicated && !isIncomplete && !flight.disabled
     };
   };
 
@@ -773,20 +778,35 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
               </button>
               
               <div className="flex items-center gap-1.5 px-2 relative cursor-pointer group hover:bg-white/10 rounded h-full py-1">
-                <Calendar size={14} className="text-emerald-400 shrink-0 group-hover:text-emerald-300 transition-colors" strokeWidth={2.5} />
-                
-                <span className="text-white font-mono text-[11px] font-black uppercase tracking-wider whitespace-nowrap">
-                  {formatMeshDateDisplay(currentMeshDate)}
-                </span>
-                <input 
-                    type="date"
-                    value={currentMeshDate}
-                    onChange={(e) => setCurrentMeshDate(e.target.value)}
-                    onClick={(e) => {
-                       try { (e.target as any).showPicker(); } catch (err) {}
+                <div
+                  className="flex items-center gap-1.5 w-full h-full overflow-visible"
+                  onClick={() => setShowCalendar(!showCalendar)}
+                >
+                  <Calendar size={14} className="text-emerald-400 shrink-0 group-hover:text-emerald-300 transition-colors" strokeWidth={2.5} />
+                  
+                  <span className="text-white font-mono text-[11px] font-black uppercase tracking-wider whitespace-nowrap group-hover:text-emerald-50 transition-colors">
+                    {formatMeshDateDisplay(currentMeshDate)}
+                  </span>
+                </div>
+                {showCalendar && (
+                  <InlineCalendar 
+                    currentOffset={(() => {
+                        const targetD = new Date(currentMeshDate + 'T00:00:00');
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        const diffTime = targetD.getTime() - today.getTime();
+                        return Math.round(diffTime / (1000 * 60 * 60 * 24));
+                    })()}
+                    onSelectOffset={(offset: number) => {
+                      const newD = new Date();
+                      newD.setDate(newD.getDate() + offset);
+                      setCurrentMeshDate(newD.toISOString().split('T')[0]);
+                      setShowCalendar(false);
                     }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
+                    onClose={() => setShowCalendar(false)}
+                    isDarkMode={isDarkMode}
+                  />
+                )}
               </div>
 
               <button 
@@ -883,6 +903,103 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                 >
                   <Plus size={14} />
                   Adicionar Voo
+                </button>
+
+                <button 
+                  onClick={() => {
+                    const d = new Date(currentMeshDate + 'T12:00:00');
+                    d.setDate(d.getDate() - 1);
+                    const prevDateStr = d.toISOString().split('T')[0];
+                    
+                    let prevFlights: MeshFlight[] = [];
+                    const saved = localStorage.getItem('meshFlightsByDate');
+                    if (saved) {
+                        try {
+                            const parsed = JSON.parse(saved);
+                            if (parsed[prevDateStr] && parsed[prevDateStr].length > 0) {
+                                prevFlights = parsed[prevDateStr];
+                            }
+                        } catch(e) {
+                            console.error(e);
+                        }
+                    }
+                    
+                    if (prevFlights.length === 0) {
+                        prevFlights = INITIAL_MESH_FLIGHTS.map((f, i) => ({
+                             ...f, 
+                             id: `mesh-${prevDateStr}-${Date.now()}-${i}`,
+                             date: prevDateStr
+                        }));
+                    }
+
+                    if (prevFlights && prevFlights.length > 0) {
+                        // Ask if they want to replace or merge
+                        if (window.confirm(`Foram encontrados ${prevFlights.length} voos no dia anterior (${prevDateStr}).\n\nDeseja SUBSTITUIR COMPLETAMENTE a malha atual? (Cancele se quiser apenas Mesclar/Atualizar)`)) {
+                             // REPLACE
+                             const updatedFlights = prevFlights.map((f: any, i: number) => ({
+                                 ...f, 
+                                 id: `mesh-${currentMeshDate}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                                 date: currentMeshDate
+                             }));
+                             
+                             setMeshFlights(updatedFlights);
+                             setTimeout(() => {
+                                 alert(`Malha substituída com sucesso! ${updatedFlights.length} voos carregados.`);
+                             }, 100);
+                        } else {
+                             // MERGE / UPSERT
+                             if (window.confirm(`Deseja Mesclar e Atualizar a malha atual com os dados do dia anterior?\n(Isso adicionará novos voos e atualizará os dados [Prefixo, Posição, etc] dos voos existentes).`)) {
+                                 const updatedFlights = prevFlights.map((f: any, i: number) => ({
+                                     ...f, 
+                                     id: `mesh-${currentMeshDate}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                                     date: currentMeshDate
+                                 }));
+                                 
+                                 setMeshFlights(prev => {
+                                     const nextMesh = [...prev];
+                                     let updatedCount = 0;
+                                     let addedCount = 0;
+
+                                     updatedFlights.forEach(nf => {
+                                         const existingIdx = nextMesh.findIndex(pf => 
+                                             pf.departureFlightNumber === nf.departureFlightNumber && 
+                                             pf.etd === nf.etd
+                                         );
+                                         if (existingIdx >= 0) {
+                                             // Update existing
+                                             nextMesh[existingIdx] = {
+                                                 ...nextMesh[existingIdx],
+                                                 registration: nf.registration || nextMesh[existingIdx].registration,
+                                                 eta: nf.eta || nextMesh[existingIdx].eta,
+                                                 actualArrivalTime: nf.actualArrivalTime || nextMesh[existingIdx].actualArrivalTime,
+                                                 positionId: nf.positionId || nextMesh[existingIdx].positionId,
+                                                 model: nf.model || nextMesh[existingIdx].model
+                                             };
+                                             updatedCount++;
+                                         } else {
+                                             // Add new
+                                             nextMesh.push(nf);
+                                             addedCount++;
+                                         }
+                                     });
+                                     
+                                     setTimeout(() => {
+                                         alert(`${addedCount} novos voos adicionados e ${updatedCount} voos atualizados (dados copiados) com sucesso.`);
+                                     }, 100);
+                                     
+                                     return nextMesh;
+                                 });
+                             }
+                        }
+                    } else {
+                        alert(`Erro inesperado: Não foi possível carregar a malha base do dia anterior.`);
+                    }
+                    setShowOptionsDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400' : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                >
+                  <History size={14} />
+                  Imp. dia anterior
                 </button>
 
                 <label className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${isDarkMode ? 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-400' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'}`}>
@@ -1193,7 +1310,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                         const isCellFocused = focusedCell?.rowId === flight.id && focusedCell?.col === cIdx;
                         const isCellEditing = editingCell?.rowId === flight.id && editingCell?.col === cIdx;
                         const cellValue = flight[col.key as keyof MeshFlight] || '';
-                        const isMandatoryField = col.key === 'airline' || col.key === 'departureFlightNumber' || col.key === 'destination' || col.key === 'etd';
+                        const isPre = flight.etd === 'PRÉ' || flight.etd === 'PRE';
+                        const isArrivalFlight = !!(flight.flightNumber && flight.flightNumber.trim() !== '');
+                        const isMandatoryField = col.key === 'airline' || col.key === 'departureFlightNumber' || col.key === 'destination' || col.key === 'etd' || (isArrivalFlight && col.key === 'eta');
                         const isMandatoryEmpty = isMandatoryField && (cellValue === '' || cellValue === '?');
                         
                         if (col.key === 'actions') {

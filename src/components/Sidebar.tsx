@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Table, Database, FileBarChart, Network, Settings, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, Table, Database, FileBarChart, Network, Settings, ChevronRight, Clock } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
   activeView: ViewState;
   onViewChange: (view: ViewState) => void;
   isDarkMode: boolean;
+  onSimulateEndOfDay?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDarkMode }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDarkMode, onSimulateEndOfDay }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
 
-  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN';
+  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN';
 
   return (
     <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 ${
@@ -103,6 +104,53 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
              >
                 <Users size={16} /> Operadores
              </button>
+             <button
+                onClick={() => {
+                   onViewChange('FLEETS_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                   activeView === 'FLEETS_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Table size={16} /> Frotas
+             </button>
+             <button
+                onClick={() => {
+                   onViewChange('AIRCRAFTS_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                   activeView === 'AIRCRAFTS_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Table size={16} /> Aeronaves
+             </button>
+
+             {process.env.NODE_ENV !== 'production' && onSimulateEndOfDay && (
+               <>
+                 <div className={`mt-2 pt-2 border-t px-2 pb-1 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+                   <span className={`text-[8px] font-black uppercase tracking-tighter ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                     Simuladores
+                   </span>
+                 </div>
+                 <button
+                    onClick={() => {
+                       onSimulateEndOfDay();
+                       setIsMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                       isDarkMode ? 'text-orange-400 hover:bg-slate-700' : 'text-orange-600 hover:bg-slate-100'
+                    }`}
+                 >
+                    <Clock size={16} /> Transf. Data
+                 </button>
+               </>
+             )}
           </div>
         )}
 

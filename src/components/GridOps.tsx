@@ -12,6 +12,8 @@ import { StatusBadge } from './SharedStats';
 import { OperatorCell } from './OperatorCell';
 import { AirlineLogo } from './AirlineLogo';
 import { Spinner } from './ui/Spinner';
+import { InlineCalendar } from './ui/InlineCalendar';
+import { InlineOperatorSelect } from './ui/InlineOperatorSelect';
 
 import { 
   LayoutGrid, Clock, UserCheck, Droplet, CheckCircle, 
@@ -34,9 +36,9 @@ const getDisplayDate = (dateOffset: number) => {
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const formattedDate = `${day}/${month}`;
-    if (dateOffset === 0) return `HOJE - ${formattedDate}`;
-    if (dateOffset === -1) return `ONTEM - ${formattedDate}`;
-    if (dateOffset === 1) return `AMANHÃ - ${formattedDate}`;
+    if (dateOffset === 0) return `HOJE`;
+    if (dateOffset === -1) return `ONTEM`;
+    if (dateOffset === 1) return `AMANHÃ`;
     return formattedDate;
 };
 
@@ -92,6 +94,7 @@ interface GridOpsProps {
     pendingAction?: 'CREATE' | 'IMPORT' | null;
     setPendingAction?: React.Dispatch<React.SetStateAction<'CREATE' | 'IMPORT' | null>>;
     ltName: string;
+    currentMeshDate?: string;
 }
 
 const parseTime = (timeStr: string) => {
@@ -223,14 +226,28 @@ export const GridOps: React.FC<GridOpsProps> = ({
     onOpenReport,
     pendingAction,
     setPendingAction,
-    ltName
+    ltName,
+    currentMeshDate
 }) => {
   const { isDarkMode } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [activeShift, setActiveShift] = useState<MeshShift>(getCurrentShift(false) as MeshShift);
   const [activeDateOffset, setActiveDateOffset] = useState<number>(0);
+  const [showCalendar, setShowCalendar] = useState(false);
   
+  // Track target simulated day from App
+  useEffect(() => {
+     if (currentMeshDate) {
+         const targetD = new Date(currentMeshDate + 'T00:00:00');
+         const today = new Date();
+         today.setHours(0,0,0,0);
+         const diffTime = targetD.getTime() - today.getTime();
+         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+         setActiveDateOffset(diffDays);
+     }
+  }, [currentMeshDate]);
+
   useEffect(() => {
     // Manter o hook vazio por enquanto caso no futuro precise carregar dados reais, mas sem o delay simulado
   }, []);
@@ -274,6 +291,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
   // NEW: Spreadsheet inline editing states
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: string } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: string } | null>(null);
+  const [inlineAssignFlightId, setInlineAssignFlightId] = useState<string | null>(null);
+  const [calcoModalFlight, setCalcoModalFlight] = useState<FlightData | null>(null);
+  const [calcoModalPosition, setCalcoModalPosition] = useState<string>('');
+  const [calcoModalTime, setCalcoModalTime] = useState<string>('');
   const tableRef = useRef<HTMLTableElement>(null);
   const lastStableFlightsRef = useRef<FlightData[]>([]);
   const lastFiltersRef = useRef({ activeTab, activeShift, globalSearchTerm });
@@ -750,6 +771,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const stats = useMemo(() => ({
     total: searchFilteredFlights.length,
     chegada: searchFilteredFlights.filter(f => {
+        if (!f.eta) return false;
         const minutesToEta = getMinutesDiff(f.eta, f.date);
         return f.status === FlightStatus.CHEGADA && !(f.isOnGround && f.positionId) && minutesToEta <= 120;
     }).length,
@@ -774,6 +796,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     switch (activeTab) {
       case 'CHEGADA': 
         base = searchFilteredFlights.filter(f => {
+            if (!f.eta) return false;
             const minutesToEta = getMinutesDiff(f.eta, f.date);
             return f.status === FlightStatus.CHEGADA && 
                    !(f.isOnGround && f.positionId) && 
@@ -825,12 +848,54 @@ export const GridOps: React.FC<GridOpsProps> = ({
         }
     }
 
+    if (row.status === FlightStatus.CHEGADA) {
+        if (colKey === 'positionId' || colKey === 'destination' || colKey === 'actualArrivalTime') {
+            cellStyle += isDarkMode ? " !text-yellow-400 font-bold" : " !text-yellow-600 font-bold";
+        }
+    }
+
     // Indicator for Next Day crossover shift
     const d = new Date();
     d.setDate(d.getDate() + activeDateOffset);
     const targetDateStr = d.toISOString().split('T')[0];
     if (colKey === 'etd' && row.date && row.date > targetDateStr) {
         extraLabel = <span className="absolute -top-1.5 -left-1 text-[7px] bg-blue-500 text-white px-1 rounded-sm font-black uppercase tracking-tighter shadow-sm z-20 pointer-events-none" title="Voo do dia seguinte (cruzamento de turno)">+1D</span>;
+    }
+
+    if (row.status === FlightStatus.CHEGADA && colKey === 'actualArrivalTime' && !value) {
+        const handleSetCalcoNow = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            if (!row.positionId) {
+                setCalcoModalFlight(row);
+                setCalcoModalPosition('');
+                setCalcoModalTime(timeStr);
+            } else {
+                syncFlight({ ...row, actualArrivalTime: timeStr });
+            }
+        };
+        return (
+          <td 
+            key={`${row.id}-${colKey}`}
+            data-rowid={row.id}
+            data-colkey={colKey as string}
+            className={`p-0 border-y border-l transition-all relative h-10 outline-none
+               ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'}
+            `}
+          >
+             <div className="w-full h-full flex items-center justify-center p-1">
+                 <button 
+                   onClick={handleSetCalcoNow}
+                   title="Marcar calço (hora atual)"
+                   className="w-full h-full bg-yellow-500/10 hover:bg-yellow-500/30 border border-yellow-500/30 hover:border-yellow-500/60 text-yellow-600 dark:text-yellow-400 rounded flex items-center justify-center gap-1 text-[9px] uppercase tracking-tighter font-black transition-all shadow-sm"
+                 >
+                    CALÇO
+                 </button>
+             </div>
+          </td>
+        );
     }
 
     return (
@@ -1206,7 +1271,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
               status: FlightStatus.DESIGNADO, 
               operator: operator.warName,
               fleet: operator.assignedVehicle,
-              fleetType: operator.fleetCapability as any,
+              fleetType: operator.assignedVehicle?.startsWith('CTA') ? 'CTA' : operator.assignedVehicle?.startsWith('SRV') ? 'SRV' : undefined,
               designationTime: new Date(),
               assignmentTime: new Date(),
               assignedByLt: ltName,
@@ -1218,6 +1283,26 @@ export const GridOps: React.FC<GridOpsProps> = ({
           setSelectedOperatorId(null);
       }
   };
+
+  const confirmInlineAssignment = (flight: FlightData, operatorId: string) => {
+      const operator = operators.find(op => op.id === operatorId);
+      if (!operator) return;
+      const newLog = createNewLog('MANUAL', `Operador ${operator.warName} designado alinheado por ${ltName}.`, 'GESTOR_MESA');
+      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { 
+          ...f, 
+          status: (f.status === FlightStatus.FILA || f.status === FlightStatus.CHEGADA) ? FlightStatus.DESIGNADO : f.status, 
+          operator: operator.warName,
+          fleet: operator.assignedVehicle,
+          fleetType: operator.assignedVehicle?.startsWith('CTA') ? 'CTA' : operator.assignedVehicle?.startsWith('SRV') ? 'SRV' : undefined,
+          designationTime: new Date(),
+          assignmentTime: new Date(),
+          assignedByLt: ltName,
+          logs: [...(f.logs || []), newLog]
+      } : f));
+      addToast('DESIGNADO', `Operador ${operator.warName} assumiu voo ${flight.flightNumber || ''}.`, 'success');
+      setInlineAssignFlightId(null);
+  };
+
 
   const confirmSupportAssignment = (opId?: string) => {
       const idToUse = opId || selectedOperatorId;
@@ -1505,7 +1590,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isActive = sortConfig.key === columnKey;
     return (
       <th 
-        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-50 first:rounded-l-[2px] last:rounded-r-[2px] grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} ${className}`}
+        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} ${className}`}
         onClick={() => handleSort(columnKey)}
       >
         <div className={`flex items-center gap-1 ${className.includes('text-center') ? 'justify-center' : 'justify-start'}`}>
@@ -1663,28 +1748,27 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 >
                     <ChevronLeft size={14} strokeWidth={2.5} />
                 </button>
-                <div className="px-2 flex items-center gap-1.5 relative overflow-hidden group hover:bg-white/5 rounded cursor-pointer transition-colors h-full">
-                    <CalendarDays size={13} className="text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap text-center group-hover:text-emerald-50 transition-colors">
-                        {getDisplayDate(activeDateOffset)}
-                    </span>
-                    <input 
-                      type="date"
-                      value={new Date(new Date().setDate(new Date().getDate() + activeDateOffset)).toISOString().split('T')[0]}
-                      onChange={(e) => {
-                        if (!e.target.value) return;
-                        const targetD = new Date(e.target.value + 'T00:00:00');
-                        const today = new Date();
-                        today.setHours(0,0,0,0);
-                        const diffTime = targetD.getTime() - today.getTime();
-                        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-                        setActiveDateOffset(diffDays);
-                      }}
-                      onClick={(e) => {
-                         try { (e.target as any).showPicker(); } catch (err) {}
-                      }}
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    />
+                <div className="px-2 flex items-center gap-1.5 relative overflow-visible group hover:bg-white/5 rounded cursor-pointer transition-colors h-full">
+                    <div 
+                      className="flex items-center gap-1.5 w-full h-full"
+                      onClick={() => setShowCalendar(!showCalendar)}
+                    >
+                      <CalendarDays size={13} className="text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap text-center group-hover:text-emerald-50 transition-colors">
+                          {getDisplayDate(activeDateOffset)}
+                      </span>
+                    </div>
+                    {showCalendar && (
+                      <InlineCalendar 
+                        currentOffset={activeDateOffset}
+                        onSelectOffset={(offset) => {
+                          setActiveDateOffset(offset);
+                          setShowCalendar(false);
+                        }}
+                        onClose={() => setShowCalendar(false)}
+                        isDarkMode={isDarkMode}
+                      />
+                    )}
                 </div>
                 <button 
                   onClick={() => setActiveDateOffset(prev => prev + 1)}
@@ -1768,10 +1852,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
           </div>
 
       {/* GRID CONTAINER */}
-      <div className={`flex-1 min-w-0 overflow-hidden relative ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'} pt-2`}>
+      <div className={`flex-1 min-w-0 overflow-hidden relative ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
             <div className="w-full h-full overflow-auto min-w-0 custom-scrollbar relative">
-              <table ref={tableRef} className="w-full text-left border-collapse border-spacing-0 px-2 grid-ops-table -mt-1">
-                  <thead className="grid-ops-thead relative z-50">
+              <table ref={tableRef} className="w-full text-left border-separate border-spacing-0 grid-ops-table">
+                  <thead className={`grid-ops-thead sticky top-0 z-50 shadow-sm ${isDarkMode ? 'bg-slate-950' : 'bg-[#2D8E48]'}`}>
                       <tr id="grid-header-container" className="h-10">
                     {/* LAYOUT CONDICIONAL DE COLUNAS */}
                     {activeTab === 'FILA' ? (
@@ -1802,7 +1886,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
                             <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
                             <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
                                 <div className="flex items-center justify-center gap-1.5">
                                     <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
                                         REPORT
@@ -1815,9 +1899,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                     <SortableHeader label="LT" columnKey="assignedByLt" className="text-left pl-2 w-28" />
                                 </>
                             )}
-                            {activeTab === 'ABASTECENDO' && (
-                                <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center w-16" />
-                            )}
+
                         </>
                     ) : isFinishedView ? (
                         <>
@@ -1832,21 +1914,21 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
                             <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
                             <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
                                 <div className="flex items-center justify-center gap-1.5">
                                     <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
                                         REPORT
                                     </span>
                                 </div>
                             </th>
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
+                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
                                 <div className="flex items-center justify-center gap-1.5">
                                     <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
                                         TAB
                                     </span>
                                 </div>
                             </th>
-                            <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center w-16" />
+
                         </>
                     ) : (
                         <>
@@ -1864,9 +1946,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
                             <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
                             <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
-                            {activeTab === 'GERAL' && (
-                                <SortableHeader label="VAZÃO" columnKey="maxFlowRate" className="text-center w-16" />
-                            )}
+
                         </>
                     )}
                       
@@ -1876,7 +1956,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         <SortableHeader label="STATUS" columnKey="status" className="text-center w-24" />
                       )}
 
-                      <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-y ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} last:rounded-r-[4px] group w-16`}>
+                      <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} group w-16`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span className={`font-black text-[9px] uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-white'}`}>
                             AÇÕES
@@ -1961,24 +2041,36 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'eta', row.eta || '', "text-center font-mono text-emerald-400 font-black tracking-widest", rowIndex, 99)}
 
                                 {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
-                                    {row.operator ? (
-                                        <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} operators={operators} />
-                                        </div>
-                                    ) : (
-                                        <button 
-                                            onClick={(e) => openAssignModal(row, e)}
-                                            className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
-                                        >
-                                            <UserPlus size={12} />
-                                            <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
-                                        </button>
-                                    )}
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible`}>
+                                    <div className="relative w-full h-full flex flex-col justify-center">
+                                      {row.operator ? (
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                              <OperatorCell operatorName={row.operator} operators={operators} />
+                                          </div>
+                                      ) : (
+                                          <button 
+                                              onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}
+                                              className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
+                                          >
+                                              <UserPlus size={12} />
+                                              <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
+                                          </button>
+                                      )}
+                                      {inlineAssignFlightId === row.id && (
+                                          <InlineOperatorSelect
+                                              flightId={row.id}
+                                              currentOperatorName={row.operator}
+                                              operators={getEligibleOperators(row)}
+                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
+                                              onClose={() => setInlineAssignFlightId(null)}
+                                              isDarkMode={isDarkMode}
+                                          />
+                                      )}
+                                    </div>
                                 </td>
 
                                 {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet || '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
+                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
 
                                 {/* FLEET TYPE */}
                                 {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
@@ -2009,24 +2101,36 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 6)}
 
                                 {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
-                                    {row.operator ? (
-                                        <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} operators={operators} />
-                                        </div>
-                                    ) : (
-                                        <button 
-                                            onClick={(e) => openAssignModal(row, e)}
-                                            className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
-                                        >
-                                            <UserPlus size={12} />
-                                            <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
-                                        </button>
-                                    )}
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible`}>
+                                    <div className="relative w-full h-full flex flex-col justify-center">
+                                      {row.operator ? (
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                              <OperatorCell operatorName={row.operator} operators={operators} />
+                                          </div>
+                                      ) : (
+                                          <button 
+                                              onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}
+                                              className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
+                                          >
+                                              <UserPlus size={12} />
+                                              <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
+                                          </button>
+                                      )}
+                                      {inlineAssignFlightId === row.id && (
+                                          <InlineOperatorSelect
+                                              flightId={row.id}
+                                              currentOperatorName={row.operator}
+                                              operators={getEligibleOperators(row)}
+                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
+                                              onClose={() => setInlineAssignFlightId(null)}
+                                              isDarkMode={isDarkMode}
+                                          />
+                                      )}
+                                    </div>
                                 </td>
 
                                 {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet || '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
+                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
 
                                 {/* FLEET TYPE */}
                                 {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
@@ -2053,8 +2157,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                     </>
                                 )}
 
-                                {/* VAZÃO (Apenas ABASTECENDO) */}
-                                {activeTab === 'ABASTECENDO' && renderEditableCell(row, 'maxFlowRate', row.maxFlowRate || 0, "text-center font-mono text-emerald-400 tracking-tight", rowIndex, activeTab === 'DESIGNADOS' ? 11 : 9, false)}
+
                             </>
                           ) : isFinishedView ? (
                             <>
@@ -2082,16 +2185,30 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 6)}
                                 
                                 {/* OPERATOR (WITH ASSIGN BUTTON & MESSAGE DOT) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden truncate`}>
-                                    {row.operator ? (
-                                        <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} operators={operators} />
-                                        </div>
-                                    ) : <span className={`${isDarkMode ? 'text-slate-700' : 'text-slate-400'} italic uppercase text-[9px] pl-2`}>--</span>}
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible truncate`}>
+                                    <div className="relative w-full h-full flex flex-col justify-center">
+                                      {row.operator ? (
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                              <OperatorCell operatorName={row.operator} operators={operators} />
+                                          </div>
+                                      ) : (
+                                          <span className={`${isDarkMode ? 'text-slate-700' : 'text-slate-400'} italic uppercase text-[9px] pl-2 cursor-pointer`} onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>--</span>
+                                      )}
+                                      {inlineAssignFlightId === row.id && (
+                                          <InlineOperatorSelect
+                                              flightId={row.id}
+                                              currentOperatorName={row.operator}
+                                              operators={getEligibleOperators(row)}
+                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
+                                              onClose={() => setInlineAssignFlightId(null)}
+                                              isDarkMode={isDarkMode}
+                                          />
+                                      )}
+                                    </div>
                                 </td>
 
                                 {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet || '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
+                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
 
                                 {/* FLEET TYPE */}
                                 {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
@@ -2104,8 +2221,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                     {calculateTAB(row)}
                                 </td>
 
-                                {/* VAZÃO (Exclusivo Finalizados) */}
-                                {renderEditableCell(row, 'maxFlowRate', row.maxFlowRate || 0, "text-center font-mono text-emerald-400 tracking-tight", rowIndex, 10, false)}
+
                             </>
                           ) : (
                             <>
@@ -2142,30 +2258,41 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 9)}
 
                                 {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-hidden`}>
-                                    {row.operator ? (
-                                        <div className="flex items-center justify-start w-full">
-                                            <OperatorCell operatorName={row.operator} operators={operators} />
-                                        </div>
-                                    ) : (
-                                        <button 
-                                            onClick={(e) => openAssignModal(row, e)}
-                                            className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
-                                        >
-                                            <UserPlus size={12} />
-                                            <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
-                                        </button>
-                                    )}
+                                <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible`}>
+                                    <div className="relative w-full h-full flex flex-col justify-center">
+                                      {row.operator ? (
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                              <OperatorCell operatorName={row.operator} operators={operators} />
+                                          </div>
+                                      ) : (
+                                          <button 
+                                              onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}
+                                              className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
+                                          >
+                                              <UserPlus size={12} />
+                                              <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
+                                          </button>
+                                      )}
+                                      {inlineAssignFlightId === row.id && (
+                                          <InlineOperatorSelect
+                                              flightId={row.id}
+                                              currentOperatorName={row.operator}
+                                              operators={getEligibleOperators(row)}
+                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
+                                              onClose={() => setInlineAssignFlightId(null)}
+                                              isDarkMode={isDarkMode}
+                                          />
+                                      )}
+                                    </div>
                                 </td>
 
                                 {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet || '', "text-center font-mono text-[10px]", rowIndex, 10, false)}
+                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 10, false)}
 
                                 {/* FLEET TYPE */}
                                 {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 11, false)}
 
-                                {/* VAZÃO (Apenas GERAL) */}
-                                {activeTab === 'GERAL' && renderEditableCell(row, 'maxFlowRate', row.maxFlowRate || 0, "text-center font-mono text-emerald-400 tracking-tight", rowIndex, 12, false)}
+
                             </>
                           )}
                           
@@ -2473,6 +2600,88 @@ export const GridOps: React.FC<GridOpsProps> = ({
           onSubmit={handleSubmitDelay}
           onClose={() => setDelayModalFlightId(null)}
         />
+      )}
+
+      {/* CALÇO CONFIRMATION MODAL */}
+      {calcoModalFlight && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div 
+            className={`${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'} border rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`px-4 py-3 border-b ${isDarkMode ? 'border-white/5 bg-slate-800/50' : 'border-slate-100 bg-slate-50'} flex justify-between items-center`}>
+              <div className="flex items-center gap-2 text-yellow-500">
+                <Plane size={16} className="transform rotate-45" />
+                <h3 className="font-black text-[11px] uppercase tracking-widest">Confirmar Calço</h3>
+              </div>
+              <button 
+                onClick={() => setCalcoModalFlight(null)}
+                className={`p-1.5 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'}`}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center font-black text-xs ${isDarkMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900'}`}>
+                  {calcoModalFlight.registration || '--'}
+                </div>
+                <div>
+                  <div className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Voo {calcoModalFlight.airlineCode} {calcoModalFlight.departureFlightNumber}
+                  </div>
+                  <div className={`text-xs font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Destino: {calcoModalFlight.destination}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <label className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Confirmar Posição 
+                  </label>
+                  <input
+                    type="text"
+                    value={calcoModalPosition}
+                    onChange={(e) => setCalcoModalPosition(e.target.value.toUpperCase())}
+                    className={`w-full px-3 py-2.5 rounded-lg text-lg font-black uppercase ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500' : 'bg-white border-slate-300 text-slate-900 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500'} border transition-all outline-none`}
+                    placeholder="EX: 104"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-white/5 bg-slate-800/30' : 'border-slate-100 bg-slate-50'} flex justify-between items-center gap-4`}>
+              <div className="flex items-center gap-2">
+                 <label className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Hora</label>
+                 <input
+                    type="time"
+                    value={calcoModalTime}
+                    onChange={(e) => setCalcoModalTime(e.target.value)}
+                    className={`w-28 px-2 py-1.5 rounded-md text-sm font-bold font-mono ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500' : 'bg-white border-slate-300 text-slate-900 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500'} border transition-all outline-none`}
+                  />
+              </div>
+              <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      syncFlight({
+                        ...calcoModalFlight,
+                        positionId: calcoModalPosition,
+                        actualArrivalTime: calcoModalTime
+                      });
+                      setCalcoModalFlight(null);
+                    }}
+                    className="flex flex-1 items-center justify-center gap-2 px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider bg-yellow-500 hover:bg-yellow-400 text-slate-900 transition-all shadow-md hover:shadow-lg active:scale-95"
+                  >
+                    Calçar Agora
+                  </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* CREATE FLIGHT MODAL */}

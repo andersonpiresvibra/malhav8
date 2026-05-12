@@ -58,6 +58,12 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
   const handleCreate = (forceDateStr?: string) => {
     // Basic validation
     if (!formData.registration || !formData.airlineCode || !formData.departureFlightNumber || !formData.etd) return;
+    
+    // Arrival flight validation
+    if (formData.flightNumber && formData.flightNumber.trim() !== '' && !formData.eta) {
+       alert("Um Voo de Chegada requer a inserção do ETA.");
+       return;
+    }
 
     // Check time conflict if forceDateStr is not provided
     if (!forceDateStr && formData.etd.length >= 4) {

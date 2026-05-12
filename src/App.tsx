@@ -7,6 +7,7 @@ import { Spinner } from './components/ui/Spinner';
 import { useTheme } from './contexts/ThemeContext';
 import { useAuth } from './contexts/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
+import { AlertModal } from './components/modals/AlertModal';
 import { Table, X, AlertCircle } from 'lucide-react';
 import { OperatorProfile } from './types';
 import { ShiftOperatorsSection } from './components/ShiftOperatorsSection';
@@ -15,6 +16,8 @@ import { OperationalMesh } from './components/OperationalMesh';
 import { RootMesh } from './components/RootMesh';
 import { ReportsView } from './components/ReportsView';
 import { OperatorsAdmin } from './components/OperatorsAdmin';
+import { FleetsAdmin } from './components/FleetsAdmin';
+import { AircraftsAdmin } from './components/AircraftsAdmin';
 
 const GridOps = lazy(() => import('./components/GridOps').then(m => ({ default: m.GridOps })));
 
@@ -238,9 +241,131 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const runEndOfDayRoutine = useCallback(async () => {
+    // 1. Filtrar voos da Operação (GridOps)
+    const finishedFlights = globalFlights.filter(f => f.status === 'FINALIZADO' || f.status === 'CANCELADO');
+    const unfinishedFlights = globalFlights.filter(f => f.status !== 'FINALIZADO' && f.status !== 'CANCELADO');
+    
+    // 2. Gerar relatório Excel dos finalizados
+    if (finishedFlights.length > 0) {
+      try {
+        const XLSX = await import('xlsx');
+        const worksheet = XLSX.utils.json_to_sheet(finishedFlights.map(f => ({
+            Voo: f.airline + ' ' + f.flightNumber,
+            VooChegada: f.departureFlightNumber,
+            Prefixo: f.prefix,
+            Destino: f.destination,
+            Status: f.status,
+            Inicio: f.startTime ? new Date(f.startTime).toLocaleTimeString('pt-BR') : '',
+            Fim: f.endTime ? new Date(f.endTime).toLocaleTimeString('pt-BR') : '',
+            Operadores: f.assignedOperatorsNames ? f.assignedOperatorsNames.join(', ') : '',
+            Equipamento: f.fleet || ''
+        })));
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Fechamento');
+        const todayStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(workbook, `Fechamento_Diario_Voos_${todayStr}.xlsx`);
+      } catch (err) {
+        console.error("Erro exportando excel", err);
+      }
+    }
+
+    // 4. Determinar a data de amanhã
+    const todayStr = currentMeshDate;
+    const tomorrowDate = new Date(todayStr + 'T12:00:00');
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+
+    // 3. Limpar finalizados da visualização atual da Operação (GridOps)
+    // Mantendo os não finalizados (transferindo para a nova meta/dia)
+    const unfinishedTransferred = unfinishedFlights.map(f => ({
+        ...f,
+        date: tomorrowStr // Update the date of the active flights to tomorrow so they appear tomorrow
+    }));
+    setGlobalFlights(unfinishedTransferred);
+
+    // 4. Transferir Malha Planejada para o dia seguinte
+
+    // Pegamos a malha planejada atual
+    setMeshFlightsByDate(prev => {
+        const todayMeshFlights = prev[todayStr] || [];
+        
+        // Identificar voos da malha de hoje que NÃO foram finalizados
+        const unfinishedMeshFlights = todayMeshFlights.filter(mf => {
+             // Tenta achar o voo equivalente no globalFlights
+             const gf = globalFlights.find(
+                 f => f.airline === mf.airline && 
+                      (f.departureFlightNumber === mf.departureFlightNumber || f.flightNumber === mf.departureFlightNumber)
+             );
+             if (gf) {
+                 // Se achou no globalFlights, e está finalizado ou cancelado, ele sai da malha
+                 return gf.status !== 'FINALIZADO' && gf.status !== 'CANCELADO';
+             }
+             // Se não achou no global, quer dizer que nem foi iniciado. Devemos transferir.
+             return true;
+        });
+
+        // Modificamos a data dos voos transferidos para garantir
+        const transferredMeshFlights = unfinishedMeshFlights.map(mf => ({
+            ...mf,
+            date: tomorrowStr
+        }));
+
+        const existingTomorrow = prev[tomorrowStr] || [];
+
+        return {
+            ...prev,
+            [todayStr]: [], // Limpa a malha de hoje
+            [tomorrowStr]: [...existingTomorrow, ...transferredMeshFlights] // Move para a de amanhã
+        };
+    });
+
+    setCurrentMeshDate(tomorrowStr); // Avança o componente visual para a data de amanhã
+
+    // 5. Alert de sistema
+    setEndOfDayAlert({
+      isOpen: true,
+      title: 'FECHAMENTO DIÁRIO',
+      message: (
+        <div className="flex flex-col gap-3 text-left">
+          <p>O dia foi encerrado com sucesso.</p>
+          <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg">
+            <p className="font-bold text-emerald-600 dark:text-emerald-400">
+              {finishedFlights.length} voos finalizados / cancelados
+            </p>
+            <p className="text-xs mt-1">Foram incluídos no Relatório Excel (baixado automaticamente) e removidos do painel e da malha.</p>
+          </div>
+          <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg">
+            <p className="font-bold text-amber-600 dark:text-amber-400">
+              {unfinishedFlights.length} voos pendentes
+            </p>
+            <p className="text-xs mt-1">Transitaram automaticamente para a malha de {tomorrowStr.split('-').reverse().join('/')} (mantidos na tela).</p>
+          </div>
+        </div>
+      )
+    });
+  }, [globalFlights, currentMeshDate]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+        const now = new Date();
+        // Dispara o fechamento na virada do dia exatamente (23:59:59)
+        if (now.getHours() === 23 && now.getMinutes() === 59 && now.getSeconds() === 59) {
+            runEndOfDayRoutine();
+        }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [runEndOfDayRoutine]);
+
   const [showExitWarning, setShowExitWarning] = useState<{ id: string } | null>(null);
   const [targetView, setTargetView] = useState<ViewState | null>(null);
   const [targetReportFlight, setTargetReportFlight] = useState<FlightData | null>(null);
+
+  const [endOfDayAlert, setEndOfDayAlert] = useState<{ isOpen: boolean; title: string; message: React.ReactNode }>({
+    isOpen: false,
+    title: '',
+    message: ''
+  });
 
   const handleViewChange = (newView: ViewState) => {
     setView(newView);
@@ -287,6 +412,7 @@ const App: React.FC = () => {
         ltName={ltName}
         ltPhotoUrl={currentLtProfile?.photoUrl}
         setLtName={setLtName}
+        operators={globalOperators}
       />
 
       {supabaseError && (
@@ -348,11 +474,19 @@ const App: React.FC = () => {
 
       <div id="subheader-portal-target" className="w-full shrink-0 z-[150] relative"></div>
 
+      <AlertModal
+        isOpen={endOfDayAlert.isOpen}
+        title={endOfDayAlert.title}
+        message={endOfDayAlert.message}
+        onClose={() => setEndOfDayAlert(prev => ({ ...prev, isOpen: false }))}
+      />
+
       <div className={`flex flex-1 w-full ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'} transition-colors duration-500 font-sans overflow-hidden relative`}>
         <Sidebar 
           activeView={view} 
           onViewChange={handleViewChange} 
           isDarkMode={isDarkMode} 
+          onSimulateEndOfDay={runEndOfDayRoutine}
         />
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
@@ -377,6 +511,7 @@ const App: React.FC = () => {
                     pendingAction={pendingAction}
                     setPendingAction={setPendingAction}
                     ltName={ltName}
+                    currentMeshDate={currentMeshDate}
                   />
                 )}
                 {view === 'SHIFT_OPERATORS' && (
@@ -429,6 +564,18 @@ const App: React.FC = () => {
                     globalOperators={globalOperators}
                     onUpdateGlobalOperators={setGlobalOperators}
                   />
+                )}
+                {view === 'FLEETS_ADMIN' && (
+                  <FleetsAdmin 
+                    isDarkMode={isDarkMode} 
+                    globalVehicles={globalVehicles}
+                    onUpdateGlobalVehicles={setGlobalVehicles}
+                   />
+                )}
+                {view === 'AIRCRAFTS_ADMIN' && (
+                  <AircraftsAdmin 
+                    isDarkMode={isDarkMode} 
+                   />
                 )}
               </Suspense>
           </div>

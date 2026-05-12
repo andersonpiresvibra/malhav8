@@ -64,8 +64,8 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
     const categorizedOperators = useMemo(() => {
         return {
             TODOS: availableOperators,
-            SRV: availableOperators.filter(op => op.fleetCapability === 'SRV'),
-            CTA: availableOperators.filter(op => op.fleetCapability === 'CTA'),
+            SRV: availableOperators.filter(op => op.assignedVehicle ? op.assignedVehicle.startsWith('SRV') : (op.fleetCapability === 'SRV' || op.fleetCapability === 'BOTH')),
+            CTA: availableOperators.filter(op => op.assignedVehicle ? op.assignedVehicle.startsWith('CTA') : (op.fleetCapability === 'CTA' || op.fleetCapability === 'BOTH')),
         };
     }, [availableOperators]);
 
@@ -76,8 +76,10 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
         if (['OCUPADO', 'DESIGNADO', 'ABASTECENDO', 'INTERVALO'].includes(op.status)) return true;
 
         if (!flight) return false;
-        // Se a posição for CTA, inabilitar SRVs
-        if (flight.positionType === 'CTA' && op.fleetCapability === 'SRV') return true;
+        
+        // Se a posição for CTA, inabilitar se estiver num SRV
+        if (flight.positionType === 'CTA' && !op.assignedVehicle.startsWith('CTA')) return true;
+        
         return false;
     };
 

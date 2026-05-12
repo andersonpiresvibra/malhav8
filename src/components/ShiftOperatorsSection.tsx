@@ -8,6 +8,8 @@ import {
 import { OperatorProfile, ShiftCycle, OperatorCategory, FlightData, Vehicle } from '../types';
 import { getCurrentShift } from '../utils/shiftUtils';
 
+import { SelectVehicleModal } from './modals/SelectVehicleModal';
+
 interface ShiftOperatorsSectionProps {
     onClose: () => void;
     operators: OperatorProfile[];
@@ -39,7 +41,7 @@ const OperatorAvatar: React.FC<{ op: OperatorProfile, isActive: boolean, isDarkM
 };
 
 export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({ 
-    onClose, operators, flights = [] 
+    onClose, operators, onUpdateOperators, flights = [], vehicles = [], onUpdateFlights
 }) => {
   const { isDarkMode } = useTheme();
 
@@ -47,6 +49,8 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
   const [activeCategory, setActiveCategory] = useState<OperatorCategory>('AERODROMO');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
+
+  const [selectedOpForVehicle, setSelectedOpForVehicle] = useState<OperatorProfile | null>(null);
 
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -138,9 +142,9 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
       : teamMembers.filter(op => op.shift && op.shift.cycle === activeShift);
     
     return {
-      patio: shiftOperators.filter(op => op.category === 'AERODROMO' || op.category === 'PLENO' || op.category === 'JUNIOR' || op.category === 'SENIOR').length,
-      vip: shiftOperators.filter(op => op.category === 'VIP').length,
-      ilha: shiftOperators.filter(op => op.category === 'ILHA').length,
+      patio: shiftOperators.filter(op => !op.patio || op.patio === 'AERODROMO' || op.patio === 'AMBOS').length,
+      vip: shiftOperators.filter(op => op.patio === 'VIP' || op.patio === 'AMBOS').length,
+      ilha: shiftOperators.filter(op => op.patio === 'ILHA' || op.patio === 'AMBOS').length,
       disponivel: shiftOperators.filter(op => op.status === 'DISPONÍVEL' && !getActiveMission(op.warName)).length,
       enchendo: shiftOperators.filter(op => op.status === 'ENCHIMENTO').length,
       designado: shiftOperators.filter(op => !!getActiveMission(op.warName) || op.status === 'OCUPADO').length,
@@ -151,7 +155,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
   const filteredTeam = useMemo(() => {
     const baseList = teamMembers.filter(op => 
       (activeShift === 'GERAL' || (op.shift && op.shift.cycle === activeShift)) &&
-      (op.category === activeCategory || (activeCategory === 'AERODROMO')) && // Relax strict match purely for AERODROMO meaning anything else if they are PLENO/JUNIOR
+      (!activeCategory || activeCategory === 'AERODROMO' || op.patio === activeCategory || op.patio === 'AMBOS') &&
       (op.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       op.warName.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -167,6 +171,53 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
       return 0;
     });
   }, [teamMembers, activeShift, activeCategory, searchTerm]);
+
+  const handleAssignVehicle = (operatorId: string, vehicleId: string) => {
+    let selectedWarName = '';
+    let unassignedWarName = '';
+
+    const updatedOps = operators.map(op => {
+        if (op.id === operatorId) {
+            selectedWarName = op.warName;
+            return { ...op, assignedVehicle: vehicleId };
+        }
+        // If another operator had this vehicle, unassign it to avoid conflicts
+        if (vehicleId !== '' && op.assignedVehicle === vehicleId) {
+            unassignedWarName = op.warName;
+            return { ...op, assignedVehicle: undefined };
+        }
+        return op;
+    });
+    
+    onUpdateOperators(updatedOps);
+
+    // Sync flights
+    if (onUpdateFlights && flights) {
+        let changed = false;
+        const newFlights = flights.map(f => {
+            if (selectedWarName && f.operator === selectedWarName) {
+                changed = true;
+                return { 
+                    ...f, 
+                    fleet: vehicleId,
+                    fleetType: vehicleId?.startsWith('CTA') ? 'CTA' : vehicleId?.startsWith('SRV') ? 'SRV' : undefined
+                };
+            }
+            if (unassignedWarName && f.operator === unassignedWarName) {
+                changed = true;
+                return { 
+                    ...f, 
+                    fleet: undefined,
+                    fleetType: undefined
+                };
+            }
+            return f;
+        });
+        if (changed) {
+            onUpdateFlights(newFlights);
+        }
+    }
+  };
 
   const headers = (
     <div className="w-full shrink-0 flex flex-col font-sans">
@@ -359,15 +410,24 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                     <OperatorAvatar op={op} isActive={!isInactive} isDarkMode={isDarkMode} />
 
                                     {/* Conteúdo */}
-                                    <div className="flex-1 flex flex-col justify-center p-2 pl-3 min-w-0 text-left relative">
+                                    <div className="flex-1 flex flex-col justify-center px-2 min-w-0 text-left relative">
                                         
                                         {/* HUD SUPERIOR DIREITO: FROTA + CONTADOR */}
                                         <div className="absolute top-1.5 right-1.5 flex items-center gap-1.5">
-                                            {op.assignedVehicle && (
-                                                <span className={`text-sm font-mono font-black ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950/60' : 'text-white/80') : (isDarkMode ? 'text-slate-600' : 'text-slate-400')}`}>
-                                                    {op.assignedVehicle.replace('SRV-', '').replace('CTA-', '')}
-                                                </span>
-                                            )}
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setSelectedOpForVehicle(op); }}
+                                                className={`flex items-center justify-center font-mono font-black transition-colors rounded px-1.5 py-0.5 border ${
+                                                    op.assignedVehicle
+                                                        ? isAvailable || isDesignated || isHandsOn
+                                                            ? isDarkMode ? 'bg-slate-950/20 text-slate-950/80 border-slate-950/20 hover:bg-slate-950/40' : 'bg-white/20 text-white border-white/20 hover:bg-white/40'
+                                                            : isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                                                        : isAvailable || isDesignated || isHandsOn
+                                                            ? isDarkMode ? 'bg-slate-950/10 text-slate-950/50 border-slate-950/20 hover:bg-slate-950/30 text-[9px]' : 'bg-white/10 text-white/60 border-white/20 hover:bg-white/30 text-[9px]'
+                                                            : isDarkMode ? 'bg-slate-900 text-slate-600 border-slate-800 hover:bg-slate-800 hover:text-slate-400 text-[9px]' : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600 text-[9px]'
+                                                } ${op.assignedVehicle ? 'text-sm min-w-[32px]' : 'text-[9px] uppercase min-w-[32px]'}`}
+                                            >
+                                                {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : '+'}
+                                            </button>
                                             <div className={`flex items-center justify-center w-5 h-5 rounded-sm font-mono font-black text-[10px] border shadow-sm ${
                                                 isAvailable || isDesignated || isHandsOn
                                                     ? (isDarkMode ? 'bg-slate-950 text-white border-slate-900' : 'bg-white/20 text-white border-white/10')
@@ -377,12 +437,12 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col items-start pr-[42px]">
+                                        <div className="flex flex-col items-start pr-[38px] mt-0.5">
                                             <h3 className={`font-black tracking-tighter uppercase leading-none truncate w-full text-base ${!isAvailable && !isDesignated && !isHandsOn && !isDarkMode ? 'text-slate-800' : ''}`}>
                                                 {op.warName}
                                             </h3>
                                             <span className={`text-[8px] font-black uppercase tracking-[0.1em] opacity-70 mt-1 ${isAvailable || isDesignated || isHandsOn ? (isDarkMode ? 'text-slate-950' : 'text-white') : (isDarkMode ? 'text-slate-500' : 'text-slate-500')}`}>
-                                                {op.category}
+                                                {op.role || op.category}
                                             </span>
                                         </div>
 
@@ -476,11 +536,24 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border dark:border-slate-700">
-                                                {op.category}
+                                                {op.role || op.category}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-sm font-mono font-black">
-                                            {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : '---'}
+                                            <button 
+                                                onClick={() => setSelectedOpForVehicle(op)}
+                                                className={`flex items-center justify-center min-w-[36px] px-2 py-1 rounded border transition-colors uppercase ${
+                                                    op.assignedVehicle 
+                                                        ? isDarkMode 
+                                                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' 
+                                                            : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                                                        : isDarkMode 
+                                                            ? 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700 hover:text-slate-300 text-[10px]' 
+                                                            : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700 text-[10px]'
+                                                }`}
+                                            >
+                                                {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : 'Vincular'}
+                                            </button>
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
@@ -515,6 +588,15 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                 </div>
             )}
         </div>
+
+        <SelectVehicleModal
+            isOpen={selectedOpForVehicle !== null}
+            onClose={() => setSelectedOpForVehicle(null)}
+            operator={selectedOpForVehicle}
+            vehicles={vehicles}
+            operators={operators}
+            onAssignVehicle={handleAssignVehicle}
+        />
     </div>
   );
 };
