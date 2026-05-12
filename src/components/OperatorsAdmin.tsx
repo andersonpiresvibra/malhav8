@@ -15,24 +15,24 @@ interface OperatorsAdminProps {
 type OperatorField = keyof OperatorProfile | 'actions' | 'shiftCycle' | 'shiftStart' | 'shiftEnd';
 
 const COLUMNS: { key: OperatorField; label: string; width: string; isVariable: boolean }[] = [
-  { key: 'photoUrl', label: 'Foto (URL)', width: 'w-[100px]', isVariable: true },
-  { key: 'warName', label: 'Nome de Guerra', width: 'w-[140px]', isVariable: true },
-  { key: 'fullName', label: 'Nome Completo', width: 'w-[260px]', isVariable: true },
-  { key: 'role', label: 'Função', width: 'w-[100px]', isVariable: true },
-  { key: 'isLT', label: 'LT?', width: 'w-[60px]', isVariable: true },
-  { key: 'companyId', label: 'Matr. VB', width: 'w-[100px]', isVariable: true },
-  { key: 'gruId', label: 'Matr. Gru', width: 'w-[100px]', isVariable: true },
-  { key: 'vestNumber', label: 'ISO', width: 'w-[70px]', isVariable: true },
-  { key: 'tmfLogin', label: 'Log. TMF', width: 'w-[90px]', isVariable: true },
-  { key: 'bloodType', label: 'TS', width: 'w-[60px]', isVariable: true },
-  { key: 'email', label: 'Email Corp.', width: 'w-[260px]', isVariable: true },
-  { key: 'patio', label: 'Pátio', width: 'w-[100px]', isVariable: true },
-  { key: 'shiftCycle', label: 'Turno', width: 'w-[100px]', isVariable: true },
-  { key: 'shiftStart', label: 'Hr. Ent.', width: 'w-[80px]', isVariable: true },
-  { key: 'shiftEnd', label: 'Hr. Sai.', width: 'w-[80px]', isVariable: true },
-  { key: 'status', label: 'Status', width: 'w-[100px]', isVariable: true },
-  { key: 'workDays', label: 'Escala', width: 'w-[80px]', isVariable: false },
-  { key: 'actions', label: 'Ações', width: 'w-[70px]', isVariable: false },
+  { key: 'photoUrl', label: 'FOTO', width: 'w-[70px] min-w-[70px] text-center', isVariable: false },
+  { key: 'warName', label: 'NOME DE GUERRA', width: 'w-[140px] min-w-[140px]', isVariable: true },
+  { key: 'fullName', label: 'NOME COMPLETO', width: 'w-[200px] min-w-[200px]', isVariable: true },
+  { key: 'role', label: 'FUNÇÃO', width: 'w-[100px] min-w-[100px]', isVariable: true },
+  { key: 'isLT', label: 'LT?', width: 'w-[70px] min-w-[70px]', isVariable: true },
+  { key: 'companyId', label: 'MATR. VB', width: 'w-[100px] min-w-[100px]', isVariable: true },
+  { key: 'gruId', label: 'MATR. GRU', width: 'w-[100px] min-w-[100px]', isVariable: true },
+  { key: 'vestNumber', label: 'ISO', width: 'w-[70px] min-w-[70px]', isVariable: true },
+  { key: 'tmfLogin', label: 'LOG. TMF', width: 'w-[100px] min-w-[100px]', isVariable: true },
+  { key: 'bloodType', label: 'TS', width: 'w-[60px] min-w-[60px]', isVariable: true },
+  { key: 'email', label: 'EMAIL CORP.', width: 'w-[240px] min-w-[240px]', isVariable: true },
+  { key: 'patio', label: 'PÁTIO', width: 'w-[100px] min-w-[100px]', isVariable: true },
+  { key: 'shiftCycle', label: 'TURNO', width: 'w-[100px] min-w-[100px]', isVariable: true },
+  { key: 'shiftStart', label: 'HR. ENT.', width: 'w-[80px] min-w-[80px]', isVariable: true },
+  { key: 'shiftEnd', label: 'HR. SAI.', width: 'w-[80px] min-w-[80px]', isVariable: true },
+  { key: 'status', label: 'STATUS', width: 'w-[100px] min-w-[100px]', isVariable: true },
+  { key: 'workDays', label: 'ESCALA', width: 'w-[80px] min-w-[80px]', isVariable: false },
+  { key: 'actions', label: 'AÇÕES', width: 'w-[80px] min-w-[80px]', isVariable: false },
 ];
 
 export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, globalOperators, onUpdateGlobalOperators }) => {
@@ -208,44 +208,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     if (colKey === 'photoUrl') supabasePayload.photo_url = op.photoUrl || null;
 
     if (Object.keys(supabasePayload).length > 0) {
-      if (rowId.startsWith('new-')) {
-          // It's a new unsaved row, wait until they finish editing something or manually dispatch. 
-          // Actually, let's auto-save new rows if they have warName and fullName at least
-          if ((op.warName || op.fullName) && !op.id.startsWith('saved-')) {
-              const emailVal = op.email?.toLowerCase().trim();
-              const finalEmail = emailVal ? (emailVal.includes('@') ? emailVal : `${emailVal}@vibraenergia.com.br`) : null;
-              
-              const insertPayload = {
-                  full_name: op.fullName || op.warName || 'Sem Nome',
-                  war_name: op.warName || op.fullName || 'Sem Nome',
-                  status: op.status || 'ATIVO',
-                  fleet_capability: op.fleetCapability || 'SRV',
-                  category: op.role || op.category || 'JUNIOR',
-                  role: op.role || null,
-                  is_lt: op.isLT || 'NÃO',
-                  patio: op.patio || null,
-                  tmf_login: op.tmfLogin || null,
-                  blood_type: op.bloodType || null,
-                  email: finalEmail,
-                  company_id: op.companyId || null,
-                  gru_id: op.gruId || null,
-                  vest_number: op.vestNumber || null,
-                  shift_cycle: op.shift?.cycle || null,
-                  shift_start: op.shift?.start || null,
-                  shift_end: op.shift?.end || null,
-                  photo_url: op.photoUrl || null,
-              };
-              const { data, error } = await supabase.from('operators').insert([insertPayload]).select('id').single();
-              if (error) {
-                  console.error('Error inserting operator:', error);
-              }
-              if (!error && data) {
-                  // update local ID to the real UUID so future edits use update()
-                  lastStableOperatorsRef.current = lastStableOperatorsRef.current.map(o => o.id === rowId ? { ...o, id: data.id } : o);
-                  setOperators(prev => prev.map(o => o.id === rowId ? { ...o, id: data.id } : o));
-              }
-          }
-      } else {
+      if (!rowId.startsWith('new-')) {
         const { error } = await supabase.from('operators').update(supabasePayload).eq('id', rowId);
         if (error) {
             console.error('Error updating operator:', error);
@@ -304,34 +267,63 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     });
   };
 
-  const handleAddOperator = async () => {
+  const handleAddOperator = () => {
+    const newId = `new-${Date.now()}`;
+    const optimisticOp = { 
+        id: newId, 
+        fullName: 'Novo Operador', 
+        warName: 'Novo Operador', 
+        status: 'ATIVO', 
+        isLT: false, 
+        shift: { cycle: 'GERAL', start: '00:00', end: '23:59' }
+    } as any;
+    
+    setOperators(prev => [optimisticOp, ...prev]);
+    setFocusedCell({ rowId: newId, col: 0 });
+    setEditingCell({ rowId: newId, col: 0 });
+  };
+
+  const handleSaveNewOperator = async (op: any) => {
+    const emailVal = op.email?.toLowerCase().trim();
+    const finalEmail = emailVal ? (emailVal.includes('@') ? emailVal : `${emailVal}@vibraenergia.com.br`) : null;
+    
     const insertPayload = {
-        full_name: 'Novo Operador',
-        war_name: 'Novo Operador',
-        status: 'ATIVO',
-        role: null,
-        category: 'JUNIOR',
-        fleet_capability: 'SRV',
-        is_lt: 'NÃO',
-        shift_cycle: 'GERAL',
-        shift_start: '00:00',
-        shift_end: '23:59'
+        full_name: op.fullName || 'Sem Nome',
+        war_name: op.warName || 'Sem Nome',
+        status: op.status || 'ATIVO',
+        fleet_capability: op.fleetCapability || 'SRV',
+        category: op.role || op.category || 'JUNIOR',
+        role: op.role || null,
+        is_lt: op.isLT || 'NÃO',
+        patio: op.patio || null,
+        tmf_login: op.tmfLogin || null,
+        blood_type: op.bloodType || null,
+        email: finalEmail,
+        company_id: op.companyId || null,
+        gru_id: op.gruId || null,
+        vest_number: op.vestNumber || null,
+        shift_cycle: op.shift?.cycle || null,
+        shift_start: op.shift?.start || null,
+        shift_end: op.shift?.end || null,
+        photo_url: op.photoUrl || null,
     };
     
     try {
-        const { data, error } = await supabase.from('operators').insert([insertPayload]).select().single();
+        const { data, error } = await supabase.from('operators').insert([insertPayload]).select('id').single();
         if (error) {
             alert('Erro ao criar operador: ' + error.message);
             return;
         }
         
         if (data) {
+            setOperators(prev => prev.filter(o => o.id !== op.id));
             fetchOperators(); // reload all to get perfect relations
-            setFocusedCell({ rowId: data.id, col: 0 });
-            setEditingCell({ rowId: data.id, col: 0 });
+            setFocusedCell(null);
+            setEditingCell(null);
         }
     } catch (e) {
         console.error(e);
+        alert('Erro inexperado ao criar operador');
     }
   };
 
@@ -438,11 +430,20 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
   // 1. Base filtering
   const filteredOperators = useMemo(() => {
-    const freshSorted = operators.filter(o => 
-      o.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      o.warName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.category.toLowerCase().includes(searchTerm.toLowerCase())
-    ).filter(o => {
+    const isGridActive = focusedCell !== null;
+
+    const freshSorted = operators.filter(o => {
+      const isNewRow = o.id.startsWith('new-');
+      if (isNewRow) return true; // ALWAYS SHOW NEW UNSAVED ROWS
+      
+      const isActiveRow = focusedCell && o.id === focusedCell.rowId;
+      if (isActiveRow) return true; // ALWAYS SHOW THE ACTIVE ROW (so new operators don't vanish)
+      
+      if (searchTerm && !(o.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          o.warName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          o.category.toLowerCase().includes(searchTerm.toLowerCase()))) {
+        return false;
+      }
       // 1. Turno
       if (filterShift !== 'TODOS') {
         const cycle = o.shift?.cycle?.toUpperCase() || '';
@@ -493,16 +494,16 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
       return isAsc ? comparison : -comparison;
     });
 
-    if (!editingCell) {
+    if (!isGridActive) {
       lastStableOperatorsRef.current = freshSorted;
       return freshSorted;
     }
 
     const freshIds = new Set(freshSorted.map(o => o.id));
-    return lastStableOperatorsRef.current
+    const stablePart = lastStableOperatorsRef.current
       .filter(o => {
         const existsInDatabase = operators.some(op => op.id === o.id);
-        const isBeingEdited = o.id === editingCell.rowId;
+        const isBeingEdited = o.id === focusedCell?.rowId;
         const matchesCurrentFilters = freshIds.has(o.id);
         
         return existsInDatabase && (matchesCurrentFilters || isBeingEdited);
@@ -511,7 +512,13 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         const latest = operators.find(op => op.id === o.id);
         return latest || o;
       });
-  }, [operators, searchTerm, sortConfig, editingCell, filterShift, filterCategory, filterPatio, filterStatus]);
+
+    const stableIds = new Set(stablePart.map(o => o.id));
+    // New operators added while locked appear at the very top.
+    const newOperators = freshSorted.filter(o => !stableIds.has(o.id));
+
+    return [...newOperators, ...stablePart];
+  }, [operators, searchTerm, sortConfig, focusedCell, filterShift, filterCategory, filterPatio, filterStatus]);
 
   const handleSort = (key: OperatorField) => {
     if (key === 'actions') return;
@@ -804,8 +811,8 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         {portalTarget ? createPortal(headerContent, portalTarget) : headerContent}
 
         {/* Spreadsheet Area */}
-        <div className={`flex-1 min-w-0 overflow-auto ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
-          <table ref={tableRef} className="w-full border-collapse table-fixed select-none min-w-[800px]">
+        <div className={`flex-1 min-w-0 overflow-auto custom-scrollbar ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
+          <table ref={tableRef} className="w-full border-collapse select-none min-w-[1850px] table-fixed">
             <thead className="sticky top-0 z-[40]">
                 <tr className={`${isDarkMode ? 'bg-slate-800/95 text-slate-400' : 'bg-slate-800 text-slate-200'} backdrop-blur-sm shadow-md`}>
                 {COLUMNS.map((col, idx) => (
@@ -833,14 +840,16 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
             </thead>
               <tbody className={isDarkMode ? 'bg-slate-950' : 'bg-slate-100'}>
               {filteredOperators.map((op, rIdx) => {
-                
+                const isRowActive = focusedCell?.rowId === op.id;
                 return (
                   <tr 
                     key={op.id}
                     data-row={rIdx}
                     className={`
                       group relative transition-all h-10 border-b ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200'}
-                      ${isDarkMode ? 'bg-slate-950 hover:bg-slate-800' : 'bg-white hover:bg-slate-50'}
+                      ${isRowActive 
+                         ? (isDarkMode ? 'bg-emerald-900/40 border-emerald-500/50' : 'bg-emerald-100/60 border-emerald-300')
+                         : (isDarkMode ? 'bg-slate-950 hover:bg-slate-800' : 'bg-white hover:bg-slate-50')}
                     `}
                   >
                     {COLUMNS.map((col, cIdx) => {
@@ -901,6 +910,18 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                             className={`p-0 relative h-10 text-center pointer-events-auto actions-container border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}
                           >
                             <div className="flex items-center justify-center w-full h-full gap-1">
+                              {op.id.startsWith('new-') ? (
+                                <button 
+                                  onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSaveNewOperator(op);
+                                  }}
+                                  className={`p-1.5 rounded-md transition-all active:scale-95 ${isDarkMode ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'}`}
+                                  title="Salvar Novo Operador"
+                                >
+                                  <Save size={14} />
+                                </button>
+                              ) : null}
                               <button 
                                 onClick={(e) => {
                                     e.stopPropagation();

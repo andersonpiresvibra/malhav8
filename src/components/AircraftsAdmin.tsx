@@ -110,7 +110,11 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     }
 
     try {
-        await supabase.from('aircrafts').delete().eq('airline', airlineCode);
+        const { error } = await supabase.from('aircrafts').delete().eq('airline', airlineCode);
+        if (error) {
+            console.error('Error deleting airline', error);
+            fetchAircrafts(); // rollback na interface se houver erro
+        }
     } catch(e) {
         console.error(e);
         fetchAircrafts();
@@ -120,7 +124,11 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   const handleDeleteAircraft = async (id: string) => {
     setAircrafts(prev => prev.filter(a => a.id !== id));
     try {
-        await supabase.from('aircrafts').delete().eq('id', id);
+        const { error } = await supabase.from('aircrafts').delete().eq('id', id);
+        if (error) {
+           console.error(error);
+           fetchAircrafts(); // rollback na interface se houver erro
+        }
     } catch(e) {
         console.error(e);
         fetchAircrafts();
@@ -163,36 +171,37 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   return (
     <div className={`flex flex-col h-full ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}>
         {/* HEADER */}
-        <div className={`shrink-0 h-14 border-b flex flex-col justify-center px-4 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
-           <div className="flex items-center gap-2">
-                <Database size={16} className={isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} />
-                <h1 className="text-sm font-black uppercase tracking-widest">Aeronaves</h1>
-                {isLoading && <RefreshCw size={12} className="animate-spin ml-2 text-slate-500" />}
+        <div className={`shrink-0 h-16 border-b flex items-center justify-between px-4 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+           <div className="flex flex-col justify-center">
+               <div className="flex items-center gap-2">
+                    <Database size={16} className={isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} />
+                    <h1 className="text-sm font-black uppercase tracking-widest">Aeronaves</h1>
+                    {isLoading && <RefreshCw size={12} className="animate-spin ml-2 text-slate-500" />}
+               </div>
+               <span className={`text-[10px] font-medium tracking-wide ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Gerencie o banco de dados de aeronaves por companhia</span>
            </div>
-           <span className={`text-[10px] font-medium tracking-wide ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Gerencie o banco de dados de aeronaves por companhia</span>
-        </div>
-
-        {/* TOOLBAR */}
-        <div className={`shrink-0 py-2 px-4 flex gap-4 items-center border-b ${isDarkMode ? 'border-slate-800/50 bg-slate-900/50' : 'border-slate-200 bg-white'} shadow-sm z-20`}>
-            <button 
-                onClick={handleCreateNewAircraft}
-                disabled={!activeAirline}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-[#329858] text-white border-[#29824a] hover:bg-[#29824a]'} ${!activeAirline ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
-            >
-                <Plus size={12} /> Novo Registro
-            </button>
-            {activeAirline && airlines.includes(activeAirline) && (
-              <button 
-                  onClick={() => {
-                      if (window.confirm(`Deseja realmente excluir a companhia ${activeAirline} e todas as suas aeronaves cadastradas?`)) {
-                           handleDeleteAirline(activeAirline);
-                      }
-                  }}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ml-auto ${isDarkMode ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'} active:scale-95`}
-              >
-                  <Trash2 size={12} /> Excluir Companhia
-              </button>
-            )}
+           
+           <div className="flex items-center gap-3">
+               {activeAirline && airlines.includes(activeAirline) && (
+                 <button 
+                     onClick={() => {
+                         if (window.confirm(`Deseja realmente excluir a companhia ${activeAirline} e todas as suas aeronaves cadastradas?`)) {
+                              handleDeleteAirline(activeAirline);
+                         }
+                     }}
+                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'} active:scale-95`}
+                 >
+                     <Trash2 size={12} /> Excluir Companhia
+                 </button>
+               )}
+               <button 
+                   onClick={handleCreateNewAircraft}
+                   disabled={!activeAirline}
+                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-[#329858] text-white border-[#29824a] hover:bg-[#29824a]'} ${!activeAirline ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+               >
+                   <Plus size={12} /> Novo Registro
+               </button>
+           </div>
         </div>
 
         {/* TABS */}
