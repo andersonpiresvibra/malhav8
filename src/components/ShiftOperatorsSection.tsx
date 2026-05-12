@@ -264,13 +264,13 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
             </div>
 
             <div className="flex items-center gap-4">
-                <div className="relative">
-                    <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDarkMode ? 'text-slate-700' : 'text-white/60'}`} />
+                <div className="relative group">
+                    <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-emerald-700'} transition-colors`} />
                     <input 
                         type="text" 
                         placeholder="PESQUISAR..." 
-                        className={`border rounded-md pl-9 pr-4 py-2 text-[11px] outline-none w-56 font-bold tracking-widest transition-all ${
-                            isDarkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500/50' : 'bg-black/10 border-white/20 text-white placeholder:text-white/40 focus:border-white'
+                        className={`border rounded-lg pl-9 pr-4 h-9 text-[10px] outline-none w-56 font-extrabold tracking-widest transition-all ${
+                            isDarkMode ? 'bg-black/20 border-white/10 text-white placeholder:text-white/20 focus:ring-1 focus:border-emerald-500/50' : 'bg-white border-transparent text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-inner'
                         }`} 
                         value={searchTerm} 
                         onChange={(e) => setSearchTerm(e.target.value)} 

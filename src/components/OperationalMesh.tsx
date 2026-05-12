@@ -866,12 +866,12 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
         {/* Search Engine - COMPACT */}
         <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={13} className="text-emerald-100/40 group-focus-within:text-emerald-400 transition-colors" />
+            <Search size={13} className={`${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-emerald-700'} transition-colors`} />
           </div>
           <input 
             type="text" 
             placeholder="PESQUISAR VOO..." 
-            className="bg-black/20 border border-white/10 rounded-lg text-[10px] text-white placeholder:text-white/20 font-bold uppercase w-56 pl-9 pr-3 h-9 tracking-widest outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+            className={`border rounded-lg text-[10px] uppercase w-56 pl-9 pr-3 h-9 tracking-widest outline-none transition-all ${isDarkMode ? 'bg-black/20 border-white/10 text-white placeholder:text-white/20 font-bold focus:ring-1 focus:ring-emerald-500/50' : 'bg-white border-transparent text-slate-800 placeholder:text-slate-400 font-extrabold focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-inner'}`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />

@@ -135,7 +135,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
       <div className={`w-full max-w-xl ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-slate-200'} border-[0.5px] rounded-[8px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
         
         {/* Header */}

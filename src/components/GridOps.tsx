@@ -2604,7 +2604,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
       {/* CALÇO CONFIRMATION MODAL */}
       {calcoModalFlight && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div 
             className={`${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'} border rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}
             onClick={(e) => e.stopPropagation()}

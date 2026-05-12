@@ -330,7 +330,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
 
         {/* NEW AIRLINE MODAL */}
         {showNewAirlineModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
                 <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-80 flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
                     <h2 className={`font-black text-xs uppercase tracking-widest ${isDarkMode ? 'text-emerald-500' : 'text-emerald-600'}`}>Nova Companhia</h2>
                     <div>

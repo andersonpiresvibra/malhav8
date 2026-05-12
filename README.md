@@ -1,20 +1,34 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+  <br />
+  <h1 align="center">Smart Ops Hub - Gestão de Malha (MALHA)</h1>
+  <p align="center">SaaS de Alta Performance Operacional para Abastecimento Aéreo - SBGR (Vibra/BR Aviation)</p>
 </div>
 
-# Run and deploy your AI Studio app
+## ✈️ Visão Geral
 
-This contains everything you need to run your app locally.
+O projeto **MALHA** é o painel de missão crítica (NOC) desenvolvido para centros de controle operacional interagindo diretamente em pátios aeroportuários massivos. Orquestrando escalas humanas, envio de frotas e cronogramas de voo em tempo real de forma determinística e livre de gargalos cognitivos na interface. 
 
-View your app in AI Studio: https://ai.studio/apps/e0674224-7340-4e4b-a97e-dc4f6d1edd66
+Desenvolvido para coordenadores CCO, Despachantes e Lideranças de Pátio. Emprega as melhores práticas do dark-mode para baixo stress da retina durante vigilâncias intensivas noturnas.
 
-## Run Locally
+## 🛠 Arquitetura e Stack
+*   **Core UI:** React, TypeScript, Tailwind CSS, Vite.
+*   **Backend:** Supabase (Postgres & Realtime Subscriptions).
+*   **Ícones e Estática:** Lucide-react.
 
-**Prerequisites:**  Node.js
+## 📄 Documentos Relacionados
+Nesta raiz, geramos guias definitivos do fluxo arquitetural concebidos pelo líder de infra **BOB**.
+*   [`PRD.md`](PRD.md) - Product Requirements Document (Visão do negócio).
+*   [`SCHEMA.md`](SCHEMA.md) - Mapeamentos conceituais do Supabase Database, Auth e Integridade de Tabelas.
 
+---
+### 🚀 Rotação Local Rápida
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. Instale os repositórios vitais (React Engine via npm):
+   ```bash
+   npm install
+   ```
+
+2. Crie ou ajuste suas credenciais do serviço Supabase (ou fallback em AI Studio local keys, e.g. dev):
+   ```bash
+   npm run dev
+   ```

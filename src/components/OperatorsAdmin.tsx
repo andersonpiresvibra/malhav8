@@ -53,6 +53,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
   const [sortConfig, setSortConfig] = useState<{ key: OperatorField; direction: 'asc' | 'desc' }>({ key: 'warName', direction: 'asc' });
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
+  const [unlockedRowId, setUnlockedRowId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoUploadRowId, setPhotoUploadRowId] = useState<string | null>(null);
   
@@ -169,59 +170,58 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
   const handleFinishEdit = async (rowId: string, colIndex: number) => {
     setEditingCell(null);
-    const colKey = COLUMNS[colIndex]?.key;
-    if (colKey === 'actions') return;
-
-    const op = operators.find(o => o.id === rowId);
-    if (!op) return;
-
-    // Persist to Supabase
-    // Mapping camelCase to snake_case for Supabase
-    const supabasePayload: any = {};
-    if (colKey === 'fullName') supabasePayload.full_name = op.fullName;
-    if (colKey === 'warName') supabasePayload.war_name = op.warName;
-    if (colKey === 'status') supabasePayload.status = op.status;
-    if (colKey === 'fleetCapability') supabasePayload.fleet_capability = op.fleetCapability;
-    if (colKey === 'category') supabasePayload.category = op.category;
-    if (colKey === 'role') {
-        supabasePayload.role = op.role || null;
-        supabasePayload.category = op.role || 'JUNIOR'; // Keep category in sync with role in Supabase
-    }
-    if (colKey === 'isLT') supabasePayload.is_lt = op.isLT || 'NÃO';
-    if (colKey === 'companyId') supabasePayload.company_id = op.companyId || null;
-    if (colKey === 'gruId') supabasePayload.gru_id = op.gruId || null;
-    if (colKey === 'vestNumber') supabasePayload.vest_number = op.vestNumber || null;
-    if (colKey === 'tmfLogin') supabasePayload.tmf_login = op.tmfLogin || null;
-    if (colKey === 'bloodType') supabasePayload.blood_type = op.bloodType || null;
-    if (colKey === 'email') {
-        let emailVal = op.email?.toLowerCase().trim() || null;
-        if (emailVal && !emailVal.includes('@')) {
-            emailVal = `${emailVal}@vibraenergia.com.br`;
-        }
-        supabasePayload.email = emailVal;
-        setOperators(prev => prev.map(o => o.id === rowId ? { ...o, email: emailVal || '' } : o));
-    }
-    if (colKey === 'patio') supabasePayload.patio = op.patio || null;
-    if (colKey === 'shiftCycle') supabasePayload.shift_cycle = op.shift?.cycle || null;
-    if (colKey === 'shiftStart') supabasePayload.shift_start = op.shift?.start || null;
-    if (colKey === 'shiftEnd') supabasePayload.shift_end = op.shift?.end || null;
-    if (colKey === 'photoUrl') supabasePayload.photo_url = op.photoUrl || null;
-
-    if (Object.keys(supabasePayload).length > 0) {
-      if (!rowId.startsWith('new-')) {
-        const { error } = await supabase.from('operators').update(supabasePayload).eq('id', rowId);
-        if (error) {
-            console.error('Error updating operator:', error);
-            if (error.message?.includes('column "email" of relation "operators" does not exist') || error.message?.includes('could not find the "email" column')) {
-                alert('ERRO: A coluna "email" não existe na tabela "operators". Por favor, acesse o painel do Supabase e rode no SQL Editor:\n\nALTER TABLE public.operators ADD COLUMN IF NOT EXISTS email VARCHAR(255);');
-            }
-        }
-      }
-    }
   };
 
   const startEditingCell = (rowId: string, colIndex: number) => {
+    if (!rowId.startsWith('new-') && unlockedRowId !== rowId) return;
     setEditingCell({ rowId, col: colIndex });
+  };
+
+  const handleSaveExistingOperator = async (op: any) => {
+    let emailVal = op.email?.toLowerCase().trim() || null;
+    if (emailVal && !emailVal.includes('@')) {
+        emailVal = `${emailVal}@vibraenergia.com.br`;
+    }
+    
+    const supabasePayload = {
+      full_name: op.fullName,
+      war_name: op.warName,
+      status: op.status,
+      fleet_capability: op.fleetCapability,
+      category: op.role || op.category || 'JUNIOR',
+      role: op.role || null,
+      is_lt: op.isLT || 'NÃO',
+      company_id: op.companyId || null,
+      gru_id: op.gruId || null,
+      vest_number: op.vestNumber || null,
+      tmf_login: op.tmfLogin || null,
+      blood_type: op.bloodType || null,
+      email: emailVal,
+      patio: op.patio || null,
+      shift_cycle: op.shift?.cycle || null,
+      shift_start: op.shift?.start || null,
+      shift_end: op.shift?.end || null,
+    };
+
+    const { error } = await supabase.from('operators').update(supabasePayload).eq('id', op.id);
+    if (error) {
+        alert('Erro ao salvar edição: ' + error.message);
+    } else {
+        lastStableOperatorsRef.current = lastStableOperatorsRef.current.map(o => o.id === op.id ? { ...op, email: emailVal || '' } : o);
+        setOperators(prev => prev.map(o => o.id === op.id ? { ...op, email: emailVal || '' } : o));
+        setUnlockedRowId(null);
+        setEditingCell(null);
+    }
+  };
+
+  const handleCancelEdit = (rowId: string) => {
+    const stable = lastStableOperatorsRef.current.find(row => row.id === rowId);
+    if (stable) {
+      setOperators(prev => prev.map(row => row.id === rowId ? stable : row));
+    }
+    setUnlockedRowId(null);
+    setEditingCell(null);
+    setFocusedCell(null);
   };
 
   const handleFieldChange = (id: string, field: OperatorField, value: string) => {
@@ -609,14 +609,18 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         }
         break;
       case 'Escape':
-        if (editingCell) {
+        if (editingCell || unlockedRowId === op.id) {
           e.preventDefault();
-          handleFinishEdit(op.id, colIndex);
+          if (unlockedRowId === op.id) {
+              handleCancelEdit(op.id);
+          } else {
+              handleFinishEdit(op.id, colIndex);
+          }
         }
         break;
       case 'Backspace':
       case 'Delete':
-        if (!isEditing) {
+        if (!isEditing && (op.id.startsWith('new-') || unlockedRowId === op.id)) {
           e.preventDefault();
           handleFieldChange(op.id, COLUMNS[colIndex].key, '');
         }
@@ -624,6 +628,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
       default:
         // Handle alphanumeric direct entry like Excel
         if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+          if (!op.id.startsWith('new-') && unlockedRowId !== op.id) return;
           e.preventDefault();
           startEditingCell(op.id, colIndex);
           handleFieldChange(op.id, COLUMNS[colIndex].key, e.key);
@@ -731,13 +736,14 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         {/* Search Engine - COMPACT */}
         <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={13} className="text-white/40 group-focus-within:text-white transition-colors" />
+            <Search size={13} className={`${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-emerald-700'} transition-colors`} />
           </div>
           <input 
             type="text" 
             placeholder="PESQUISAR OPERADOR..." 
-            className="bg-black/20 border border-white/10 rounded-lg text-[10px] text-white placeholder:text-white/20 font-bold uppercase w-56 pl-9 pr-3 h-9 tracking-widest outline-none focus:ring-1 focus:ring-amber-500/50 transition-all"
+            className={`border rounded-lg text-[10px] uppercase w-56 pl-9 pr-3 h-9 tracking-widest outline-none transition-all ${isDarkMode ? 'bg-black/20 border-white/10 text-white placeholder:text-white/20 font-bold focus:ring-1 focus:ring-amber-500/50' : 'bg-white border-transparent text-slate-800 placeholder:text-slate-400 font-extrabold focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-inner'}`}
             value={searchTerm}
+            onClick={() => { setFocusedCell(null); setEditingCell(null); setUnlockedRowId(null); }}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
@@ -840,7 +846,8 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
             </thead>
               <tbody className={isDarkMode ? 'bg-slate-950' : 'bg-slate-100'}>
               {filteredOperators.map((op, rIdx) => {
-                const isRowActive = focusedCell?.rowId === op.id;
+                const isUnlocked = unlockedRowId === op.id || op.id.startsWith('new-');
+                const isRowActive = focusedCell?.rowId === op.id || isUnlocked;
                 return (
                   <tr 
                     key={op.id}
@@ -848,8 +855,9 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                     className={`
                       group relative transition-all h-10 border-b ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200'}
                       ${isRowActive 
-                         ? (isDarkMode ? 'bg-emerald-900/40 border-emerald-500/50' : 'bg-emerald-100/60 border-emerald-300')
+                         ? (isDarkMode ? 'bg-emerald-900/40 border-y-emerald-500/50' : 'bg-emerald-50/80 border-y-emerald-400')
                          : (isDarkMode ? 'bg-slate-950 hover:bg-slate-800' : 'bg-white hover:bg-slate-50')}
+                      ${isUnlocked ? 'shadow-[0_0_15px_rgba(16,185,129,0.15)] z-10' : ''}
                     `}
                   >
                     {COLUMNS.map((col, cIdx) => {
@@ -904,10 +912,11 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                       }
 
                       if (col.key === 'actions') {
+                        const isUnlocked = unlockedRowId === op.id;
                         return (
                           <td 
                             key={`${op.id}-actions`}
-                            className={`p-0 relative h-10 text-center pointer-events-auto actions-container border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}
+                            className={`p-0 relative h-10 text-center pointer-events-auto actions-container border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} `}
                           >
                             <div className="flex items-center justify-center w-full h-full gap-1">
                               {op.id.startsWith('new-') ? (
@@ -921,7 +930,41 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                                 >
                                   <Save size={14} />
                                 </button>
-                              ) : null}
+                              ) : isUnlocked ? (
+                                <>
+                                  <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSaveExistingOperator(op);
+                                    }}
+                                    className={`p-1 rounded-md transition-all active:scale-95 ${isDarkMode ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'}`}
+                                    title="Salvar"
+                                  >
+                                    <Save size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCancelEdit(op.id);
+                                    }}
+                                    className={`p-1 rounded-md transition-all active:scale-95 ${isDarkMode ? 'bg-slate-500/20 text-slate-400 hover:bg-slate-500/30' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                                    title="Cancelar (Esc)"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </>
+                              ) : (
+                                <button 
+                                  onClick={(e) => {
+                                      e.stopPropagation();
+                                      setUnlockedRowId(op.id);
+                                  }}
+                                  className={`p-1.5 rounded-md transition-all hover:bg-blue-500/20 text-blue-500 active:scale-95`}
+                                  title="Editar"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                              )}
                               <button 
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -1265,7 +1308,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       
       <div className={`relative w-full max-w-sm max-h-[85vh] flex flex-col rounded shadow-2xl overflow-hidden border animate-in zoom-in-95 duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
@@ -1495,9 +1538,9 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
         {/* CONTEXT MENU */}
         {contextMenu && (
           <>
-            <div className="fixed inset-0 z-[110]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
+            <div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
             <div 
-              className={`fixed z-[120] w-36 py-1 rounded shadow-xl border animate-in fade-in zoom-in-95 duration-100 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}
+              className={`fixed z-[9999] w-36 py-1 rounded shadow-xl border animate-in fade-in zoom-in-95 duration-100 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >
               {[
