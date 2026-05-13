@@ -78,9 +78,10 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                 
                 // Set airline code automatically if unknown or general
                 if (!autoAirlineCode || autoAirlineCode === 'OUTRA') {
-                    if (match.airline === 'GOL') autoAirlineCode = 'RG';
-                    else if (match.airline === 'LATAM') autoAirlineCode = 'LA';
-                    else if (match.airline === 'AZUL') autoAirlineCode = 'AD';
+                    const airlineUpper = match.airline.toUpperCase();
+                    if (airlineUpper.includes('GOL')) autoAirlineCode = 'RG';
+                    else if (airlineUpper.includes('LATAM')) autoAirlineCode = 'LA';
+                    else if (airlineUpper.includes('AZUL')) autoAirlineCode = 'AD';
                     else autoAirlineCode = match.airline.slice(0, 3).toUpperCase();
                 }
             }
@@ -91,9 +92,10 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
                 autoModel = matchExact.model && matchExact.model !== '--' ? matchExact.model : autoModel;
                 
                 if (!autoAirlineCode || autoAirlineCode === 'OUTRA') {
-                    if (matchExact.airline === 'GOL') autoAirlineCode = 'RG';
-                    else if (matchExact.airline === 'LATAM') autoAirlineCode = 'LA';
-                    else if (matchExact.airline === 'AZUL') autoAirlineCode = 'AD';
+                    const airlineUpperExact = matchExact.airline.toUpperCase();
+                    if (airlineUpperExact.includes('GOL')) autoAirlineCode = 'RG';
+                    else if (airlineUpperExact.includes('LATAM')) autoAirlineCode = 'LA';
+                    else if (airlineUpperExact.includes('AZUL')) autoAirlineCode = 'AD';
                     else autoAirlineCode = matchExact.airline.slice(0, 3).toUpperCase();
                 }
             }

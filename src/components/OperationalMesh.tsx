@@ -297,9 +297,10 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                 autoModel = '';
             }
             
-            if (attemptMatch.airline === 'GOL') autoAirlineCode = 'RG';
-            else if (attemptMatch.airline === 'LATAM') autoAirlineCode = 'LA';
-            else if (attemptMatch.airline === 'AZUL') autoAirlineCode = 'AD';
+            const airlineUpper = attemptMatch.airline.toUpperCase();
+            if (airlineUpper.includes('GOL')) autoAirlineCode = 'RG';
+            else if (airlineUpper.includes('LATAM')) autoAirlineCode = 'LA';
+            else if (airlineUpper.includes('AZUL')) autoAirlineCode = 'AD';
             else if (attemptMatch.airline) autoAirlineCode = attemptMatch.airline.slice(0, 3).toUpperCase();
         } else if (cleanInput.length >= 3) {
             autoModel = '';
@@ -515,10 +516,21 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
     const inconsistent = unsyncedFlights.filter(f => !getFlightErrors(f).isValid);
 
     if (readyToSync.length === 0) {
+        let advice = "Corrija as duplicatas e campos obrigatórios (marcados em vermelho/laranja) para prosseguir.";
+        const firstUnsynced = unsyncedFlights[0];
+        if (firstUnsynced) {
+            const errs = getFlightErrors(firstUnsynced);
+            if (errs.isIncomplete) {
+                advice = `Exemplo: O voo ${firstUnsynced.departureFlightNumber} está incompleto ou sem prefixo.`;
+            } else if (errs.isDuplicated) {
+                advice = `Exemplo: O voo ${firstUnsynced.departureFlightNumber} está duplicado.`;
+            }
+        }
+
         setAlertState({
             isOpen: true, 
             title: 'Nenhum Voo Pronto', 
-            message: 'Não há voos prontos para sincronização. Corrija as duplicatas e campos obrigatórios (marcados em vermelho/laranja) para prosseguir.'
+            message: `Não há voos prontos para sincronização. ${advice}`
         });
         return;
     }
@@ -894,7 +906,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                 <button
                   key={shift}
                   onClick={() => setActiveShift(shift)}
-                  className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${activeShift === shift ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-emerald-100/60 hover:text-white hover:bg-white/10'}`}
+                  className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${activeShift === shift ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
                 >
                   {shift}
                 </button>
@@ -904,24 +916,26 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
             <div className="h-5 w-px bg-white/10 mx-1 hidden md:block" />
 
             {/* Status Integrity Selector - COMPACT */}
-            <div className="flex items-center gap-1 p-0.5 rounded-md">
+            <div className="flex items-center gap-0.5 bg-black/20 p-0.5 rounded-md border border-white/5">
               {[
                 { id: 'ALL', label: 'TUDO', count: totalCount, dot: null },
-                { id: 'READY', label: 'PRONTOS', count: readyCount, dot: 'bg-emerald-500' },
-                { id: 'ERROR', label: 'PENDENTES', count: pendingCount, dot: 'bg-amber-500' }
+                { id: 'READY', label: 'PRONTOS', count: readyCount, dot: 'bg-emerald-400' },
+                { id: 'ERROR', label: 'PENDENTES', count: pendingCount, dot: 'bg-amber-400' }
               ].map(f => (
                 <button
                   key={f.id}
                   onClick={() => setReadyStateFilter(f.id as any)}
-                  className={`flex flex-col items-center justify-center px-1.5 py-0.5 rounded transition-all min-w-[50px] bg-white ${
-                    readyStateFilter === f.id ? 'shadow bg-white ring-2 ring-emerald-500 text-slate-900 border-none' : 'shadow-sm text-slate-400 border border-slate-200 hover:bg-slate-50'
+                  className={`flex flex-col items-center justify-center px-3 py-1 rounded transition-all min-w-[64px] ${
+                    readyStateFilter === f.id 
+                      ? 'bg-white/20 text-white shadow-sm' 
+                      : 'text-white/50 hover:text-white/80 hover:bg-white/5'
                   }`}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 leading-none">
                     {f.dot && <div className={`w-1.5 h-1.5 rounded-full ${f.dot}`} />}
-                    <span className="text-[10px] font-black uppercase tracking-widest">{f.label}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{f.label}</span>
                   </div>
-                  <span className={`text-[10px] font-mono font-bold leading-none mt-0.5 ${readyStateFilter === f.id ? 'text-slate-600' : 'text-slate-500'}`}>{f.count || 0}</span>
+                  <span className={`text-[10px] font-mono leading-none mt-1 ${readyStateFilter === f.id ? 'text-white/90' : 'text-white/40'}`}>{f.count || 0}</span>
                 </button>
               ))}
             </div>

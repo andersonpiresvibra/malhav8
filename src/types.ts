@@ -200,7 +200,6 @@ export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'R
 
 export interface AircraftType {
   id: string;
-  manufacturer: string;
   model: string;
   prefix: string;
   airline: string;

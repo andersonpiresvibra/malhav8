@@ -61,7 +61,6 @@ CREATE TABLE operators (
 -- 3. AIRCRAFTS TABLE
 CREATE TABLE aircrafts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    manufacturer VARCHAR(100),
     model VARCHAR(50) NOT NULL,
     prefix VARCHAR(20) UNIQUE NOT NULL,
     airline VARCHAR(100) NOT NULL,

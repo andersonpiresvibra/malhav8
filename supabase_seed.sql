@@ -47,52 +47,65 @@ INSERT INTO vehicles (fleet_number, type, capacity, status) VALUES
 ('1517', 'CTA', 20000, 'DISPONÍVEL');
 
 -- Inserindo Aeronaves GOL (B737-7)
-INSERT INTO aircrafts (manufacturer, model, prefix, airline) VALUES 
-('Boeing', 'B737-7', 'PR-GEA', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GEC', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GED', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GEH', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GEI', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GEJ', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GEK', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GEQ', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GIH', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GOQ', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-GOR', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-7', 'PR-VBQ', 'Gol Linhas Aéreas');
+INSERT INTO aircrafts (model, prefix, airline) VALUES 
+('B737-7', 'PR-GEA', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GEC', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GED', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GEH', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GEI', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GEJ', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GEK', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GEQ', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GIH', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GOQ', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-GOR', 'Gol Linhas Aéreas'),
+('B737-7', 'PR-VBQ', 'Gol Linhas Aéreas');
 
--- Inserindo Aeronaves GOL (B737-8) - Lote 1
-INSERT INTO aircrafts (manufacturer, model, prefix, airline) VALUES 
-('Boeing', 'B737-8', 'PR-GGE', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGF', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGH', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGL', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGM', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGP', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGQ', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGR', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GGX', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GKA', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GKB', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GKC', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GKD', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GKE', 'Gol Linhas Aéreas');
+-- Inserindo Aeronaves GOL (B737-8)
+INSERT INTO aircrafts (model, prefix, airline) VALUES 
+('B737-8', 'PR-GGE', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGF', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGH', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGL', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGM', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGP', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGQ', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGR', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GGX', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GKA', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GKB', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GKC', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GKD', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GKE', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GTC', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GTE', 'Gol Linhas Aéreas'),
+('B737-8', 'PR-GTG', 'Gol Linhas Aéreas');
 
--- Lote 2 B737-8
-INSERT INTO aircrafts (manufacturer, model, prefix, airline) VALUES 
-('Boeing', 'B737-8', 'PR-GTC', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GTE', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GTG', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GTH', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GTL', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GTM', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GUB', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GUC', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GUE', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GUF', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GUH', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GUI', 'Gol Linhas Aéreas'),
-('Boeing', 'B737-8', 'PR-GUJ', 'Gol Linhas Aéreas');
+-- Inserindo Aeronaves LATAM (A319, A320, A321)
+INSERT INTO aircrafts (model, prefix, airline) VALUES 
+('A319', 'PT-TMA', 'LATAM'),
+('A319', 'PT-TMB', 'LATAM'),
+('A319', 'PT-TMC', 'LATAM'),
+('A320', 'PR-TYA', 'LATAM'),
+('A320', 'PR-TYB', 'LATAM'),
+('A320', 'PR-TYC', 'LATAM'),
+('A320', 'PR-TYD', 'LATAM'),
+('A320', 'PR-TYE', 'LATAM'),
+('A320', 'PR-TYF', 'LATAM'),
+('A320', 'PR-TYG', 'LATAM'),
+('A321', 'PT-MXA', 'LATAM'),
+('A321', 'PT-MXB', 'LATAM'),
+('A321', 'PT-MXC', 'LATAM'),
+('A321', 'PT-MXD', 'LATAM'),
+('A321', 'PT-MXE', 'LATAM'),
+('A321', 'PT-MXF', 'LATAM'),
+('A321', 'PT-MXG', 'LATAM'),
+('A321', 'PT-MXH', 'LATAM'),
+('B777', 'PT-MUA', 'LATAM'),
+('B777', 'PT-MUB', 'LATAM'),
+('B777', 'PT-MUC', 'LATAM'),
+('B787', 'PS-LAA', 'LATAM'),
+('B787', 'PS-LAB', 'LATAM');
 
 -- Inserindo Alguns Operadores para Teste Inicial
 INSERT INTO operators (full_name, war_name, vest_number, status, category, shift_cycle, fleet_capability) VALUES 

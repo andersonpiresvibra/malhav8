@@ -42,7 +42,6 @@
 
 **`aircrafts`** (Aeronaves por companhia aérea)
 - `id`: UUID (PK)
-- `manufacturer`: VARCHAR
 - `model`: VARCHAR
 - `prefix`: VARCHAR (Registro da aeronave)
 - `airline`: VARCHAR (Código da Companhia)

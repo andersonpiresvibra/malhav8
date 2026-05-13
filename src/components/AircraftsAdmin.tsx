@@ -83,7 +83,6 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     const newAircraft: AircraftType = {
         id: tempId,
         airline: activeAirline,
-        manufacturer: '--',
         model: '--',
         prefix: 'NEW-PX',
         missing_cap: false,
@@ -98,7 +97,6 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     try {
         const { data, error } = await supabase.from('aircrafts').insert({
             airline: newAircraft.airline,
-            manufacturer: newAircraft.manufacturer,
             model: newAircraft.model,
             prefix: newAircraft.prefix,
             missing_cap: newAircraft.missing_cap,
@@ -250,7 +248,6 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
           aircraftsMap.set(prefix, {
               prefix,
               airline,
-              manufacturer: '--',
               model,
               missing_cap: checkBoolean(missingCapRaw),
               defective_door: checkBoolean(defDoorRaw),

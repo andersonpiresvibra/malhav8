@@ -5,7 +5,6 @@ DROP TABLE IF EXISTS public.aircrafts;
 CREATE TABLE public.aircrafts (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    manufacturer TEXT DEFAULT '--'::text NOT NULL,
     model TEXT DEFAULT '--'::text NOT NULL,
     prefix TEXT NOT NULL UNIQUE,
     airline TEXT NOT NULL,

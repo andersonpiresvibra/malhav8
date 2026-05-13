@@ -455,8 +455,10 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         if (filterCategory === 'LT') {
           if (o.isLT !== 'SIM') return false;
         } else {
-          const cat = o.category?.toUpperCase() || '';
-          if (!cat.includes(filterCategory)) return false;
+          const role = o.role?.toUpperCase() || '';
+          if (filterCategory === 'JUNIOR' && !role.includes('JR')) return false;
+          if (filterCategory === 'PLENO' && !role.includes('PL')) return false;
+          if (filterCategory === 'SENIOR' && !role.includes('SR')) return false;
         }
       }
 
@@ -687,9 +689,9 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
       <div className="flex items-center gap-4 h-full">
           {/* Filters */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <select 
-            className="bg-black/20 hover:bg-black/40 border border-white/10 rounded-md text-[9px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer"
+            className="bg-transparent hover:bg-white/10 border border-white/20 rounded text-[10px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer transition-colors"
             value={filterShift}
             onChange={e => setFilterShift(e.target.value)}
           >
@@ -700,7 +702,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           </select>
           
           <select 
-            className="bg-black/20 hover:bg-black/40 border border-white/10 rounded-md text-[9px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer"
+            className="bg-transparent hover:bg-white/10 border border-white/20 rounded text-[10px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer transition-colors"
             value={filterCategory}
             onChange={e => setFilterCategory(e.target.value)}
           >
@@ -712,7 +714,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           </select>
 
           <select 
-            className="bg-black/20 hover:bg-black/40 border border-white/10 rounded-md text-[9px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer"
+            className="bg-transparent hover:bg-white/10 border border-white/20 rounded text-[10px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer transition-colors"
             value={filterPatio}
             onChange={e => setFilterPatio(e.target.value)}
           >
@@ -722,7 +724,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           </select>
 
           <select 
-            className="bg-black/20 hover:bg-black/40 border border-white/10 rounded-md text-[9px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer"
+            className="bg-transparent hover:bg-white/10 border border-white/20 rounded text-[10px] text-white font-bold uppercase h-7 px-2 outline-none cursor-pointer transition-colors"
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
           >
@@ -735,13 +737,13 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
         {/* Search Engine - COMPACT */}
         <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={13} className={`${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-emerald-700'} transition-colors`} />
+          <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+            <Search size={13} className={`text-white/40 group-focus-within:text-white transition-colors`} />
           </div>
           <input 
             type="text" 
             placeholder="PESQUISAR OPERADOR..." 
-            className={`border rounded-lg text-[10px] uppercase w-56 pl-9 pr-3 h-9 tracking-widest outline-none transition-all ${isDarkMode ? 'bg-black/20 border-white/10 text-white placeholder:text-white/20 font-bold focus:ring-1 focus:ring-amber-500/50' : 'bg-white border-transparent text-slate-800 placeholder:text-slate-400 font-extrabold focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-inner'}`}
+            className={`bg-transparent hover:bg-white/5 border border-white/20 focus:border-white/40 rounded text-[10px] text-white placeholder:text-white/40 font-bold uppercase w-56 pl-8 pr-3 h-7 tracking-widest outline-none transition-colors`}
             value={searchTerm}
             onClick={() => { setFocusedCell(null); setEditingCell(null); setUnlockedRowId(null); }}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -750,7 +752,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
         <button 
             onClick={fetchOperators}
-            className={`flex items-center gap-2 p-2 rounded-md transition-all font-bold uppercase tracking-wider text-[11px] bg-black/20 hover:bg-black/40 text-white border border-transparent hover:border-white/10`}
+            className={`flex items-center justify-center w-7 h-7 rounded transition-all bg-transparent hover:bg-white/10 text-white border border-white/20 outline-none cursor-pointer`}
             title="Recarregar do banco"
         >
             <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
@@ -759,7 +761,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         <div className="relative" ref={optionsMenuRef}>
           <button 
             onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-900 active:scale-95 border border-[#FEDC00]`}
+            className={`flex items-center gap-1.5 px-3 h-7 rounded transition-all font-bold uppercase tracking-wider text-[10px] ${showOptionsDropdown ? 'bg-white/20 text-white' : 'bg-transparent text-white hover:bg-white/10'} border border-white/20 outline-none cursor-pointer`}
           >
             <Settings size={14} className={showOptionsDropdown ? 'animate-spin-slow' : ''} />
             <span>OPÇÕES</span>
