@@ -154,10 +154,10 @@ const formatImportTime = (rawVal: string) => {
 
 const COLUMNS: { key: MeshField; label: string; width: string; isVariable: boolean }[] = [
   { key: 'airline', label: 'Cia', width: 'w-24', isVariable: false },
-  { key: 'flightNumber', label: 'V.Cheg', width: 'w-24', isVariable: false },
+  { key: 'flightNumber', label: 'V.Cheg', width: 'w-24', isVariable: true },
   { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-24', isVariable: false },
   { key: 'destination', label: 'Destino', width: 'w-24', isVariable: false },
-  { key: 'etd', label: 'ETD', width: 'w-20', isVariable: false },
+  { key: 'etd', label: 'ETD', width: 'w-20', isVariable: true },
   { key: 'registration', label: 'Prefixo', width: 'w-28', isVariable: true },
   { key: 'model', label: 'Modelo', width: 'w-24', isVariable: false },
   { key: 'eta', label: 'ETA', width: 'w-24', isVariable: true },
