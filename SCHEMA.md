@@ -40,6 +40,18 @@
 - `type`: VARCHAR (Tipo de implemento e vazão por minuto)
 - `status`: VARCHAR 
 
+**`aircrafts`** (Aeronaves por companhia aérea)
+- `id`: UUID (PK)
+- `manufacturer`: VARCHAR
+- `model`: VARCHAR
+- `prefix`: VARCHAR (Registro da aeronave)
+- `airline`: VARCHAR (Código da Companhia)
+- `missing_cap`: BOOLEAN (Sem tampa do bocal)
+- `defective_door`: BOOLEAN (Portinhola com defeito)
+- `defective_panel`: BOOLEAN (Painel preset com defeito)
+- `no_autocut`: BOOLEAN (Falha no corte automático)
+- `observations`: TEXT (Observações em geral)
+
 **`flights` / `flight_assignments`**
 - Intercepta tráfego aéreo e associa *quem*, atende *qual voo*, *quando* e *onde*, juntando as PKs de opererators e vehicles sobre a malha de vôos provisionada pelo aeroporto ou coordenação manual.
 

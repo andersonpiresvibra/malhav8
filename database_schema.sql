@@ -65,6 +65,11 @@ CREATE TABLE aircrafts (
     model VARCHAR(50) NOT NULL,
     prefix VARCHAR(20) UNIQUE NOT NULL,
     airline VARCHAR(100) NOT NULL,
+    missing_cap BOOLEAN DEFAULT false,
+    defective_door BOOLEAN DEFAULT false,
+    defective_panel BOOLEAN DEFAULT false,
+    no_autocut BOOLEAN DEFAULT false,
+    observations TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -204,6 +204,11 @@ export interface AircraftType {
   model: string;
   prefix: string;
   airline: string;
+  missing_cap?: boolean;
+  defective_door?: boolean;
+  defective_panel?: boolean;
+  no_autocut?: boolean;
+  observations?: string;
 }
 
 export interface StaticFlight {

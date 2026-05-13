@@ -8,13 +8,18 @@ interface AircraftsAdminProps {
   isDarkMode: boolean;
 }
 
-type AircraftField = 'airline' | 'model' | 'prefix' | 'actions';
+type AircraftField = 'airline' | 'model' | 'prefix' | 'missing_cap' | 'defective_door' | 'defective_panel' | 'no_autocut' | 'observations' | 'actions';
 
 const COLUMNS: { key: AircraftField; label: string; width: string; isVariable: boolean }[] = [
   { key: 'airline', label: 'Logo', width: 'w-16', isVariable: false },
   { key: 'airline', label: 'Comp.', width: 'w-24', isVariable: true },
   { key: 'model', label: 'Modelo', width: 'w-32', isVariable: true },
   { key: 'prefix', label: 'Prefixo', width: 'w-32', isVariable: true },
+  { key: 'missing_cap', label: 'S/ Tampa', width: 'w-24', isVariable: true },
+  { key: 'defective_door', label: 'Portinhola Defeito', width: 'w-32', isVariable: true },
+  { key: 'defective_panel', label: 'Painel Defeito', width: 'w-28', isVariable: true },
+  { key: 'no_autocut', label: 'Falha Corte', width: 'w-28', isVariable: true },
+  { key: 'observations', label: 'Observações', width: 'w-48', isVariable: true },
   { key: 'actions', label: 'Ações', width: 'w-20', isVariable: false },
 ];
 
@@ -73,7 +78,12 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         airline: activeAirline,
         manufacturer: '--',
         model: '--',
-        prefix: 'NEW-PX'
+        prefix: 'NEW-PX',
+        missing_cap: false,
+        defective_door: false,
+        defective_panel: false,
+        no_autocut: false,
+        observations: ''
     };
     
     setAircrafts([...aircrafts, newAircraft]);
@@ -83,17 +93,26 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
             airline: newAircraft.airline,
             manufacturer: newAircraft.manufacturer,
             model: newAircraft.model,
-            prefix: newAircraft.prefix
+            prefix: newAircraft.prefix,
+            missing_cap: newAircraft.missing_cap,
+            defective_door: newAircraft.defective_door,
+            defective_panel: newAircraft.defective_panel,
+            no_autocut: newAircraft.no_autocut,
+            observations: newAircraft.observations
         }).select().single();
         
+        if (error) {
+            alert(`Erro ao criar aeronave: ${error.message}`);
+            setAircrafts(prev => prev.filter(a => a.id !== tempId));
+            return;
+        }
+
         if (data) {
             setAircrafts(prev => prev.map(a => a.id === tempId ? data as AircraftType : a));
-        } else if (error) {
-            console.error(error);
-            setAircrafts(prev => prev.filter(a => a.id !== tempId));
+            setEditingCell({ rowId: data.id, col: 1 });
         }
-    } catch (e) {
-        console.error(e);
+    } catch (e: any) {
+        alert(`Exceção ao criar aeronave: ${e.message}`);
         setAircrafts(prev => prev.filter(a => a.id !== tempId));
     }
   };
@@ -148,7 +167,11 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     if (id.startsWith('temp-')) return;
     
     try {
-        await supabase.from('aircrafts').update({ [field]: value }).eq('id', id);
+        const { error } = await supabase.from('aircrafts').update({ [field]: value }).eq('id', id);
+        if (error) {
+            console.error(error);
+            alert(`Erro ao atualizar aeronave: ${error.message}`);
+        }
         
         // Re-calculate airlines if airline changed
         if (field === 'airline') {
@@ -291,29 +314,49 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
 
                                         const value = aircraft[col.key as keyof AircraftType];
                                         const isEditingObj = editingCell?.rowId === aircraft.id && editingCell?.col === colIndex;
+                                        const isBooleanField = ['missing_cap', 'defective_door', 'defective_panel', 'no_autocut'].includes(col.key);
                                         
+                                        if (isBooleanField) {
+                                            return (
+                                                <td key={`${aircraft.id}-${col.key}-${colIndex}`} className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center align-middle`}>
+                                                    <div className="flex items-center justify-center">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={!!value}
+                                                            onChange={(e) => handleUpdateField(aircraft.id, col.key as keyof AircraftType, e.target.checked)}
+                                                            className={`w-4 h-4 rounded cursor-pointer ${isDarkMode ? 'accent-emerald-500 bg-slate-900 border-slate-700' : 'accent-[#329858] bg-white border-slate-300'}`}
+                                                        />
+                                                    </div>
+                                                </td>
+                                            );
+                                        }
+
                                         // Conditional styles based on column
                                         const extraStyle = col.key === 'prefix' ? (isDarkMode ? 'text-emerald-500 tracking-tighter' : 'text-emerald-600 tracking-tighter') : '';
+                                        const alignStyle = col.key === 'observations' ? 'text-left px-2' : 'text-center';
 
                                         return (
                                             <td 
                                                 key={`${aircraft.id}-${col.key}-${colIndex}`} 
-                                                className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20 text-slate-300' : 'border-slate-200 bg-white group-hover:bg-slate-50 text-slate-700'} text-center relative cursor-text align-middle transition-colors`}
+                                                className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20 text-slate-300' : 'border-slate-200 bg-white group-hover:bg-slate-50 text-slate-700'} ${alignStyle} relative cursor-text align-middle transition-colors`}
                                                 onClick={() => setEditingCell({ rowId: aircraft.id, col: colIndex })}
                                             >
                                                 {isEditingObj ? (
                                                     <input 
                                                         autoFocus
                                                         value={value as string || ''}
-                                                        onChange={(e) => handleUpdateField(aircraft.id, col.key as keyof AircraftType, e.target.value.toUpperCase())}
+                                                        onChange={(e) => {
+                                                            const val = col.key === 'observations' ? e.target.value : e.target.value.toUpperCase();
+                                                            handleUpdateField(aircraft.id, col.key as keyof AircraftType, val);
+                                                        }}
                                                         onBlur={() => setEditingCell(null)}
                                                         onKeyDown={(e) => {
                                                             if (e.key === 'Enter' || e.key === 'Escape') setEditingCell(null);
                                                         }}
-                                                        className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold text-center outline-none focus:ring-1 uppercase ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
+                                                        className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold ${alignStyle} outline-none focus:ring-1 ${col.key !== 'observations' ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
                                                     />
                                                 ) : (
-                                                    <div className={`font-mono text-[11px] font-bold w-full uppercase flex items-center justify-center min-h-[24px] ${extraStyle}`}>
+                                                    <div className={`font-mono text-[11px] font-bold w-full ${col.key !== 'observations' ? 'uppercase justify-center' : 'justify-start'} flex items-center min-h-[24px] ${extraStyle}`}>
                                                         {value || '--'}
                                                     </div>
                                                 )}

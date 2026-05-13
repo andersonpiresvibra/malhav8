@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Table, Database, FileBarChart, Network, Settings, ChevronRight, Clock } from 'lucide-react';
+import { LayoutDashboard, Users, Table, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Table size={16} /> Frotas
+                <BusFront size={16} /> Frotas
              </button>
              <button
                 onClick={() => {
@@ -128,7 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Table size={16} /> Aeronaves
+                <Plane size={16} /> Aeronaves
              </button>
 
              {process.env.NODE_ENV !== 'production' && onSimulateEndOfDay && (
