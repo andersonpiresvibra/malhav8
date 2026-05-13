@@ -274,13 +274,16 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
 
             <div className="flex items-center gap-4">
                 <div className="relative group">
-                    <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-emerald-700'} transition-colors`} />
+                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <Search size={13} className={`${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-[#3CA317]'} transition-colors`} />
+                    </div>
                     <input 
                         type="text" 
                         placeholder="PESQUISAR..." 
-                        className={`border rounded-lg pl-9 pr-4 h-9 text-[10px] outline-none w-56 font-extrabold tracking-widest transition-all ${
-                            isDarkMode ? 'bg-black/20 border-white/10 text-white placeholder:text-white/20 focus:ring-1 focus:border-emerald-500/50' : 'bg-white border-transparent text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-inner'
-                        }`} 
+                        className={`border rounded text-[10px] uppercase w-56 pl-8 pr-3 h-7 tracking-widest outline-none transition-colors font-bold ${isDarkMode 
+                            ? 'bg-transparent hover:bg-white/5 border-white/20 focus:border-white/40 text-white placeholder:text-white/40' 
+                            : 'bg-white border-transparent text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-[#3CA317]/50 focus:border-[#3CA317]'
+                        }`}
                         value={searchTerm} 
                         onChange={(e) => setSearchTerm(e.target.value)} 
                     />

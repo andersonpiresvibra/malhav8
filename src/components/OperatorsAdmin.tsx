@@ -738,12 +738,15 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         {/* Search Engine - COMPACT */}
         <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-            <Search size={13} className={`text-white/40 group-focus-within:text-white transition-colors`} />
+            <Search size={13} className={`${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-[#3CA317]'} transition-colors`} />
           </div>
           <input 
             type="text" 
             placeholder="PESQUISAR OPERADOR..." 
-            className={`bg-transparent hover:bg-white/5 border border-white/20 focus:border-white/40 rounded text-[10px] text-white placeholder:text-white/40 font-bold uppercase w-56 pl-8 pr-3 h-7 tracking-widest outline-none transition-colors`}
+            className={`border rounded text-[10px] uppercase w-56 pl-8 pr-3 h-7 tracking-widest outline-none transition-colors font-bold ${isDarkMode 
+              ? 'bg-transparent hover:bg-white/5 border-white/20 focus:border-white/40 text-white placeholder:text-white/40' 
+              : 'bg-white border-transparent text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-[#3CA317]/50 focus:border-[#3CA317]'
+            }`}
             value={searchTerm}
             onClick={() => { setFocusedCell(null); setEditingCell(null); setUnlockedRowId(null); }}
             onChange={(e) => setSearchTerm(e.target.value)}
