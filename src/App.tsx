@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo } from
 import { ViewState, FlightData, Vehicle } from './types';
 
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from './data/operationalMesh';
+import { getLocalTodayDateStr } from './utils/shiftUtils';
 import { DashboardHeader } from './components/DashboardHeader';
 import { Spinner } from './components/ui/Spinner';
 import { useTheme } from './contexts/ThemeContext';
@@ -93,7 +94,7 @@ const App: React.FC = () => {
 
   const [meshFlightsByDate, setMeshFlightsByDate] = useState<Record<string, MeshFlight[]>>(() => {
     const saved = localStorage.getItem('meshFlightsByDate');
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalTodayDateStr();
     
     let loadedData: Record<string, MeshFlight[]> | null = null;
     if (saved) {
@@ -140,7 +141,7 @@ const App: React.FC = () => {
   }, [rootMeshFlights]);
 
   const [currentMeshDate, setCurrentMeshDate] = useState<string>(
-      () => new Date().toISOString().split('T')[0]
+      () => getLocalTodayDateStr()
   );
   
   const meshFlights = meshFlightsByDate[currentMeshDate] || INITIAL_MESH_FLIGHTS.map((f, i) => ({
@@ -263,7 +264,7 @@ const App: React.FC = () => {
         })));
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Fechamento');
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalTodayDateStr();
         XLSX.writeFile(workbook, `Fechamento_Diario_Voos_${todayStr}.xlsx`);
       } catch (err) {
         console.error("Erro exportando excel", err);

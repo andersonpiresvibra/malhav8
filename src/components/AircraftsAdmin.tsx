@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Database, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Database, RefreshCw, Upload, Info } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { AirlineLogo } from './AirlineLogo';
 import { AircraftType } from '../types';
@@ -30,7 +31,13 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   const [airlines, setAirlines] = useState<string[]>([]);
   const [activeAirline, setActiveAirline] = useState<string>('');
   const [showNewAirlineModal, setShowNewAirlineModal] = useState(false);
+  const [showImportInstructions, setShowImportInstructions] = useState(false);
   const [newAirlineName, setNewAirlineName] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [feedback, setFeedback] = useState<{ msg: string; isError: boolean } | null>(null);
+  const [confirmDeleteAirline, setConfirmDeleteAirline] = useState<string | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
 
@@ -102,7 +109,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         }).select().single();
         
         if (error) {
-            alert(`Erro ao criar aeronave: ${error.message}`);
+            setFeedback({ msg: `Erro ao criar aeronave: ${error.message}`, isError: true });
             setAircrafts(prev => prev.filter(a => a.id !== tempId));
             return;
         }
@@ -112,30 +119,33 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
             setEditingCell({ rowId: data.id, col: 1 });
         }
     } catch (e: any) {
-        alert(`Exceção ao criar aeronave: ${e.message}`);
+        setFeedback({ msg: `Exceção ao criar aeronave: ${e.message}`, isError: true });
         setAircrafts(prev => prev.filter(a => a.id !== tempId));
     }
   };
 
   const handleDeleteAirline = async (airlineCode: string) => {
-    // update local state
-    setAircrafts(prev => prev.filter(a => a.airline !== airlineCode));
-    const newAirlines = airlines.filter(a => a !== airlineCode);
-    setAirlines(newAirlines);
-    if (newAirlines.length > 0) {
-        setActiveAirline(newAirlines[0]);
-    } else {
-        setActiveAirline('');
-    }
-
     try {
         const { error } = await supabase.from('aircrafts').delete().eq('airline', airlineCode);
+        
         if (error) {
             console.error('Error deleting airline', error);
-            fetchAircrafts(); // rollback na interface se houver erro
+            setFeedback({ msg: `Erro ao excluir a companhia: ${error.message}`, isError: true });
+            return;
         }
-    } catch(e) {
+
+        // update local state
+        setAircrafts(prev => prev.filter(a => a.airline !== airlineCode));
+        const newAirlines = airlines.filter(a => a !== airlineCode);
+        setAirlines(newAirlines);
+        if (newAirlines.length > 0) {
+            setActiveAirline(newAirlines[0]);
+        } else {
+            setActiveAirline('');
+        }
+    } catch(e: any) {
         console.error(e);
+        setFeedback({ msg: `Ocorreu um erro inesperado ao excluir. ${e?.message || ''}`, isError: true });
         fetchAircrafts();
     }
   };
@@ -170,7 +180,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         const { error } = await supabase.from('aircrafts').update({ [field]: value }).eq('id', id);
         if (error) {
             console.error(error);
-            alert(`Erro ao atualizar aeronave: ${error.message}`);
+            setFeedback({ msg: `Erro ao atualizar aeronave: ${error.message}`, isError: true });
         }
         
         // Re-calculate airlines if airline changed
@@ -184,6 +194,161 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     } catch (e) {
         console.error(e);
         fetchAircrafts();
+    }
+  };
+
+    const processImport = async (data: any[]) => {
+      setIsImporting(true);
+      
+      const aircraftsMap = new Map<string, any>();
+      let missingPrefixCount = 0;
+
+      for (const row of data) {
+          // Helper OBRIGATÓRIO (Extremamente robusto):
+          // Ignora acentos, espaços de entrelinhas, underscores (_) ou hifens (-).
+          // Tudo é reduzido a apenas letras (A-Z) para não haver MAIS ERROS.
+          const getVal = (possibleKeys: string[]) => {
+              for (const key of Object.keys(row)) {
+                  // Limpa: 'S_TAMPA' -> 'STAMPA', 'PORTINHOLA_DEFEITO' -> 'PORTINHOLADEFEITO'
+                  const cleanKey = key.toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z]/g, '');
+                  if (possibleKeys.includes(cleanKey)) {
+                      return row[key];
+                  }
+              }
+              return undefined;
+          };
+
+          const prefixRaw = getVal(['PREFIXO', 'PREFRES', 'MATRICULA']);
+          const airlineRaw = getVal(['COMPANHIA', 'EMPRESA', 'CIA']);
+          const modelRaw = getVal(['MODELO', 'EQUIPAMENTO']);
+          const missingCapRaw = getVal(['STAMPA', 'SEMTAMPA', 'TAMPA']);
+          const defDoorRaw = getVal(['PORTINHOLADEFEITO', 'PORTINHOLA', 'DEFEITOPORTINHOLA']);
+          const defPanelRaw = getVal(['PAINELDEFEITO', 'PAINEL', 'DEFEITOPAINEL']);
+          const noAutocutRaw = getVal(['FALHACORTE', 'CORTE', 'NAOCORTA']);
+          const obsRaw = getVal(['OBSERVACOES', 'OBSERVACAO', 'OBS']);
+
+          const prefix = prefixRaw?.toString().toUpperCase().trim();
+          
+          if (!prefix) {
+              missingPrefixCount++;
+              continue;
+          }
+
+          let airline = airlineRaw?.toString().toUpperCase().trim();
+          if (!airline && activeAirline) airline = activeAirline.toUpperCase().trim();
+          if (!airline) airline = 'OUTRA'; // Fallback absoluto
+
+          const model = modelRaw?.toString().toUpperCase().trim() || '--';
+          
+          // Função helper para tratar valores Booleanos/Checkbox (Aceita SIM, S, TRUE, 1, X)
+          const checkBoolean = (val: any) => {
+              if (val === true || val === 1) return true;
+              const str = val?.toString().toUpperCase().trim();
+              return str === 'SIM' || str === 'S' || str === 'TRUE' || str === '1' || str === 'X';
+          };
+
+          aircraftsMap.set(prefix, {
+              prefix,
+              airline,
+              manufacturer: '--',
+              model,
+              missing_cap: checkBoolean(missingCapRaw),
+              defective_door: checkBoolean(defDoorRaw),
+              defective_panel: checkBoolean(defPanelRaw),
+              no_autocut: checkBoolean(noAutocutRaw),
+              observations: obsRaw?.toString().trim() || ''
+          });
+      }
+
+      const aircraftsToUpsert = Array.from(aircraftsMap.values());
+
+      if (aircraftsToUpsert.length === 0) {
+          setFeedback({ msg: `ERRO: Nenhuma linha válida encontrada para importar.\n\nLinhas ignoradas por falta de PREFIXO: ${missingPrefixCount}\n\nDICA: Verifique se o título da coluna de prefixo na primeira linha é "PREFIXO".`, isError: true });
+          setIsImporting(false);
+          return;
+      }
+
+      try {
+          // Salva as aeronaves baseadas no Prefixo (UPSERT substitui se já existe)
+          const { error } = await supabase
+              .from('aircrafts')
+              .upsert(aircraftsToUpsert, { onConflict: 'prefix', ignoreDuplicates: false });
+
+          if (error) {
+            console.error("Supabase upsert error:", error);
+            throw error;
+          }
+          
+          let msg = `SUCESSO! Importação concluída.\n\nAeronaves importadas/atualizadas: ${aircraftsToUpsert.length}`;
+          if (missingPrefixCount > 0) {
+              msg += `\n\n(Aviso: ${missingPrefixCount} linhas foram ignoradas por estarem vazias ou não terem a coluna PREFIXO preenchida corretamente)`;
+          }
+          setFeedback({ msg, isError: false });
+      } catch (err: any) {
+          console.error("Erro no upsert de aeronaves:", err);
+          setFeedback({ msg: `ERRO CRÍTICO ao salvar as aeronaves no Banco de Dados.\n\nMensagem técnica: ${err?.message || 'Falha de comunicação.'}`, isError: true });
+      }
+
+      setIsImporting(false);
+      fetchAircrafts(); // Recarrega todas as abas e dados localmente exibindo o resultado fresco
+    };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputElement = e.target;
+    const file = inputElement.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+        const wb = XLSX.read(data, { type: 'array' });
+        
+        if (!wb.SheetNames || wb.SheetNames.length === 0) {
+            throw new Error("O arquivo Excel enviado não possui abas válidas.");
+        }
+        
+        const wsname = wb.SheetNames[0]; 
+        const ws = wb.Sheets[wsname];
+        
+        // Pega as linhas puras para encontrar o cabeçalho
+        const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+        
+        let headerRowIndex = 0;
+        let bestScore = 0;
+        
+        // Procurar qual linha é de fato o cabeçalho (a que tem mais 'palavras-chave' conhecidas)
+        const keyWords = ['PREFIXO', 'MATRICULA', 'COMPANHIA', 'MODELO', 'TAMPA', 'PORTINHOLA', 'PAINEL', 'OBSERVACOES'];
+        
+        rawRows.forEach((row, index) => {
+            if (!Array.isArray(row)) return;
+            let score = 0;
+            for (const cell of row) {
+                if (typeof cell !== 'string') continue;
+                const clean = cell.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z]/g, '');
+                if (keyWords.some(kw => clean.includes(kw))) {
+                    score++;
+                }
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                headerRowIndex = index;
+            }
+        });
+
+        // Agora pulamos as linhas até o cabeçalho e lemos os dados
+        const jsonData = XLSX.utils.sheet_to_json(ws, { defval: '', range: headerRowIndex });
+        
+        await processImport(jsonData);
+    } catch (error: any) {
+        console.error("Error parsing Excel:", error);
+        setFeedback({ msg: `FALHA NA LEITURA DO ARQUIVO: ${error?.message || 'Formato de Excel inválido.'}`, isError: true });
+        setIsImporting(false);
+    } finally {
+        if (inputElement) {
+            inputElement.value = ''; // Reseta usando a referência direta capturada no início
+        }
     }
   };
 
@@ -205,13 +370,30 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
            </div>
            
            <div className="flex items-center gap-3">
+               <input 
+                   type="file" 
+                   ref={fileInputRef} 
+                   accept=".xlsx, .xls" 
+                   className="hidden" 
+                   onChange={handleFileUpload}
+               />
+               <button 
+                   onClick={() => setShowImportInstructions(true)}
+                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' : 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300'} active:scale-95`}
+               >
+                   <Info size={12} /> Instruções XLSX
+               </button>
+               <button 
+                   onClick={() => fileInputRef.current?.click()}
+                   disabled={isImporting}
+                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'} ${isImporting ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+               >
+                   {isImporting ? <RefreshCw size={12} className="animate-spin" /> : <Upload size={12} />} 
+                   {isImporting ? 'Importando...' : 'Importar XLSX'}
+               </button>
                {activeAirline && airlines.includes(activeAirline) && (
                  <button 
-                     onClick={() => {
-                         if (window.confirm(`Deseja realmente excluir a companhia ${activeAirline} e todas as suas aeronaves cadastradas?`)) {
-                              handleDeleteAirline(activeAirline);
-                         }
-                     }}
+                     onClick={() => setConfirmDeleteAirline(activeAirline)}
                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'} active:scale-95`}
                  >
                      <Trash2 size={12} /> Excluir Companhia
@@ -371,6 +553,50 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
             </div>
         </div>
 
+        {/* IMPORT INSTRUCTIONS MODAL */}
+        {showImportInstructions && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+                <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-full max-w-lg flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
+                    <div className="flex items-center gap-3 border-b pb-3 border-slate-200 dark:border-slate-800">
+                        <Info className={isDarkMode ? 'text-blue-400' : 'text-blue-600'} />
+                        <h2 className="font-black text-sm uppercase tracking-widest">Instruções para Importação XLSX</h2>
+                    </div>
+                    
+                    <div className="text-sm space-y-3">
+                        <p className={isDarkMode ? 'text-slate-300' : 'text-slate-600'}>
+                            Para importar dados em lote, sua planilha Excel (<span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">.xlsx</span>) 
+                            deve conter na primeira linha (cabeçalho) as seguintes colunas exatas (em maiúsculo):
+                        </p>
+                        
+                        <ul className="list-disc pl-5 space-y-1 font-mono text-[11px] mb-2">
+                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>PREFIXO</strong> (Obrigatório) - Prefixo da aeronave (ex: PR-XMB). Também aceitamos <span className="text-gray-500">PREF.RES, MATRICULA ou PREFIX.</span></li>
+                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>COMPANHIA</strong> (Opcional) - Se não informada, a importação usará a Cia selecionada na aba.</li>
+                            <li><strong>MODELO</strong> (Opcional) - Ex: B738, A320</li>
+                            <li><strong>S_TAMPA</strong> (Opcional) - Use "SIM", "S" ou "TRUE" se não tiver tampa.</li>
+                            <li><strong>PORTINHOLA_DEFEITO</strong> (Opcional) - Mesmo padrão acima.</li>
+                            <li><strong>PAINEL_DEFEITO</strong> (Opcional) - Mesmo padrão acima.</li>
+                            <li><strong>FALHA_CORTE</strong> (Opcional) - Mesmo padrão acima.</li>
+                            <li><strong>OBSERVACOES</strong> (Opcional) - Texto livre.</li>
+                        </ul>
+                        
+                        <div className={`p-3 rounded text-xs border ${isDarkMode ? 'bg-amber-900/20 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                            <strong>Nota Importante:</strong> O sistema tentará encontrar a aeronave pelo <strong>PREFIXO</strong>. 
+                            Se ela já existir, seus dados serão atualizados. Caso contrário, uma nova aeronave será inserida.
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-end pt-2">
+                        <button 
+                            onClick={() => setShowImportInstructions(false)} 
+                            className={`px-6 py-2 text-xs font-black uppercase tracking-wider rounded transition-colors ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'}`}
+                        >
+                            Entendi
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* NEW AIRLINE MODAL */}
         {showNewAirlineModal && (
             <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
@@ -400,6 +626,53 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         <button onClick={handleCreateNewAirline} className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded shadow-md transition-colors flex items-center gap-1.5 active:scale-95 ${isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-[#329858] hover:bg-[#29824a] text-white'}`}>
                             <Plus size={12} />
                             Adicionar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* CONFIRM DELETE AIRLINE MODAL */}
+        {confirmDeleteAirline && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+                <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-full max-w-sm flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
+                    <h2 className={`font-black text-sm uppercase tracking-widest ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
+                        Confirmar Exclusão
+                    </h2>
+                    <div className={`text-sm whitespace-pre-wrap font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                        Deseja realmente excluir a companhia <strong className="uppercase">{confirmDeleteAirline}</strong> e todas as suas aeronaves cadastradas?
+                        <br/><br/>
+                        Esta ação não pode ser desfeita.
+                    </div>
+                    <div className="flex items-center justify-end flex-wrap gap-2 pt-2">
+                        <button onClick={() => setConfirmDeleteAirline(null)} className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded transition-colors ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-100 text-slate-700'}`}>
+                            Cancelar
+                        </button>
+                        <button onClick={() => {
+                            handleDeleteAirline(confirmDeleteAirline);
+                            setConfirmDeleteAirline(null);
+                        }} className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded shadow-md transition-colors flex items-center gap-1.5 active:scale-95 ${isDarkMode ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}>
+                            <Trash2 size={12} />
+                            Excluir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* FEEDBACK MODAL */}
+        {feedback && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+                <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-full max-w-sm flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
+                    <h2 className={`font-black text-sm uppercase tracking-widest ${feedback.isError ? (isDarkMode ? 'text-red-400' : 'text-red-600') : (isDarkMode ? 'text-emerald-400' : 'text-emerald-600')}`}>
+                        {feedback.isError ? 'Aviso' : 'Sucesso'}
+                    </h2>
+                    <div className={`text-sm whitespace-pre-wrap font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                        {feedback.msg}
+                    </div>
+                    <div className="flex items-center justify-end pt-2">
+                        <button onClick={() => setFeedback(null)} className={`px-6 py-2 text-xs font-black uppercase tracking-wider rounded shadow-md transition-colors active:scale-95 ${feedback.isError ? (isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-800') : (isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-[#329858] border hover:bg-[#29824a] text-white')}`}>
+                            OK
                         </button>
                     </div>
                 </div>

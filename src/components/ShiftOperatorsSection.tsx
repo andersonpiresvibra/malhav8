@@ -21,7 +21,7 @@ interface ShiftOperatorsSectionProps {
     vehicles?: Vehicle[];
 }
 
-const OperatorAvatar: React.FC<{ op: OperatorProfile, isActive: boolean, isDarkMode: boolean }> = ({ op, isActive, isDarkMode }) => {
+const OperatorAvatar: React.FC<{ op: OperatorProfile, isActive: boolean, isDarkMode: boolean, flightsToday?: number }> = ({ op, isActive, isDarkMode, flightsToday }) => {
     const [error, setError] = useState(false);
     return (
         <div className={`w-[48px] shrink-0 border-r overflow-hidden relative flex items-end justify-center ${isDarkMode ? 'border-slate-950/10 bg-slate-950/10' : 'border-slate-300/50 bg-slate-200'}`}>
@@ -34,7 +34,16 @@ const OperatorAvatar: React.FC<{ op: OperatorProfile, isActive: boolean, isDarkM
                     onError={() => setError(true)}
                 />
             ) : (
-                <User size={32} className={`mb-1 ${isActive ? (isDarkMode ? 'text-slate-950/25' : 'text-slate-400') : 'text-slate-400/25'}`} />
+                <User size={32} className={`mb-1 relative z-0 ${isActive ? (isDarkMode ? 'text-slate-950/25' : 'text-slate-400') : 'text-slate-400/25'}`} />
+            )}
+            {typeof flightsToday === 'number' && (
+                <div className={`absolute bottom-0 right-0 flex items-center justify-center w-4 h-4 text-[9px] font-mono font-black border-t border-l rounded-tl-sm z-10 shadow-sm ${
+                    isActive
+                        ? (isDarkMode ? 'bg-slate-900 text-white border-slate-700/50' : 'bg-slate-800 text-white border-slate-600')
+                        : (isDarkMode ? 'bg-slate-900/50 text-slate-500 border-slate-800/50' : 'bg-slate-200 text-slate-400 border-slate-300')
+                }`}>
+                    {flightsToday}
+                </div>
             )}
         </div>
     );
@@ -407,12 +416,12 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                     className={`group relative flex items-stretch h-[68px] rounded-md border transition-all duration-300 overflow-hidden ${cardStyle} ${isInactive ? 'opacity-70 grayscale-[30%]' : ''}`}
                                 >
                                     {/* Foto/Ícone do Operador */}
-                                    <OperatorAvatar op={op} isActive={!isInactive} isDarkMode={isDarkMode} />
+                                    <OperatorAvatar op={op} isActive={!isInactive} isDarkMode={isDarkMode} flightsToday={flightsToday} />
 
                                     {/* Conteúdo */}
                                     <div className="flex-1 flex flex-col justify-center px-2 min-w-0 text-left relative">
                                         
-                                        {/* HUD SUPERIOR DIREITO: FROTA + CONTADOR */}
+                                        {/* HUD SUPERIOR DIREITO: FROTA */}
                                         <div className="absolute top-1.5 right-1.5 flex items-center gap-1.5">
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); setSelectedOpForVehicle(op); }}
@@ -428,13 +437,6 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                             >
                                                 {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : '+'}
                                             </button>
-                                            <div className={`flex items-center justify-center w-5 h-5 rounded-sm font-mono font-black text-[10px] border shadow-sm ${
-                                                isAvailable || isDesignated || isHandsOn
-                                                    ? (isDarkMode ? 'bg-slate-950 text-white border-slate-900' : 'bg-white/20 text-white border-white/10')
-                                                    : (isDarkMode ? 'bg-slate-900 text-slate-600 border-slate-800' : 'bg-white text-slate-400 border-slate-200')
-                                            }`}>
-                                                {flightsToday}
-                                            </div>
                                         </div>
 
                                         <div className="flex flex-col items-start pr-[38px] mt-0.5">

@@ -1,5 +1,22 @@
 
 /**
+ * Return today's local date in YYYY-MM-DD format
+ */
+export const getLocalTodayDateStr = (): string => {
+    return getLocalDateStr(new Date());
+};
+
+/**
+ * Return local date in YYYY-MM-DD format for a given Date object
+ */
+export const getLocalDateStr = (d: Date): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+/**
  * Determina o turno atual com base na hora do sistema.
  * 
  * MANHÃ: 06h00 - 13h59

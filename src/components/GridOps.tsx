@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FlightStatus, FlightData, FlightLog, LogType, OperatorProfile } from '../types';
-import { getCurrentShift } from '../utils/shiftUtils';
+import { getCurrentShift, getLocalTodayDateStr, getLocalDateStr } from '../utils/shiftUtils';
  // Importando perfis para designação
 
 import { FlightDetailsModal } from './FlightDetailsModal';
@@ -291,7 +291,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
   // NEW: Spreadsheet inline editing states
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: string } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: string } | null>(null);
-  const [inlineAssignFlightId, setInlineAssignFlightId] = useState<string | null>(null);
   const [calcoModalFlight, setCalcoModalFlight] = useState<FlightData | null>(null);
   const [calcoModalPosition, setCalcoModalPosition] = useState<string>('');
   const [calcoModalTime, setCalcoModalTime] = useState<string>('');
@@ -575,7 +574,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     // If getting date string for the currently selected activeDateOffset
     const d = new Date();
     d.setDate(d.getDate() + activeDateOffset);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = getLocalDateStr(d);
 
     const flightWithDate = {
         ...newFlight,
@@ -708,14 +707,15 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const visibleFlights = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + activeDateOffset);
-    const targetDateStr = d.toISOString().split('T')[0];
+    const targetDateStr = getLocalDateStr(d);
     
     // For crossover shift logic
     const dNext = new Date();
     dNext.setDate(dNext.getDate() + activeDateOffset + 1);
-    const nextDateStr = dNext.toISOString().split('T')[0];
+    const nextDateStr = getLocalDateStr(dNext);
     
-    const todayStr = new Date().toISOString().split('T')[0];
+    // We already have getDisplayDate but it returns offset today, but if we need real today:
+    const todayStr = getLocalTodayDateStr();
 
     return flights.filter(f => {
        if (f.isHiddenFromGrid) return false;
@@ -849,7 +849,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
 
     if (row.status === FlightStatus.CHEGADA) {
-        if (colKey === 'positionId' || colKey === 'destination' || colKey === 'actualArrivalTime') {
+        const hasPositionAndCalco = Boolean(row.positionId && row.positionId !== '?' && row.positionId.trim() !== '' && row.actualArrivalTime && row.actualArrivalTime.trim() !== '');
+
+        if (colKey === 'positionId' || colKey === 'flightNumber' || colKey === 'actualArrivalTime' || (colKey === 'eta' && !hasPositionAndCalco)) {
             cellStyle += isDarkMode ? " !text-yellow-400 font-bold" : " !text-yellow-600 font-bold";
         }
     }
@@ -857,7 +859,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     // Indicator for Next Day crossover shift
     const d = new Date();
     d.setDate(d.getDate() + activeDateOffset);
-    const targetDateStr = d.toISOString().split('T')[0];
+    const targetDateStr = getLocalDateStr(d);
     if (colKey === 'etd' && row.date && row.date > targetDateStr) {
         extraLabel = <span className="absolute -top-1.5 -left-1 text-[7px] bg-blue-500 text-white px-1 rounded-sm font-black uppercase tracking-tighter shadow-sm z-20 pointer-events-none" title="Voo do dia seguinte (cruzamento de turno)">+1D</span>;
     }
@@ -1282,25 +1284,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
           setAssignModalFlight(null);
           setSelectedOperatorId(null);
       }
-  };
-
-  const confirmInlineAssignment = (flight: FlightData, operatorId: string) => {
-      const operator = operators.find(op => op.id === operatorId);
-      if (!operator) return;
-      const newLog = createNewLog('MANUAL', `Operador ${operator.warName} designado alinheado por ${ltName}.`, 'GESTOR_MESA');
-      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { 
-          ...f, 
-          status: (f.status === FlightStatus.FILA || f.status === FlightStatus.CHEGADA) ? FlightStatus.DESIGNADO : f.status, 
-          operator: operator.warName,
-          fleet: operator.assignedVehicle,
-          fleetType: operator.assignedVehicle?.startsWith('CTA') ? 'CTA' : operator.assignedVehicle?.startsWith('SRV') ? 'SRV' : undefined,
-          designationTime: new Date(),
-          assignmentTime: new Date(),
-          assignedByLt: ltName,
-          logs: [...(f.logs || []), newLog]
-      } : f));
-      addToast('DESIGNADO', `Operador ${operator.warName} assumiu voo ${flight.flightNumber || ''}.`, 'success');
-      setInlineAssignFlightId(null);
   };
 
 
@@ -2044,27 +2027,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible`}>
                                     <div className="relative w-full h-full flex flex-col justify-center">
                                       {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
                                               <OperatorCell operatorName={row.operator} operators={operators} />
                                           </div>
                                       ) : (
                                           <button 
-                                              onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}
+                                              onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}
                                               className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
                                           >
                                               <UserPlus size={12} />
                                               <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
                                           </button>
-                                      )}
-                                      {inlineAssignFlightId === row.id && (
-                                          <InlineOperatorSelect
-                                              flightId={row.id}
-                                              currentOperatorName={row.operator}
-                                              operators={getEligibleOperators(row)}
-                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
-                                              onClose={() => setInlineAssignFlightId(null)}
-                                              isDarkMode={isDarkMode}
-                                          />
                                       )}
                                     </div>
                                 </td>
@@ -2104,27 +2077,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible`}>
                                     <div className="relative w-full h-full flex flex-col justify-center">
                                       {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
                                               <OperatorCell operatorName={row.operator} operators={operators} />
                                           </div>
                                       ) : (
                                           <button 
-                                              onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}
+                                              onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}
                                               className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
                                           >
                                               <UserPlus size={12} />
                                               <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
                                           </button>
-                                      )}
-                                      {inlineAssignFlightId === row.id && (
-                                          <InlineOperatorSelect
-                                              flightId={row.id}
-                                              currentOperatorName={row.operator}
-                                              operators={getEligibleOperators(row)}
-                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
-                                              onClose={() => setInlineAssignFlightId(null)}
-                                              isDarkMode={isDarkMode}
-                                          />
                                       )}
                                     </div>
                                 </td>
@@ -2188,21 +2151,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible truncate`}>
                                     <div className="relative w-full h-full flex flex-col justify-center">
                                       {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
                                               <OperatorCell operatorName={row.operator} operators={operators} />
                                           </div>
                                       ) : (
-                                          <span className={`${isDarkMode ? 'text-slate-700' : 'text-slate-400'} italic uppercase text-[9px] pl-2 cursor-pointer`} onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>--</span>
-                                      )}
-                                      {inlineAssignFlightId === row.id && (
-                                          <InlineOperatorSelect
-                                              flightId={row.id}
-                                              currentOperatorName={row.operator}
-                                              operators={getEligibleOperators(row)}
-                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
-                                              onClose={() => setInlineAssignFlightId(null)}
-                                              isDarkMode={isDarkMode}
-                                          />
+                                          <span className={`${isDarkMode ? 'text-slate-700' : 'text-slate-400'} italic uppercase text-[9px] pl-2 cursor-pointer`} onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>--</span>
                                       )}
                                     </div>
                                 </td>
@@ -2261,27 +2214,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-left align-middle overflow-visible`}>
                                     <div className="relative w-full h-full flex flex-col justify-center">
                                       {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}>
+                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
                                               <OperatorCell operatorName={row.operator} operators={operators} />
                                           </div>
                                       ) : (
                                           <button 
-                                              onClick={(e) => { e.stopPropagation(); setInlineAssignFlightId(row.id); }}
+                                              onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}
                                               className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
                                           >
                                               <UserPlus size={12} />
                                               <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
                                           </button>
-                                      )}
-                                      {inlineAssignFlightId === row.id && (
-                                          <InlineOperatorSelect
-                                              flightId={row.id}
-                                              currentOperatorName={row.operator}
-                                              operators={getEligibleOperators(row)}
-                                              onSelect={(operatorId) => confirmInlineAssignment(row, operatorId)}
-                                              onClose={() => setInlineAssignFlightId(null)}
-                                              isDarkMode={isDarkMode}
-                                          />
                                       )}
                                     </div>
                                 </td>
@@ -2797,7 +2740,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         baseDate = new Date(y, m - 1, d);
                     }
                     baseDate.setDate(baseDate.getDate() + 1);
-                    const newDateStr = baseDate.toISOString().split('T')[0];
+                    const newDateStr = getLocalDateStr(baseDate);
                     onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { ...f, date: newDateStr } : f));
                 }
                 setTimeConflictData(null);

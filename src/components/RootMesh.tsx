@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy, Network } from 'lucide-react';
 import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
-import { FlightData, FlightStatus } from '../types';
-import { getCurrentShift } from '../utils/shiftUtils';
+import { FlightData, FlightStatus, AircraftType } from '../types';
+import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
+import { supabase } from '../lib/supabase';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
 import { TimeConflictModal } from './TimeConflictModal';
@@ -44,8 +45,8 @@ const formatMeshDateDisplay = (dateString: string) => {
   const today = new Date();
   
   // Calculate difference in days safely
-  const todayStr = today.toISOString().split('T')[0];
-  const dateStr = dateObj.toISOString().split('T')[0];
+  const todayStr = getLocalDateStr(today);
+  const dateStr = getLocalDateStr(dateObj);
   
   const day = String(dateObj.getDate()).padStart(2, '0');
   const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -58,13 +59,13 @@ const formatMeshDateDisplay = (dateString: string) => {
   // check for yesterday/tomorrow
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (dateStr === yesterday.toISOString().split('T')[0]) {
+  if (dateStr === getLocalDateStr(yesterday)) {
       return `ONTEM`;
   }
   
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  if (dateStr === tomorrow.toISOString().split('T')[0]) {
+  if (dateStr === getLocalDateStr(tomorrow)) {
       return `AMANHÃ`;
   }
 
@@ -151,6 +152,11 @@ const COLUMNS: { key: MeshField | any; label: string; width: string; isVariable:
   { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-[75px]', isVariable: false },
   { key: 'destination', label: 'Destino', width: 'w-[75px]', isVariable: false },
   { key: 'etd', label: 'ETD', width: 'w-[65px]', isVariable: false },
+  { key: 'registration', label: 'Prefixo', width: 'w-[110px]', isVariable: true },
+  { key: 'model', label: 'Modelo', width: 'w-[90px]', isVariable: false },
+  { key: 'eta', label: 'ETA', width: 'w-[75px]', isVariable: true },
+  { key: 'positionId', label: 'Posição', width: 'w-[70px]', isVariable: true },
+  { key: 'actualArrivalTime', label: 'Calço', width: 'w-[75px]', isVariable: true },
   { key: 'actions', label: 'Ações', width: 'w-[60px]', isVariable: false },
 ];
 
@@ -174,6 +180,13 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
   const [showClearMeshModal, setShowClearMeshModal] = useState(false);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
+  const [aircraftsDB, setAircraftsDB] = useState<AircraftType[]>([]);
+
+  useEffect(() => {
+    supabase.from('aircrafts').select('*').then(res => {
+        if (res.data) setAircraftsDB(res.data);
+    });
+  }, []);
   const lastStableFlightsRef = useRef<MeshFlight[]>([]);
   const lastFiltersRef = useRef({ readyStateFilter, activeShift, searchTerm });
 
@@ -235,12 +248,41 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
         if (newValue.length > 5) newValue = newValue.slice(0, 5);
       }
     }
+
+    // Auto-fill model based on registration
+    let autoModel: string | undefined;
+    if (field === 'registration') {
+        const cleanInput = newValue.replace(/[^A-Z0-9]/g, '');
+        let attemptMatch: AircraftType | undefined;
+        
+        if (cleanInput.length >= 3) {
+            // Try matching suffix first (e.g. user types "MZY" matches "PT-MZY")
+            attemptMatch = aircraftsDB.find(a => {
+                const cleanPrefix = a.prefix.replace(/[^A-Z0-9]/g, '').toUpperCase();
+                return cleanPrefix === cleanInput || cleanPrefix.endsWith(cleanInput);
+            });
+        }
+        
+        if (!attemptMatch) {
+            attemptMatch = aircraftsDB.find(a => a.prefix.toUpperCase() === newValue);
+        }
+
+        if (attemptMatch) {
+            newValue = attemptMatch.prefix;
+            autoModel = attemptMatch.model && attemptMatch.model !== '--' ? attemptMatch.model : '';
+        } else if (cleanInput.length >= 3) {
+            autoModel = '';
+        }
+    }
     
     setMeshFlights(prev => {
         const updated = [...prev];
         const idx = updated.findIndex(f => f.id === id);
         if (idx !== -1) {
             updated[idx] = { ...updated[idx], [field]: newValue };
+            if (autoModel !== undefined) {
+                updated[idx].model = autoModel;
+            }
         }
         return updated;
     });
@@ -343,16 +385,18 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
     );
     
     const isPre = flight.etd === 'PRÉ';
-    const isArrivalFlight = !!(flight.flightNumber && flight.flightNumber.trim() !== '');
     const checkField = (val: any) => !val || String(val).trim() === '' || String(val).trim() === '?';
+    
+    // Um voo é considerado "Chegada" se possuir V.Cheg, ETA ou Calço
+    const isArrivalFlight = !checkField(flight.flightNumber) || !checkField(flight.eta) || !checkField(flight.actualArrivalTime);
 
-    // Campos obrigatórios definidos pelo usuário: Voo, Destino e Saída (ETD)
-    // Também incluímos a CIA (Airline) pois é essencial para a identidade do voo
+    // Campos obrigatórios definidos pelo usuário: Cia, Prefixo, V.Saída, Destino e ETD
     const isIncomplete = checkField(flight.airline) || 
+                         checkField(flight.registration) ||
                          checkField(flight.departureFlightNumber) || 
                          checkField(flight.destination) || 
                          checkField(flight.etd) || 
-                         (isArrivalFlight && checkField(flight.eta));
+                         (isArrivalFlight && checkField(flight.eta)); // V.Cheg is no longer strictly mandatory, just ETA for arrivals
     
     const hasFormatError = (flight.etd === '?' || (isArrivalFlight && flight.eta === '?') || flight.actualArrivalTime === '?') && !isPre;
     
@@ -582,7 +626,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
         break;
       default:
         // Handle alphanumeric direct entry like Excel
-        if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+        if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && COLUMNS[colIndex].isVariable) {
           e.preventDefault();
           startEditingCell(flight.id, colIndex);
           handleFieldChange(flight.id, COLUMNS[colIndex].key, e.key);
@@ -794,49 +838,55 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                           let startIdx = 0;
                           const headers = grid[0].map(h => String(h || '').trim().toLowerCase());
                           let idxCia = headers.findIndex(h => h === 'cia' || h === 'airline' || h === 'companhia');
-                          let idxVoo = headers.findIndex(h => h.includes('voo') || h.includes('vôo') || h.includes('flight'));
+                          let idxVooCheg = headers.findIndex(h => h.includes('v.cheg') || h.includes('chegada') && !h.includes('eta') && !h.includes('sta') && !h.includes('hora'));
+                          let idxVoo = headers.findIndex(h => h.includes('v.saí') || h.includes('v.sai') || (h.includes('voo') && !h.includes('cheg')));
+                          if (idxVoo === -1) idxVoo = headers.findIndex(h => h.includes('voo') || h.includes('vôo') || h.includes('flight'));
                           let idxDestino = headers.findIndex(h => h.includes('dest'));
                           let idxEtd = headers.findIndex(h => h === 'etd' || h.includes('partida') || h === 'std' || h.includes('saida') || h.includes('saída'));
                           let idxPrefixo = headers.findIndex(h => h.includes('prefixo') || h.includes('reg') || h.includes('matricula'));
                           let idxModelo = headers.findIndex(h => h.includes('modelo') || h.includes('eqp') || h.includes('equipamento'));
                           // In the user's Excel, "ESTIMADO" means ETA.
-                          let idxEta = headers.findIndex(h => h === 'eta' || h.includes('chegada') || h === 'sta' || h === 'estimado');
-                          let idxPosicao = headers.findIndex(h => h.includes('posi') || h.includes('gate') || h.includes('berco'));
+                          let idxEta = headers.findIndex(h => h === 'eta' || h.includes('chegada') && h.includes('estimado') || h === 'sta' || h === 'estimado');
+                          let idxPosicao = headers.findIndex(h => h.includes('posi') || h.includes('gate') || h.includes('berco') || h.includes('berço'));
                           let idxCalco = headers.findIndex(h => h.includes('calco') || h.includes('calço') || h.includes('ata'));
                           
-                          if (idxVoo >= 0 || idxDestino >= 0 || idxEtd >= 0 || idxEta >= 0) {
+                          if (idxVoo >= 0 || idxDestino >= 0 || idxEtd >= 0 || idxEta >= 0 || idxVooCheg >= 0) {
                             startIdx = 1;
                           } else {
                             idxCia = 0;
-                            idxVoo = 1;
-                            idxDestino = 2;
-                            idxEtd = 3;
-                            idxPrefixo = 4;
-                            idxModelo = 5;
-                            idxEta = 6;
-                            idxPosicao = 7;
-                            idxCalco = 8;
+                            idxVooCheg = 1;
+                            idxVoo = 2; // departure
+                            idxDestino = 3;
+                            idxEtd = 4;
+                            idxPrefixo = 5;
+                            idxModelo = 6;
+                            idxEta = 7;
+                            idxPosicao = 8;
+                            idxCalco = 9;
                           }
 
-                          const getCol = (row: string[], idx: number) => idx >= 0 && idx < row.length ? row[idx] : '';
+                          const getCol = (row: string[], idx: number) => idx >= 0 && idx < row.length ? String(row[idx]).trim().toUpperCase() : '';
                           
                           const newFlights: MeshFlight[] = [];
                           for (let i = startIdx; i < grid.length; i++) {
                             const cols = grid[i];
                             if (!cols || cols.length === 0 || cols.every(c => !c)) continue;
                             
-                            let voo = getCol(cols, idxVoo).trim().toUpperCase();
-                            const isEnchimento = voo.includes('ENCH') || voo.includes('ENCHIMENTO') || voo.includes('...') || voo.includes('---');
-                            if (!voo || isEnchimento) continue;
+                            let vooSaida = getCol(cols, idxVoo);
+                            let vooCheg = getCol(cols, idxVooCheg);
+                            
+                            const isEnchimento = vooSaida.includes('ENCH') || vooSaida.includes('ENCHIMENTO') || vooSaida.includes('...') || vooSaida.includes('---');
+                            if (!vooSaida && !vooCheg) continue;
+                            if (isEnchimento) continue;
 
                             let cia = '';
                             if (idxCia >= 0) {
-                              cia = getCol(cols, idxCia).trim().toUpperCase();
+                              cia = getCol(cols, idxCia);
                             }
                             
                             // Extrair companhia aéreo do voo caso não exista a coluna
-                            if (!cia && voo.length >= 2) {
-                              const match = voo.match(/^[A-Z0-9]{2}/);
+                            if (!cia && vooSaida.length >= 2) {
+                              const match = vooSaida.match(/^[A-Z0-9]{2}/);
                               if (match) cia = match[0];
                             }
 
@@ -844,10 +894,16 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                             if (cia === 'GOL') cia = 'RG';
                             if (!cia) cia = 'RG';
                             
-                            if (cia === 'RG' && voo.startsWith('G3')) {
-                              voo = voo.replace(/^G3/, 'RG');
-                            } else if (cia === 'RG' && /^[\d]+$/.test(voo)) {
-                               voo = `RG${voo}`;
+                            if (cia === 'RG' && vooSaida.startsWith('G3')) {
+                              vooSaida = vooSaida.replace(/^G3/, 'RG');
+                            } else if (cia === 'RG' && /^[\d]+$/.test(vooSaida)) {
+                               vooSaida = `RG${vooSaida}`;
+                            }
+
+                            if (cia === 'RG' && vooCheg.startsWith('G3')) {
+                              vooCheg = vooCheg.replace(/^G3/, 'RG');
+                            } else if (cia === 'RG' && /^[\d]+$/.test(vooCheg)) {
+                               vooCheg = `RG${vooCheg}`;
                             }
 
                             const getAirlineName = (code: string) => {
@@ -883,7 +939,8 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                               id: `imp-${Date.now()}-${i}`,
                               airline: getAirlineName(cia),
                               airlineCode: cia,
-                              departureFlightNumber: voo,
+                              flightNumber: vooCheg,
+                              departureFlightNumber: vooSaida,
                               destination: getCol(cols, idxDestino).trim().toUpperCase(),
                               etd: formatImportTime(getCol(cols, idxEtd)),
                               registration: getCol(cols, idxPrefixo).trim().toUpperCase(),
@@ -1122,7 +1179,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                             data-col={cIdx}
                             onClick={() => {
                               if (flight.disabled) return;
-                              if (isCellFocused) {
+                              if (isCellFocused && col.isVariable) {
                                 startEditingCell(flight.id, cIdx);
                               } else {
                                 setFocusedCell({ rowId: flight.id, col: cIdx });
@@ -1244,7 +1301,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                         baseDate = new Date(y, m - 1, d);
                     }
                     baseDate.setDate(baseDate.getDate() + 1);
-                    const newDateStr = baseDate.toISOString().split('T')[0];
+                    const newDateStr = getLocalDateStr(baseDate);
                     setMeshFlights(prev => prev.map(f => f.id === flight.id ? { ...f, date: newDateStr } : f));
                 }
                 setTimeConflictData(null);

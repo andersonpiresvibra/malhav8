@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plane, Calendar, Clock, MapPin, Hash, Tag, Globe } from 'lucide-react';
-import { FlightData, FlightStatus, FlightLog } from '../types';
+import { FlightData, FlightStatus, FlightLog, AircraftType } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { TimeConflictModal } from './TimeConflictModal';
+import { supabase } from '../lib/supabase';
 
 const GOL_PREFIXOS = [
   "PR-GEA", "PR-GEC", "PR-GED", "PR-GEH", "PR-GEI", "PR-GEJ", "PR-GEK", "PR-GEQ", "PR-GIH", "PR-GOQ", "PR-GOR", "PR-VBQ",
@@ -39,6 +40,14 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
   });
 
   const [timeConflict, setTimeConflict] = useState<string | null>(null);
+  const [aircraftsDB, setAircraftsDB] = useState<AircraftType[]>([]);
+
+  useEffect(() => {
+    // Fetch aircrafts from DB for auto-complete magic
+    supabase.from('aircrafts').select('*').then(res => {
+      if (res.data) setAircraftsDB(res.data as AircraftType[]);
+    });
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,6 +59,53 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
         newValue = `${newValue.slice(0, 2)}:${newValue.slice(2, 4)}`;
       }
       if (newValue.length > 5) newValue = newValue.slice(0, 5);
+      
+      setFormData(prev => ({ ...prev, [name]: newValue }));
+      return;
+    }
+
+    if (name === 'registration') {
+        let autoRegistration = newValue;
+        let autoModel = formData.model;
+        let autoAirlineCode = formData.airlineCode;
+
+        // Magic 1: If it's a suffix match (e.g. user typed "GFA" and DB has "PS-GFA")
+        if (autoRegistration.length >= 3 && !autoRegistration.includes('-')) {
+            const match = aircraftsDB.find(a => a.prefix.replace('-', '').endsWith(autoRegistration));
+            if (match) {
+                autoRegistration = match.prefix;
+                autoModel = match.model && match.model !== '--' ? match.model : autoModel;
+                
+                // Set airline code automatically if unknown or general
+                if (!autoAirlineCode || autoAirlineCode === 'OUTRA') {
+                    if (match.airline === 'GOL') autoAirlineCode = 'RG';
+                    else if (match.airline === 'LATAM') autoAirlineCode = 'LA';
+                    else if (match.airline === 'AZUL') autoAirlineCode = 'AD';
+                    else autoAirlineCode = match.airline.slice(0, 3).toUpperCase();
+                }
+            }
+        } else {
+            // Magic 2: Exact match auto-fill
+            const matchExact = aircraftsDB.find(a => a.prefix === autoRegistration);
+            if (matchExact) {
+                autoModel = matchExact.model && matchExact.model !== '--' ? matchExact.model : autoModel;
+                
+                if (!autoAirlineCode || autoAirlineCode === 'OUTRA') {
+                    if (matchExact.airline === 'GOL') autoAirlineCode = 'RG';
+                    else if (matchExact.airline === 'LATAM') autoAirlineCode = 'LA';
+                    else if (matchExact.airline === 'AZUL') autoAirlineCode = 'AD';
+                    else autoAirlineCode = matchExact.airline.slice(0, 3).toUpperCase();
+                }
+            }
+        }
+
+        setFormData(prev => ({ 
+            ...prev, 
+            registration: autoRegistration, 
+            model: autoModel,
+            airlineCode: autoAirlineCode
+        }));
+        return;
     }
     
     setFormData(prev => ({ ...prev, [name]: newValue }));
@@ -300,12 +356,12 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
 
           {/* Datalists for suggestions */}
           <datalist id="prefixos-list">
-            {['GOL', 'RG', 'G3'].includes(formData.airlineCode.toUpperCase()) && GOL_PREFIXOS.map(prefix => (
-              <option key={prefix} value={prefix} />
+            {aircraftsDB.map(a => (
+              <option key={a.id} value={a.prefix} />
             ))}
           </datalist>
           <datalist id="modelos-list">
-            {['GOL', 'RG', 'G3'].includes(formData.airlineCode.toUpperCase()) && GOL_MODELOS.map(model => (
+            {Array.from(new Set(aircraftsDB.map(a => a.model).filter(m => m && m !== '--'))).map(model => (
               <option key={model} value={model} />
             ))}
           </datalist>
