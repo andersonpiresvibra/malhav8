@@ -764,7 +764,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         <div className="relative" ref={optionsMenuRef}>
           <button 
             onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
-            className={`flex items-center gap-1.5 px-3 h-7 rounded transition-all font-bold uppercase tracking-wider text-[10px] ${showOptionsDropdown ? 'bg-white/20 text-white' : 'bg-transparent text-white hover:bg-white/10'} border border-white/20 outline-none cursor-pointer`}
+            className={`flex items-center gap-2 px-4 py-2 rounded transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00] h-7`}
           >
             <Settings size={14} className={showOptionsDropdown ? 'animate-spin-slow' : ''} />
             <span>OPÇÕES</span>

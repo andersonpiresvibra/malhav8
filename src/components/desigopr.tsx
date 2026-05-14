@@ -14,6 +14,25 @@ interface DesigOprProps {
 
 type Tab = 'TODOS' | 'SRV' | 'CTA';
 
+const OperatorImage = ({ op, isSelected, isDisabled, isDarkMode }: { op: OperatorProfile, isSelected: boolean, isDisabled: boolean, isDarkMode: boolean }) => {
+    const [error, setError] = useState(false);
+    return (
+        <div className={`w-9 h-12 rounded-lg flex items-end justify-center text-sm font-black border overflow-hidden shrink-0 ${
+            isDisabled
+                ? isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700 opacity-50' : 'bg-slate-50 text-slate-300 border-slate-100 opacity-50'
+                : isSelected 
+                    ? isDarkMode ? 'bg-indigo-900/50 text-indigo-300 border-indigo-500/50' : 'bg-indigo-100 text-indigo-600 border-indigo-200' 
+                    : isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 group-hover:border-slate-500' : 'bg-slate-100 text-slate-400 border-slate-200 group-hover:border-slate-300'
+        }`}>
+            {op.photoUrl && !error ? (
+                <img src={op.photoUrl} alt={op.warName} className={`w-full h-full object-cover ${isDisabled ? 'grayscale opacity-50' : ''}`} onError={() => setError(true)} referrerPolicy="no-referrer" />
+            ) : (
+                <User size={24} className={`${isDisabled ? (isDarkMode ? 'text-slate-600' : 'text-slate-200') : isSelected ? (isDarkMode ? 'text-indigo-400' : 'text-indigo-300') : (isDarkMode ? 'text-slate-500' : 'text-slate-300')} mb-1`} />
+            )}
+        </div>
+    );
+};
+
 export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, vehicle, operators, onConfirm }) => {
     const { isDarkMode } = useTheme();
     const [selectedOperatorId, setSelectedOperatorId] = useState<string | null>(null);
@@ -84,25 +103,6 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
     };
 
     // Fallback logic if statuses aren't exactly matching, or to ensure everyone is somewhere
-    const OperatorImage = ({ op, isSelected, isDisabled }: { op: OperatorProfile, isSelected: boolean, isDisabled: boolean }) => {
-        const [error, setError] = useState(false);
-        return (
-            <div className={`w-9 h-12 rounded-lg flex items-end justify-center text-sm font-black border overflow-hidden shrink-0 ${
-                isDisabled
-                    ? isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700 opacity-50' : 'bg-slate-50 text-slate-300 border-slate-100 opacity-50'
-                    : isSelected 
-                        ? isDarkMode ? 'bg-indigo-900/50 text-indigo-300 border-indigo-500/50' : 'bg-indigo-100 text-indigo-600 border-indigo-200' 
-                        : isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 group-hover:border-slate-500' : 'bg-slate-100 text-slate-400 border-slate-200 group-hover:border-slate-300'
-            }`}>
-                {op.photoUrl && !error ? (
-                    <img src={op.photoUrl} alt={op.warName} className={`w-full h-full object-cover ${isDisabled ? 'grayscale opacity-50' : ''}`} onError={() => setError(true)} referrerPolicy="no-referrer" />
-                ) : (
-                    <User size={24} className={`${isDisabled ? (isDarkMode ? 'text-slate-600' : 'text-slate-200') : isSelected ? (isDarkMode ? 'text-indigo-400' : 'text-indigo-300') : (isDarkMode ? 'text-slate-500' : 'text-slate-300')} mb-1`} />
-                )}
-            </div>
-        );
-    };
-
     const currentList = categorizedOperators[activeTab];
 
     if (!isOpen || (!flight && !vehicle)) return null;
@@ -222,7 +222,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
                                         }`}
                                     >
                                         <div className="flex items-center gap-4 relative z-10">
-                                            <OperatorImage op={op} isSelected={isSelected} isDisabled={isDisabled} />
+                                            <OperatorImage op={op} isSelected={isSelected} isDisabled={isDisabled} isDarkMode={isDarkMode} />
                                             <div className="text-left">
                                                 <div className={`text-sm font-bold uppercase tracking-tight ${isDisabled ? (isDarkMode ? 'text-slate-500' : 'text-slate-400') : isSelected ? (isDarkMode ? 'text-indigo-300' : 'text-indigo-900') : (isDarkMode ? 'text-slate-200' : 'text-slate-900')}`}>
                                                     {op.warName} {op.assignedVehicle ? `| ${op.assignedVehicle}` : ''}

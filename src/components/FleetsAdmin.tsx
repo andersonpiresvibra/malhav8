@@ -452,7 +452,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
         <div className="relative" ref={optionsMenuRef}>
           <button 
             onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-900 active:scale-95 border border-[#FEDC00]`}
+            className={`flex items-center gap-2 px-4 py-2 rounded transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00] h-7`}
           >
             <Settings size={14} className={showOptionsDropdown ? 'animate-spin-slow' : ''} />
             <span>OPÇÕES</span>

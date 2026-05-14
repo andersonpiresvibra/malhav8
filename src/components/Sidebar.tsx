@@ -30,7 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
 
-  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN';
+  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AERODROMO_ADMIN';
 
   return (
     <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-50 ${
@@ -79,6 +79,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
           <div className={`absolute bottom-0 left-full ml-2 p-2 rounded-xl shadow-xl w-48 border z-[100] flex flex-col gap-1 ${
             isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
           }`}>
+             <button
+                onClick={() => {
+                   onViewChange('AERODROMO_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                   activeView === 'AERODROMO_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Table size={16} /> Posições
+             </button>
              <button
                 onClick={() => {
                    onViewChange('OPERATIONAL_MESH');

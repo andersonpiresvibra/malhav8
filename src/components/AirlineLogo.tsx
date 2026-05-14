@@ -4,6 +4,8 @@ import { useTheme } from '../contexts/ThemeContext';
 interface AirlineLogoProps {
   airlineCode: string;
   className?: string;
+  showName?: boolean;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 const AIRLINE_INFO: Record<string, { iata: string, name: string }> = {
@@ -46,7 +48,7 @@ const AIRLINE_INFO: Record<string, { iata: string, name: string }> = {
   'TOTAL': { iata: 'TT', name: 'TOTAL' },
 };
 
-export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className = "" }) => {
+export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className = "", showName = true, size = 'md' }) => {
   const [imgError, setImgError] = useState(false);
   const { isDarkMode } = useTheme();
   
@@ -55,9 +57,16 @@ export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className
   
   const iconUrl = `https://images.kiwi.com/airlines/64/${info.iata}.png`;
 
+  const sizeClasses = {
+    sm: 'w-5 h-5',
+    md: 'w-6 h-6',
+    lg: 'w-8 h-8',
+    xl: 'w-10 h-10'
+  };
+
   return (
     <div className={`flex items-center gap-2 pl-1 ${className}`}>
-      <div className={`w-6 h-6 flex items-center justify-center shrink-0 rounded-sm ${isDarkMode ? 'bg-white/10' : 'bg-transparent'}`}>
+      <div className={`${sizeClasses[size]} flex items-center justify-center shrink-0 rounded-sm ${isDarkMode ? 'bg-white/10' : 'bg-transparent'}`}>
         {!imgError ? (
           <img 
             src={iconUrl} 
@@ -69,9 +78,11 @@ export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className
           <span className={`text-[10px] font-bold ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{info.iata}</span>
         )}
       </div>
-      <span className={`text-[10px] font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'} tracking-wider uppercase truncate max-w-[50px]`} title={info.name}>
-        {info.name}
-      </span>
+      {showName && (
+        <span className={`text-[10px] font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'} tracking-wider uppercase truncate max-w-[50px]`} title={info.name}>
+          {info.name}
+        </span>
+      )}
     </div>
   );
 };

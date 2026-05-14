@@ -41,6 +41,8 @@ interface OperationalMeshProps {
   setCurrentMeshDate: (date: string) => void;
   setFlights?: React.Dispatch<React.SetStateAction<FlightData[]>>;
   globalFlights: FlightData[];
+  positionsMetadata: Record<string, any>;
+  positionRestrictions: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
 }
 
 const formatMeshDateDisplay = (dateString: string) => {
@@ -166,7 +168,19 @@ const COLUMNS: { key: MeshField; label: string; width: string; isVariable: boole
   { key: 'actions', label: 'Ações', width: 'w-14', isVariable: false },
 ];
 
-export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onActivateMesh, isDarkMode, meshFlights, setMeshFlights, currentMeshDate, setCurrentMeshDate, setFlights, globalFlights }) => {
+export const OperationalMesh: React.FC<OperationalMeshProps> = ({ 
+  onClose, 
+  onActivateMesh, 
+  isDarkMode, 
+  meshFlights, 
+  setMeshFlights, 
+  currentMeshDate, 
+  setCurrentMeshDate, 
+  setFlights, 
+  globalFlights,
+  positionsMetadata,
+  positionRestrictions
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeShift, setActiveShift] = useState<MeshShift>(getCurrentShift(false) as MeshShift);
   const [readyStateFilter, setReadyStateFilter] = useState<'ALL' | 'READY' | 'ERROR'>('ALL');
@@ -224,9 +238,16 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
   const handleFinishEdit = (rowId: string, colIndex: number) => {
     setEditingCell(null);
     const colKey = COLUMNS[colIndex]?.key;
+    const flight = meshFlights.find(f => f.id === rowId);
+    if (!flight) return;
+
+    if (colKey === 'positionId' && flight.positionId) {
+      if (flight.positionId !== '?' && !positionsMetadata[flight.positionId]) {
+        alert(`A posição "${flight.positionId}" não existe no banco de dados do aeródromo.`);
+      }
+    }
+
     if (colKey === 'etd') {
-      const flight = meshFlights.find(f => f.id === rowId);
-      if (flight && flight.etd && flight.etd.length >= 4) {
         const [h] = flight.etd.split(':').map(Number);
         const currentH = new Date().getHours();
         // Verificação se o horário digitado cruza a meia-noite (próximo dia)
@@ -238,7 +259,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
             setTimeConflictData({ rowId, oldEtd: editingCellOriginalValue, newEtd: flight.etd });
           }
         }
-      }
     }
   };
 
@@ -963,7 +983,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
         <div className="relative" ref={optionsMenuRef}>
           <button 
             onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00]`}
+            className={`flex items-center gap-2 px-4 py-2 rounded transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00] h-7`}
           >
             <Settings size={14} className={showOptionsDropdown ? 'animate-spin-slow' : ''} />
             <span>OPÇÕES</span>
@@ -1526,10 +1546,12 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                             className={`
                               p-0 border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} relative transition-all h-10
                               ${col.isVariable ? (isDarkMode ? 'bg-emerald-400/5' : 'bg-emerald-500/5') : ''}
+                              ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'bg-yellow-500/80' : ''}
                               ${isCellFocused ? 'ring-2 ring-emerald-500 ring-inset z-20 shadow-xl' : ''}
                             `}
                           >
                             {isCellEditing ? (
+                              <>
                               <input 
                                 type="text"
                                 autoFocus
@@ -1537,11 +1559,21 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                                 onChange={(e) => handleFieldChange(flight.id, col.key as MeshField, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
                                 onBlur={() => handleFinishEdit(flight.id, cIdx)}
+                                list={col.key === 'positionId' ? "positions-datalist" : undefined}
                                 className={`
                                   absolute inset-0 w-full h-full px-3 bg-emerald-500 text-slate-950 font-mono text-[11px] uppercase font-black outline-none
                                   ${col.key === 'airline' ? 'text-left' : 'text-center'}
+                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'bg-yellow-500' : ''}
                                 `}
                               />
+                              {col.key === 'positionId' && (
+                                <datalist id="positions-datalist">
+                                  {Object.keys(positionsMetadata).sort().map(pos => (
+                                    <option key={pos} value={pos} />
+                                  ))}
+                                </datalist>
+                              )}
+                              </>
                             ) : (
                               <div 
                                 tabIndex={0}
@@ -1554,6 +1586,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
                                   ${col.key === 'etd' && flight[col.key] === 'PRÉ' ? (isDarkMode ? 'text-blue-400 font-black' : 'text-blue-600 font-black text-[12px]') : ''}
                                   ${col.key === 'etd' && flight[col.key] && flight[col.key] !== '?' && flight[col.key] !== 'PRÉ' && getMinutesDiff(flight[col.key] as string, flight.date || currentMeshDate) < 0 ? (isDarkMode ? 'text-red-300 bg-red-900/60 font-black' : 'text-red-800 bg-red-200 font-black tracking-widest') : ''}
                                   ${isMandatoryEmpty ? 'text-red-500 animate-pulse font-black text-xs' : ''}
+                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'text-slate-950 font-black' : ''}
                                 `}
                               >
                                 <span>{isMandatoryEmpty ? '?' : (String(cellValue) || '-')}</span>

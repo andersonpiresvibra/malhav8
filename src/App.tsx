@@ -20,8 +20,10 @@ import { OperatorsAdmin } from './components/OperatorsAdmin';
 import { FleetsAdmin } from './components/FleetsAdmin';
 import { AircraftsAdmin } from './components/AircraftsAdmin';
 import { Aerodromo } from './components/Aerodromo';
+import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './constants/aerodromoConfig';
 
-const GridOps = lazy(() => import('./components/GridOps').then(m => ({ default: m.GridOps })));
+import { GridOps } from './components/GridOps';
+import { AerodromoAdmin } from './components/AerodromoAdmin';
 
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
@@ -369,6 +371,48 @@ const App: React.FC = () => {
     message: ''
   });
 
+  const [disabledPositions, setDisabledPositions] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('disabledPositions');
+    return saved ? new Set(JSON.parse(saved)) : new Set(['208', '212L']);
+  });
+
+  const [positionsMetadata, setPositionsMetadata] = useState<Record<string, PositionMetadata>>(() => {
+    const saved = localStorage.getItem('positionsMetadata');
+    return saved ? JSON.parse(saved) : POSITIONS_METADATA;
+  });
+
+  const [patioPositions, setPatioPositions] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('patioPositions');
+    return saved ? JSON.parse(saved) : POSITIONS_BY_PATIO;
+  });
+
+  const [positionRestrictions, setPositionRestrictions] = useState<Record<string, 'HYBRID' | 'CTA' | 'SRV'>>(() => {
+    const saved = localStorage.getItem('positionRestrictions');
+    if (saved) return JSON.parse(saved);
+    
+    const initial: Record<string, 'HYBRID' | 'CTA' | 'SRV'> = {};
+    Object.entries(POSITIONS_METADATA).forEach(([id, meta]) => {
+      initial[id] = (meta as any).type === 'REMOTA' ? 'CTA' : 'HYBRID';
+    });
+    return initial;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('disabledPositions', JSON.stringify(Array.from(disabledPositions)));
+  }, [disabledPositions]);
+
+  useEffect(() => {
+    localStorage.setItem('positionsMetadata', JSON.stringify(positionsMetadata));
+  }, [positionsMetadata]);
+
+  useEffect(() => {
+    localStorage.setItem('patioPositions', JSON.stringify(patioPositions));
+  }, [patioPositions]);
+
+  useEffect(() => {
+    localStorage.setItem('positionRestrictions', JSON.stringify(positionRestrictions));
+  }, [positionRestrictions]);
+
   const handleViewChange = (newView: ViewState) => {
     setView(newView);
     if (newView !== 'REPORTS') {
@@ -546,6 +590,8 @@ const App: React.FC = () => {
                     onActivateMesh={(newFlights) => {
                       setGlobalFlights(prev => [...newFlights, ...prev]);
                     }}
+                    positionsMetadata={positionsMetadata}
+                    positionRestrictions={positionRestrictions}
                   />
                 )}
                 {view === 'ROOT_MESH' && (
@@ -554,6 +600,8 @@ const App: React.FC = () => {
                     setRootMeshFlights={setRootMeshFlights}
                     isDarkMode={isDarkMode}
                     setMeshFlightsByDate={setMeshFlightsByDate}
+                    positionsMetadata={positionsMetadata}
+                    positionRestrictions={positionRestrictions}
                   />
                 )}
                 {view === 'REPORTS' && (
@@ -579,7 +627,26 @@ const App: React.FC = () => {
                    />
                 )}
                 {view === 'AERODROMO' && (
-                  <Aerodromo operators={globalOperators} flights={globalFlights} />
+                  <Aerodromo 
+                    operators={globalOperators} 
+                    flights={globalFlights} 
+                    disabledPositions={disabledPositions}
+                    positionsMetadata={positionsMetadata}
+                    positionRestrictions={positionRestrictions}
+                  />
+                )}
+                {view === 'AERODROMO_ADMIN' && (
+                  <AerodromoAdmin 
+                    disabledPositions={disabledPositions}
+                    setDisabledPositions={setDisabledPositions}
+                    positionsMetadata={positionsMetadata}
+                    setPositionsMetadata={setPositionsMetadata}
+                    patioPositions={patioPositions}
+                    setPatioPositions={setPatioPositions}
+                    positionRestrictions={positionRestrictions}
+                    setPositionRestrictions={setPositionRestrictions}
+                    flights={globalFlights}
+                  />
                 )}
               </Suspense>
           </div>

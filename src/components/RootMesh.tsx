@@ -35,6 +35,8 @@ interface RootMeshProps {
   setRootMeshFlights: React.Dispatch<React.SetStateAction<MeshFlight[]>>;
   isDarkMode: boolean;
   setMeshFlightsByDate: React.Dispatch<React.SetStateAction<Record<string, MeshFlight[]>>>;
+  positionsMetadata: Record<string, any>;
+  positionRestrictions: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
 }
 
 const formatMeshDateDisplay = (dateString: string) => {
@@ -160,7 +162,14 @@ const COLUMNS: { key: MeshField | any; label: string; width: string; isVariable:
   { key: 'actions', label: 'Ações', width: 'w-[60px]', isVariable: false },
 ];
 
-export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights: meshFlights, setRootMeshFlights: setMeshFlights, setMeshFlightsByDate }) => {
+export const RootMesh: React.FC<RootMeshProps> = ({ 
+  isDarkMode, 
+  rootMeshFlights: meshFlights, 
+  setRootMeshFlights: setMeshFlights, 
+  setMeshFlightsByDate,
+  positionsMetadata,
+  positionRestrictions
+}) => {
   const [targetMonth, setTargetMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -208,9 +217,16 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
   const handleFinishEdit = (rowId: string, colIndex: number) => {
     setEditingCell(null);
     const colKey = COLUMNS[colIndex]?.key;
+    const flight = meshFlights.find(f => f.id === rowId);
+    if (!flight) return;
+
+    if (colKey === 'positionId' && flight.positionId) {
+      if (flight.positionId !== '?' && !positionsMetadata[flight.positionId]) {
+        alert(`A posição "${flight.positionId}" não existe no banco de dados do aeródromo.`);
+      }
+    }
+
     if (colKey === 'etd') {
-      const flight = meshFlights.find(f => f.id === rowId);
-      if (flight && flight.etd && flight.etd.length >= 4) {
         const diff = getMinutesDiff(flight.etd, flight.date);
         if (diff < 0) {
           const conflictKey = `${rowId}-${flight.etd}`;
@@ -219,7 +235,6 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
           }
         }
       }
-    }
   };
 
   const startEditingCell = (rowId: string, colIndex: number) => {
@@ -774,7 +789,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
         <div className="relative" ref={optionsMenuRef}>
           <button 
             onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00]`}
+            className={`flex items-center gap-2 px-4 py-2 rounded transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00] h-7`}
           >
             <Settings size={14} className={showOptionsDropdown ? 'animate-spin-slow' : ''} />
             <span>OPÇÕES</span>
@@ -1192,10 +1207,12 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                             className={`
                               p-0 border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} relative transition-all h-10
                               ${col.isVariable ? (isDarkMode ? 'bg-emerald-400/5' : 'bg-emerald-500/5') : ''}
+                              ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'bg-yellow-500/80' : ''}
                               ${isCellFocused ? 'ring-2 ring-emerald-500 ring-inset z-20 shadow-xl' : ''}
                             `}
                           >
                             {isCellEditing ? (
+                              <>
                               <input 
                                 type="text"
                                 autoFocus
@@ -1203,11 +1220,21 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                                 onChange={(e) => handleFieldChange(flight.id, col.key as MeshField, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
                                 onBlur={() => handleFinishEdit(flight.id, cIdx)}
+                                list={col.key === 'positionId' ? "rootPositions-datalist" : undefined}
                                 className={`
                                   absolute inset-0 w-full h-full px-3 bg-emerald-500 text-slate-950 font-mono text-[11px] uppercase font-black outline-none
                                   ${col.key === 'airline' ? 'text-left' : 'text-center'}
+                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'bg-yellow-500' : ''}
                                 `}
                               />
+                               {col.key === 'positionId' && (
+                                <datalist id="rootPositions-datalist">
+                                  {Object.keys(positionsMetadata).sort().map(pos => (
+                                    <option key={pos} value={pos} />
+                                  ))}
+                                </datalist>
+                              )}
+                              </>
                             ) : (
                               <div 
                                 tabIndex={0}
@@ -1219,6 +1246,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({ isDarkMode, rootMeshFlights:
                                   ${!col.isVariable && !isCellFocused && !isMandatoryEmpty ? (isDarkMode ? 'text-indigo-400' : 'text-indigo-700') : ''}
                                   ${col.key === 'etd' && flight[col.key] === 'PRÉ' ? (isDarkMode ? 'text-blue-400 font-black' : 'text-blue-600 font-black text-[12px]') : ''}
                                   ${isMandatoryEmpty ? 'text-red-500 animate-pulse font-black text-xs' : ''}
+                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'text-slate-950 font-black' : ''}
                                 `}
                               >
                                 <span>{isMandatoryEmpty ? '?' : (String(cellValue) || '-')}</span>
