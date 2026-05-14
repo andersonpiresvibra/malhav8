@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { OperatorProfile } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AerodromoProps {
     operators?: OperatorProfile[];
@@ -31,6 +32,7 @@ const PATIO_LABELS = [
 ];
 
 export const Aerodromo: React.FC<AerodromoProps> = ({ operators = [], flights = [] }) => {
+  const { isDarkMode } = useTheme();
   const [activePatioId, setActivePatioId] = useState('2');
   const [searchTerm, setSearchTerm] = useState('');
   const [disabledPositions, setDisabledPositions] = useState<Set<string>>(new Set(['208', '212L']));
@@ -113,13 +115,13 @@ export const Aerodromo: React.FC<AerodromoProps> = ({ operators = [], flights = 
 
   const getStatusBadge = (status: FlightStatus) => {
       switch (status) {
-          case FlightStatus.FINALIZADO: return <span className="bg-emerald-50 text-emerald-600 font-black text-[9px] px-1.5 py-0.5 rounded uppercase border border-emerald-200">FINALIZADO</span>;
-          case FlightStatus.ABASTECENDO: return <span className="bg-blue-50 text-blue-600 font-black text-[9px] px-1.5 py-0.5 rounded uppercase border border-blue-200">ABASTECENDO</span>;
-          case FlightStatus.DESIGNADO: return <span className="bg-indigo-50 text-indigo-600 font-black text-[9px] px-1.5 py-0.5 rounded uppercase border border-indigo-200">DESIGNADO</span>;
-          case FlightStatus.AGUARDANDO: return <span className="bg-amber-50 text-amber-600 font-black text-[9px] px-1.5 py-0.5 rounded uppercase border border-amber-200">AGUARDANDO</span>;
-          case FlightStatus.FILA: return <span className="bg-slate-100 text-slate-500 font-black text-[9px] px-1.5 py-0.5 rounded uppercase border border-slate-200">FILA</span>;
-          case FlightStatus.CANCELADO: return <span className="bg-red-50 text-red-600 font-black text-[9px] px-1.5 py-0.5 rounded uppercase border border-red-200">CANCELADO</span>;
-          default: return <span className="text-[9px] text-slate-500 font-black uppercase background-slate-100 border-slate-200">{status}</span>;
+          case FlightStatus.FINALIZADO: return <span className={`font-black text-[9px] px-1.5 py-0.5 rounded uppercase border ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>FINALIZADO</span>;
+          case FlightStatus.ABASTECENDO: return <span className={`font-black text-[9px] px-1.5 py-0.5 rounded uppercase border ${isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>ABASTECENDO</span>;
+          case FlightStatus.DESIGNADO: return <span className={`font-black text-[9px] px-1.5 py-0.5 rounded uppercase border ${isDarkMode ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-indigo-50 text-indigo-600 border-indigo-200'}`}>DESIGNADO</span>;
+          case FlightStatus.AGUARDANDO: return <span className={`font-black text-[9px] px-1.5 py-0.5 rounded uppercase border ${isDarkMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>AGUARDANDO</span>;
+          case FlightStatus.FILA: return <span className={`font-black text-[9px] px-1.5 py-0.5 rounded uppercase border ${isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>FILA</span>;
+          case FlightStatus.CANCELADO: return <span className={`font-black text-[9px] px-1.5 py-0.5 rounded uppercase border ${isDarkMode ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}>CANCELADO</span>;
+          default: return <span className={`text-[9px] font-black uppercase border ${isDarkMode ? 'text-slate-400 bg-slate-800 border-slate-700' : 'text-slate-500 bg-slate-100 border-slate-200'}`}>{status}</span>;
       }
   };
 
@@ -147,18 +149,18 @@ export const Aerodromo: React.FC<AerodromoProps> = ({ operators = [], flights = 
   }, []);
 
   const subheaderContent = (
-      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b bg-[#3CA317] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)] z-20 w-full`}>
+      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} z-20 w-full`}>
         <div className="flex items-center gap-6 h-full">
           <div className="flex items-center gap-3">
             <LayoutGrid className="text-white" size={20} />
             <div>
               <h2 className="text-sm font-black text-white tracking-tighter uppercase leading-none">MAPA DO PÁTIO</h2>
-              <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">SBGR GROUND LAYOUT</span>
+              <span className={`text-[9px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-white/70'}`}>SBGR GROUND LAYOUT</span>
             </div>
           </div>
           <div className="flex items-center ml-2 bg-black/20 p-0.5 rounded border border-white/10 h-8 gap-0.5">
             {PATIO_LABELS.map(patio => (
-              <button key={patio.id} onClick={() => setActivePatioId(patio.id)} className={`px-3 py-1 rounded text-[10px] h-full font-black uppercase tracking-widest transition-all ${activePatioId === patio.id ? 'bg-white text-[#3CA317] shadow-sm' : 'text-white hover:bg-white/10'}`}>
+              <button key={patio.id} onClick={() => setActivePatioId(patio.id)} className={`px-3 py-1 rounded text-[10px] h-full font-black uppercase tracking-widest transition-all ${activePatioId === patio.id ? (isDarkMode ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-[#3CA317] shadow-sm') : 'text-white hover:bg-white/10'}`}>
                 {patio.label}
               </button>
             ))}
@@ -172,9 +174,9 @@ export const Aerodromo: React.FC<AerodromoProps> = ({ operators = [], flights = 
   );
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden relative">
+    <div className={`w-full h-full flex flex-col ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'} overflow-hidden relative`}>
       {portalTarget ? createPortal(subheaderContent, portalTarget) : subheaderContent}
-      <div className="flex-1 overflow-y-auto p-6 bg-white">
+      <div className={`flex-1 overflow-y-auto p-6 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-24 auto-rows-fr">
           {displayedPositions.map(posId => {
             const flight = positionData.get(posId);
@@ -185,18 +187,18 @@ export const Aerodromo: React.FC<AerodromoProps> = ({ operators = [], flights = 
             
             return (
               <div key={posId} className={`relative rounded-xl border-2 flex flex-col p-3 transition-all shadow-sm group min-h-[170px] overflow-hidden ${
-                isDisabled ? 'border-red-200' 
-                : isOccupied ? (flight.status === FlightStatus.FINALIZADO ? 'border-emerald-200 bg-emerald-50/50' : 'border-blue-200 bg-blue-50/50') 
-                : 'border-slate-200 bg-white'
+                isDisabled ? (isDarkMode ? 'border-red-900/50 bg-red-950/20' : 'border-red-200') 
+                : isOccupied ? (flight.status === FlightStatus.FINALIZADO ? (isDarkMode ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50/50') : (isDarkMode ? 'border-blue-500/20 bg-blue-500/5' : 'border-blue-200 bg-blue-50/50')) 
+                : (isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-white')
               } ${isCtaOnly && !isDisabled ? 'ring-1 ring-yellow-400/50 border-yellow-300' : ''}`}
-              style={isDisabled ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(248, 250, 252, 1), rgba(248, 250, 252, 1) 10px, rgba(226, 232, 240, 0.4) 10px, rgba(226, 232, 240, 0.4) 20px)' } : {}}
+              style={isDisabled ? { backgroundImage: isDarkMode ? 'repeating-linear-gradient(45deg, rgba(15, 23, 42, 1), rgba(15, 23, 42, 1) 10px, rgba(127, 29, 29, 0.1) 10px, rgba(127, 29, 29, 0.1) 20px)' : 'repeating-linear-gradient(45deg, rgba(248, 250, 252, 1), rgba(248, 250, 252, 1) 10px, rgba(226, 232, 240, 0.4) 10px, rgba(226, 232, 240, 0.4) 20px)' } : {}}
               >
                 <div className="flex justify-between items-start mb-2 relative z-10">
-                  <span className={`text-xl font-black font-mono ${isDisabled ? 'text-slate-400' : isOccupied ? 'text-slate-800' : 'text-slate-400'} ${isCtaOnly && !isOccupied && !isDisabled ? 'text-yellow-600' : ''}`}>{posId}</span>
+                  <span className={`text-xl font-black font-mono ${isDisabled ? (isDarkMode ? 'text-slate-600' : 'text-slate-400') : isOccupied ? (isDarkMode ? 'text-white' : 'text-slate-800') : (isDarkMode ? 'text-slate-600' : 'text-slate-400')} ${isCtaOnly && !isOccupied && !isDisabled ? 'text-yellow-600' : ''}`}>{posId}</span>
                   {isDisabled ? (
-                    <span className="text-[10px] font-black uppercase text-red-600 bg-red-100 px-2 py-0.5 rounded border border-red-200 shadow-sm">OFF</span>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border shadow-sm ${isDarkMode ? 'bg-red-900/30 text-red-500 border-red-900/50' : 'bg-red-100 text-red-600 border-red-200'}`}>OFF</span>
                   ) : isOccupied ? (
-                    <span className="text-[10px] font-black uppercase text-blue-700 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded shadow-sm">{flight.airline}</span>
+                    <span className={`text-[10px] font-black uppercase border px-2 py-0.5 rounded shadow-sm ${isDarkMode ? 'bg-blue-900/30 text-blue-400 border-blue-900/50' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{flight.airline}</span>
                   ) : null}
                 </div>
                 
@@ -204,27 +206,27 @@ export const Aerodromo: React.FC<AerodromoProps> = ({ operators = [], flights = 
                   {isDisabled ? (
                     <div className="flex flex-col items-center gap-2">
                       <Ban className="text-red-400" size={24} strokeWidth={2.5} />
-                      <span className="text-[10px] font-black text-red-600 bg-white px-2.5 py-1 rounded shadow-sm border border-red-100">INATIVO</span>
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded shadow-sm border ${isDarkMode ? 'bg-slate-900 text-red-500 border-red-900/30' : 'bg-white text-red-600 border-red-100'}`}>INATIVO</span>
                     </div>
                   ) : isOccupied ? (
                      <div className="flex flex-col gap-1.5">
-                      <div className="flex justify-between items-baseline text-slate-800 font-black text-sm">
+                      <div className={`flex justify-between items-baseline font-black text-sm ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
                         <span className="truncate mr-2 font-mono">{(flight.flightNumber && flight.flightNumber !== '--') ? flight.flightNumber : (flight.departureFlightNumber || '--')}</span>
-                        <span className="text-slate-500 text-xs">{flight.destination || flight.origin || 'SBMO'}</span>
+                        <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{flight.destination || flight.origin || 'SBMO'}</span>
                       </div>
                       
-                      <div className="h-px w-full bg-slate-200"></div>
+                      <div className={`h-px w-full ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
                       
-                      <div className="flex justify-between text-[10px] font-mono text-slate-500">
-                        <span>CHG: <span className="text-slate-800">{flight.eta || '--:--'}</span></span>
-                        <span>ETD: <span className="text-emerald-600">{flight.etd || '--:--'}</span></span>
+                      <div className={`flex justify-between text-[10px] font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <span>CHG: <span className={isDarkMode ? 'text-slate-200' : 'text-slate-800'}>{flight.eta || '--:--'}</span></span>
+                        <span>ETD: <span className="text-emerald-500 font-bold">{flight.etd || '--:--'}</span></span>
                       </div>
                       
-                      <div className="h-px w-full bg-slate-200"></div>
+                      <div className={`h-px w-full ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
                       
                       <div className="flex justify-between items-center mt-1">
                         <OperatorCell operatorName={flight.operator} operators={operators} />
-                        <span className="text-sm font-black bg-gradient-to-br from-slate-500 to-slate-700 bg-clip-text text-transparent truncate ml-2">{flight.fleet || flight.vehicleType || ''}</span>
+                        <span className={`text-sm font-black bg-clip-text text-transparent truncate ml-2 ${isDarkMode ? 'bg-gradient-to-br from-slate-200 to-slate-400' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>{flight.fleet || flight.vehicleType || ''}</span>
                       </div>
                       
                       <div className="flex justify-end items-center mt-1 pb-1">
@@ -232,25 +234,25 @@ export const Aerodromo: React.FC<AerodromoProps> = ({ operators = [], flights = 
                       </div>
                     </div>
                   ) : (
-                    <div className={`text-center flex flex-col items-center justify-center h-full text-[10px] font-black uppercase tracking-widest ${isCtaOnly ? 'text-yellow-600/50' : 'text-slate-400/50'}`}>
+                    <div className={`text-center flex flex-col items-center justify-center h-full text-[10px] font-black uppercase tracking-widest ${isCtaOnly ? 'text-yellow-600/50' : (isDarkMode ? 'text-slate-600' : 'text-slate-400/50')}`}>
                         {isCtaOnly ? 'P/ CTA' : 'Livre'}
                     </div>
                   )}
                 </div>
                 
-                <div className={`mt-auto pt-3 border-t ${isDisabled ? 'border-transparent' : 'border-slate-200'} flex gap-2 items-center relative z-10`}>
+                <div className={`mt-auto pt-3 border-t ${isDisabled ? 'border-transparent' : (isDarkMode ? 'border-slate-800' : 'border-slate-200')} flex gap-2 items-center relative z-10`}>
                   {!isDisabled && (
-                    <button onClick={() => setCalcoInputPos(posId)} className="text-[9px] font-black text-amber-600 hover:text-amber-700 flex items-center gap-1.5 transition-colors">
+                    <button onClick={() => setCalcoInputPos(posId)} className="text-[9px] font-black text-amber-600 hover:text-amber-500 flex items-center gap-1.5 transition-colors">
                       <Anchor size={12} strokeWidth={2.5} /> CALÇO
                     </button>
                   )}
                   
                   <div className={`flex items-center gap-4 ${!isDisabled ? 'ml-auto' : 'w-full justify-end opacity-0 group-hover:opacity-100 transition-opacity'}`}>
-                     <button onClick={(e) => toggleCtaOnlyPosition(posId, e)} className={`${isCtaOnly ? 'text-yellow-500' : 'text-slate-400 hover:text-yellow-600'} transition-colors`} title="Fixar como CTA">
+                     <button onClick={(e) => toggleCtaOnlyPosition(posId, e)} className={`${isCtaOnly ? 'text-yellow-500' : 'text-slate-500 hover:text-yellow-600'} transition-colors`} title="Fixar como CTA">
                        <BusFront size={12} strokeWidth={2.5} />
                      </button>
                      
-                     <button onClick={(e) => toggleDisablePosition(posId, e)} className={`${isDisabled ? 'text-red-500' : 'text-slate-400 hover:text-red-600'} transition-colors`} title="Desabilitar Posição">
+                     <button onClick={(e) => toggleDisablePosition(posId, e)} className={`${isDisabled ? 'text-red-500' : 'text-slate-500 hover:text-red-600'} transition-colors`} title="Desabilitar Posição">
                        <Power size={12} strokeWidth={2.5} />
                      </button>
                   </div>
