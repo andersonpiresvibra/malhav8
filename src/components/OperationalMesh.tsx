@@ -835,7 +835,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({ onClose, onAct
   }, []);
 
   const headerContent = (
-    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[70] w-full shadow-md`}>
+    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} z-20 w-full`}>
       <div className="flex items-center gap-2 md:gap-4 h-full">
         {/* Brand & Quick Stats */}
         <div className="flex items-center gap-2 shrink-0 pr-4 border-r border-white/10 h-10">

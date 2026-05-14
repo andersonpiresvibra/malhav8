@@ -19,6 +19,7 @@ import { ReportsView } from './components/ReportsView';
 import { OperatorsAdmin } from './components/OperatorsAdmin';
 import { FleetsAdmin } from './components/FleetsAdmin';
 import { AircraftsAdmin } from './components/AircraftsAdmin';
+import { Aerodromo } from './components/Aerodromo';
 
 const GridOps = lazy(() => import('./components/GridOps').then(m => ({ default: m.GridOps })));
 
@@ -473,8 +474,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div id="subheader-portal-target" className="w-full shrink-0 z-[150] relative"></div>
-
       <AlertModal
         isOpen={endOfDayAlert.isOpen}
         title={endOfDayAlert.title}
@@ -491,6 +490,7 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
+          <div id="subheader-portal-target" className="w-full shrink-0 z-30 relative"></div>
           <div className="flex-1 overflow-hidden relative">
               <Suspense fallback={<div className="flex items-center justify-center h-full w-full"><Spinner size={48} text="Carregando módulo..." /></div>}>
                 {view === 'GRID_OPS' && (
@@ -577,6 +577,9 @@ const App: React.FC = () => {
                   <AircraftsAdmin 
                     isDarkMode={isDarkMode} 
                    />
+                )}
+                {view === 'AERODROMO' && (
+                  <Aerodromo operators={globalOperators} flights={globalFlights} />
                 )}
               </Suspense>
           </div>

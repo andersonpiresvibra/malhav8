@@ -14,6 +14,8 @@ import { AirlineLogo } from './AirlineLogo';
 import { Spinner } from './ui/Spinner';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { InlineOperatorSelect } from './ui/InlineOperatorSelect';
+import { insertAuditLog } from '../services/supabaseService';
+import { useAuth } from '../contexts/AuthContext';
 
 import { 
   LayoutGrid, Clock, UserCheck, Droplet, CheckCircle, 
@@ -230,6 +232,35 @@ export const GridOps: React.FC<GridOpsProps> = ({
     currentMeshDate
 }) => {
   const { isDarkMode } = useTheme();
+  const { user, warName } = useAuth();
+  
+  const currentUserName = user?.warName || warName || ltName || 'SISTEMA';
+  const currentUserRole = user?.role || 'LÍDER DE TURNO';
+
+  const logAudit = (
+    actionType: string, 
+    flight: Partial<FlightData>, 
+    field?: string, 
+    oldVal?: string, 
+    newVal?: string, 
+    metadata?: any
+  ) => {
+    insertAuditLog({
+      entity_type: 'FLIGHT',
+      entity_id: flight.id,
+      action_type: actionType,
+      flight_number: flight.flightNumber,
+      flight_date: flight.date || currentMeshDate,
+      registration: flight.registration,
+      field_changed: field,
+      old_value: oldVal,
+      new_value: newVal,
+      user_name: currentUserName,
+      user_role: currentUserRole,
+      metadata
+    });
+  };
+
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [activeShift, setActiveShift] = useState<MeshShift>(getCurrentShift(false) as MeshShift);
@@ -957,6 +988,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const calculateSorted = (list: FlightData[]) => {
       if (!sortConfig.key || !sortConfig.direction) {
           return [...list].sort((a, b) => {
+              if (a.isReforco && !b.isReforco) return -1;
+              if (!a.isReforco && b.isReforco) return 1;
+              
               if (a.isPinned && !b.isPinned) return -1;
               if (!a.isPinned && b.isPinned) return 1;
               
@@ -986,6 +1020,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
       }
       
       return [...list].sort((a, b) => {
+        if (a.isReforco && !b.isReforco) return -1;
+        if (!a.isReforco && b.isReforco) return 1;
+
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
         
@@ -1044,6 +1081,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       }
 
       const newLog = createNewLog('MANUAL', 'Voo movido para FILA manualmente.', 'GESTOR_MESA');
+      logAudit('MOVE_TO_QUEUE', flight, 'status', flight.status, 'FILA');
       onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { 
           ...f, 
           status: FlightStatus.FILA,
@@ -1054,9 +1092,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const handleManualStart = (id: string, e: React.MouseEvent, startTime?: Date) => {
       e.stopPropagation();
+      const flight = flights.find(f => f.id === id);
       const start = startTime || new Date();
       const timeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const newLog = createNewLog('SISTEMA', `Início de abastecimento confirmado às ${timeStr}.`, 'GESTOR_MESA');
+      
+      if (flight) logAudit('START_FLIGHT', flight, 'status', flight.status, 'ABASTECENDO');
+      
       onUpdateFlights(prev => prev.map(f => f.id === id ? { 
           ...f, 
           status: FlightStatus.ABASTECENDO, 
@@ -1091,6 +1133,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const confirmDeleteFlight = () => {
       if (!deleteModalFlight) return;
+      
+      logAudit('DELETE_FLIGHT', deleteModalFlight);
+      
       onUpdateFlights(prev => prev.filter(f => f.id !== deleteModalFlight.id));
       addToast('VOO EXCLUÍDO', `Voo ${deleteModalFlight.flightNumber || deleteModalFlight.departureFlightNumber} foi removido do sistema.`, 'info');
       setDeleteModalFlight(null);
@@ -1100,6 +1145,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
       if (!cancelModalFlight) return;
       
       const newLog = createNewLog('MANUAL', 'Voo CANCELADO manualmente pelo gestor.', 'GESTOR_MESA');
+      logAudit('CANCEL_FLIGHT', cancelModalFlight, 'status', cancelModalFlight.status, 'CANCELADO');
+      
       onUpdateFlights(prev => prev.map(f => f.id === cancelModalFlight.id ? { 
           ...f, 
           status: FlightStatus.CANCELADO,
@@ -1124,11 +1171,21 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const confirmFinish = (id: string, flightNumber: string, delayJustification?: string) => {
       let newLog: FlightLog;
+      const flight = flights.find(f => f.id === id);
+      
       if (delayJustification) {
           newLog = createNewLog('ATRASO', `Finalizado com ATRASO. Justificativa: ${delayJustification}`, 'GESTOR_MESA');
       } else {
           newLog = createNewLog('SISTEMA', 'Abastecimento finalizado no horário.', 'GESTOR_MESA');
       }
+      
+      if (flight) {
+          logAudit('FINISH_FLIGHT', flight, 'status', flight.status, 'FINALIZADO', { 
+            delayJustification,
+            hasDelay: !!delayJustification 
+          });
+      }
+
       onUpdateFlights(prev => prev.map(f => f.id === id ? { 
           ...f, 
           status: FlightStatus.FINALIZADO, 
@@ -1206,6 +1263,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { 
           ...f, 
           status: FlightStatus.FILA,
+          isReforco: true,
           operator: undefined,
           designationTime: undefined,
           logs: [...(f.logs || []), newLog]
@@ -1265,8 +1323,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
           const operator = operators.find(op => op.id === idToUse);
           if (!operator) return;
 
-          const newLog = createNewLog('MANUAL', `Operador ${operator.warName} designado manualmente por ${ltName}.`, 'GESTOR_MESA');
+          const newLog = createNewLog('MANUAL', `Operador ${operator.warName} designado manualmente.`, 'GESTOR_MESA');
           
+          logAudit('ASSIGN_OPERATOR', assignModalFlight, 'operator', assignModalFlight.operator, operator.warName, { 
+              fleet: operator.assignedVehicle, 
+              assigned_by: ltName 
+          });
+
           // IMPORTANTE: Ao designar, o status vai para DESIGNADO, removendo automaticamente da FILA
           onUpdateFlights(prev => prev.map(f => f.id === assignModalFlight.id ? { 
               ...f, 
@@ -1295,6 +1358,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
           const newLog = createNewLog('MANUAL', `Op. Apoio ${operator.warName} designado manualmente.`, 'GESTOR_MESA');
           
+          logAudit('ASSIGN_SUPPORT_OPERATOR', assignSupportModalFlight, 'supportOperator', assignSupportModalFlight.supportOperator, operator.warName, { 
+              fleet: operator.assignedVehicle 
+          });
+
           onUpdateFlights(prev => prev.map(f => f.id === assignSupportModalFlight.id ? { 
               ...f, 
               supportOperator: operator.warName,
@@ -1419,6 +1486,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
 
     if (f.status === FlightStatus.FILA) {
+        if (f.isReforco) return {
+            label: 'REFORÇO',
+            color: isDarkMode ? 'text-purple-400 bg-purple-500/10 border-purple-400/50' : 'text-purple-600 bg-purple-50 border-purple-200'
+        };
         if (f.isStandby) return { 
             label: 'STAND-BY', 
             color: isDarkMode ? 'text-slate-400 bg-slate-800 border-slate-600' : 'text-slate-600 bg-slate-100 border-slate-300' 
@@ -1716,7 +1787,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   );
 
   const subheaderContent = (
-      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white"} z-[70] w-full shadow-md`}>
+      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} z-20 w-full`}>
         <div className="flex items-center gap-6 h-full">
             <div className="flex items-center gap-3">
                 <div>
@@ -1838,7 +1909,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       <div className={`flex-1 min-w-0 overflow-hidden relative ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
             <div className="w-full h-full overflow-auto min-w-0 custom-scrollbar relative">
               <table ref={tableRef} className="w-full text-left border-separate border-spacing-0 grid-ops-table">
-                  <thead className={`grid-ops-thead sticky top-0 z-50 shadow-sm ${isDarkMode ? 'bg-slate-950' : 'bg-[#2D8E48]'}`}>
+                  <thead className={`grid-ops-thead sticky top-0 z-40 shadow-sm ${isDarkMode ? 'bg-slate-950' : 'bg-[#2D8E48]'}`}>
                       <tr id="grid-header-container" className="h-10">
                     {/* LAYOUT CONDICIONAL DE COLUNAS */}
                     {activeTab === 'FILA' ? (

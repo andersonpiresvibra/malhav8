@@ -43,7 +43,7 @@ interface FlightDetailsModalProps {
   initialTab?: 'DADOS' | 'RELATÓRIO';
 }
 
-export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, onClose, onUpdate, vehicles, operators, onOpenAssignSupport }) => {
+export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, onClose, onUpdate, vehicles, operators, onOpenAssignSupport, initialTab }) => {
   const { isDarkMode } = useTheme();
   const [localFlight, setLocalFlight] = useState<FlightData>(flight);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -136,6 +136,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
 
   const [isEditingSupport, setIsEditingSupport] = useState(false);
   const [supportInput, setSupportInput] = useState(flight.supportOperator || '');
+  const [activeTab, setActiveTab] = useState<'DADOS' | 'TIMELINE'>(initialTab === 'RELATÓRIO' ? 'TIMELINE' : 'DADOS');
 
   // T. Rest logic
   const [timeRemaining, setTimeRemaining] = useState<string>('--m');
@@ -401,6 +402,110 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
 
   const isFinished = localFlight.status === FlightStatus.FINALIZADO || localFlight.status === FlightStatus.CANCELADO;
 
+  const getLogIcon = (log: FlightLog) => {
+      const msg = log.message.toLowerCase();
+      if (msg.includes('abastecendo')) return <Droplet size={10} />;
+      if (msg.includes('designado') || msg.includes('operador')) return <UserPlus size={10} />;
+      if (msg.includes('finalizado') || msg.includes('sucesso')) return <CheckCircle size={10} />;
+      if (log.type === 'ALERTA' || log.type === 'ATRASO') return <AlertCircle size={10} />;
+      if (log.type === 'OBSERVACAO') return <MessageCircle size={10} />;
+      if (msg.includes('fila')) return <Clock size={10} />;
+      if (msg.includes('calço')) return <Anchor size={10} />;
+      return <Activity size={10} />;
+  };
+
+  const getLogColor = (log: FlightLog | any, isFirst: boolean) => {
+      const msg = log.message.toLowerCase();
+      if (log.type === 'ATRASO' || log.type === 'ALERTA' || msg.includes('cancelado')) return isFirst ? 'bg-red-500 border-red-200 text-white' : 'bg-red-100 border-red-200 text-red-500';
+      if (msg.includes('finalizado') || msg.includes('sucesso') || msg.includes('concluído') || msg.includes('acoplado e pronto')) return isFirst ? 'bg-emerald-500 border-emerald-200 text-white' : 'bg-emerald-100 border-emerald-200 text-emerald-500';
+      if (msg.includes('abastecendo') || msg.includes('iniciado')) return isFirst ? 'bg-blue-500 border-blue-200 text-white' : 'bg-blue-100 border-blue-200 text-blue-500';
+      if (msg.includes('designado') || msg.includes('operador') || msg.includes('deslocamento') || msg.includes('acoplando')) return isFirst ? 'bg-indigo-500 border-indigo-200 text-white' : 'bg-indigo-100 border-indigo-200 text-indigo-500';
+      if (msg.includes('fila') || msg.includes('aguardando')) return isFirst ? 'bg-amber-500 border-amber-200 text-white' : 'bg-amber-100 border-amber-200 text-amber-500';
+      return isFirst ? 'bg-slate-700 border-slate-300 text-white' : 'bg-slate-100 border-slate-200 text-slate-400';
+  };
+
+  type AugmentedLog = FlightLog & {
+      progress?: number;
+      timelineType?: 'A_CAMINHO' | 'ACOPLANDO' | 'ACOPLADO';
+  };
+
+  const computeTimelineLogs = (): AugmentedLog[] => {
+      let logs: AugmentedLog[] = [...(localFlight.logs || [])];
+      
+      if (localFlight.designationTime && localFlight.operator) {
+          const desigTime = new Date(localFlight.designationTime).getTime();
+          const now = Date.now();
+          const elapsedMin = (now - desigTime) / 60000;
+          
+          const hasPosition = localFlight.positionId && localFlight.positionId !== '?' && localFlight.positionId.trim() !== '';
+          
+          if (hasPosition) {
+              const isFinishedOrAbast = localFlight.status === FlightStatus.FINALIZADO || localFlight.status === FlightStatus.CANCELADO || localFlight.status === 'ABASTECENDO';
+              
+              // A CAMINHO
+              let aCaminhoProgress = 100;
+              if (!isFinishedOrAbast && elapsedMin < 5) aCaminhoProgress = Math.max(5, (elapsedMin / 5) * 100);
+              
+              if (!logs.some(l => l.id === 'synth-a-caminho')) {
+                  logs.push({
+                      id: 'synth-a-caminho',
+                      timestamp: localFlight.designationTime ? new Date(localFlight.designationTime) : new Date(),
+                      message: `Operador a caminho da posição ${localFlight.positionId} (ETA 5m)`,
+                      type: 'SISTEMA',
+                      author: 'SISTEMA',
+                      progress: aCaminhoProgress,
+                      timelineType: 'A_CAMINHO'
+                  });
+              }
+
+              // ACOPLANDO
+              if (elapsedMin >= 5 || isFinishedOrAbast) {
+                  let acoplandoProgress = 100;
+                  if (!isFinishedOrAbast && elapsedMin >= 5 && elapsedMin < 10) acoplandoProgress = Math.max(5, ((elapsedMin - 5) / 5) * 100);
+                  
+                  const tsAcoplando = localFlight.designationTime 
+                      ? new Date(new Date(localFlight.designationTime).getTime() + 5 * 60000)
+                      : new Date();
+
+                  if (!logs.some(l => l.id === 'synth-acoplando')) {
+                      logs.push({
+                          id: 'synth-acoplando',
+                          timestamp: tsAcoplando,
+                          message: `Acoplando equipamentos e aterramento`,
+                          type: 'SISTEMA',
+                          author: 'SISTEMA',
+                          progress: acoplandoProgress,
+                          timelineType: 'ACOPLANDO'
+                      });
+                  }
+              }
+
+              // ACOPLADO
+              if (elapsedMin >= 10 || isFinishedOrAbast) {
+                  const tsAcoplado = localFlight.designationTime 
+                      ? new Date(new Date(localFlight.designationTime).getTime() + 10 * 60000)
+                      : new Date();
+
+                  if (!logs.some(l => l.id === 'synth-acoplado')) {
+                      logs.push({
+                          id: 'synth-acoplado',
+                          timestamp: tsAcoplado,
+                          message: `Equipamento acoplado e pronto`,
+                          type: 'SISTEMA',
+                          author: 'SISTEMA',
+                          progress: 100,
+                          timelineType: 'ACOPLADO'
+                      });
+                  }
+              }
+          }
+      }
+      
+      return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  };
+
+  const timelineLogs = computeTimelineLogs();
+
   return (
     <>
     <motion.div 
@@ -454,15 +559,32 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
             </div>
         </div>
 
+        {/* TABS */}
+        <div className={`flex border-b ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+            <button 
+                onClick={() => setActiveTab('DADOS')}
+                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'DADOS' ? (isDarkMode ? 'text-emerald-500 border-b-2 border-emerald-500 bg-slate-800/50' : 'text-emerald-600 border-b-2 border-emerald-500 bg-white') : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600')}`}
+            >
+                Informações
+            </button>
+            <button 
+                onClick={() => setActiveTab('TIMELINE')}
+                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'TIMELINE' ?  (isDarkMode ? 'text-emerald-500 border-b-2 border-emerald-500 bg-slate-800/50' : 'text-emerald-600 border-b-2 border-emerald-500 bg-white') : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600')}`}
+            >
+                Rastreio (Timeline)
+            </button>
+        </div>
+
         {/* CONTENT: TIGHT GRID */}
-        <div className="p-4 bg-white max-h-[60vh] overflow-y-auto">
-            <section className="space-y-4">
-                <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-[0.2em] border border-emerald-100">
-                        INFORMAÇÕES DO VOO
-                    </h3>
-                    <div className="h-px flex-1 bg-slate-100" />
-                </div>
+        <div className={`p-4 max-h-[60vh] overflow-y-auto ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
+            {activeTab === 'DADOS' ? (
+                <section className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-[0.2em] border border-emerald-100">
+                            DETALHES DA OPERAÇÃO
+                        </h3>
+                        <div className="h-px flex-1 bg-slate-100" />
+                    </div>
                 
                 <div className="grid grid-cols-3 gap-x-4 gap-y-4">
                     {/* LINHA 1 */}
@@ -698,10 +820,85 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                     </div>
                 </div>
             </section>
+            ) : (
+                <section className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-[0.2em] border border-emerald-100">
+                            LINHA DO TEMPO
+                        </h3>
+                        <div className="h-px flex-1 bg-slate-100" />
+                    </div>
+                    
+                    <div className={`relative border-l-2 ml-[15px] space-y-6 pb-4 pt-2 ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+                        {timelineLogs && timelineLogs.length > 0 ? (
+                            timelineLogs
+                                .map((log, idx) => {
+                                    const isFirst = idx === 0;
+                                    const logColor = getLogColor(log, isFirst);
+                                    
+                                    return (
+                                    <div key={log.id} className="relative pl-6 group">
+                                        {/* CIRCLE ICON */}
+                                        <div className={`absolute -left-[11px] top-0 w-5 h-5 rounded-full flex items-center justify-center border-2 ${isDarkMode ? 'border-slate-900' : 'border-white'} ${logColor} shadow-sm z-10 transition-transform group-hover:scale-110`}>
+                                            {getLogIcon(log)}
+                                        </div>
+                                        
+                                        <div className="flex flex-col -mt-1">
+                                            {/* TIMESTAMP & DATE */}
+                                            <span className={`text-[9px] font-mono font-bold tracking-widest uppercase mb-1 ${isFirst ? (isDarkMode ? 'text-slate-200' : 'text-slate-600') : (isDarkMode ? 'text-slate-500' : 'text-slate-400')}`}>
+                                                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(log.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short' })}
+                                            </span>
+                                            
+                                            {/* MESSAGE CARD */}
+                                            <div className={`p-2 rounded-lg border shadow-sm transition-all overflow-hidden ${
+                                                isFirst 
+                                                    ? (isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200')
+                                                    : (isDarkMode ? 'bg-slate-900/50 border-slate-800/50' : 'bg-slate-50 border-slate-100')
+                                            } group-hover:border-slate-300 dark:group-hover:border-slate-600`}>
+                                                <p className={`text-xs font-medium leading-relaxed ${isFirst ? (isDarkMode ? 'text-white' : 'text-slate-800') : (isDarkMode ? 'text-slate-400' : 'text-slate-600')}`}>
+                                                    {log.message}
+                                                </p>
+                                                
+                                                {log.progress !== undefined && log.progress < 100 && (
+                                                    <div className={`mt-2 h-1 w-full rounded overflow-visible relative ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                                                        <div 
+                                                            className={`h-full transition-all duration-1000 ease-linear rounded relative flex items-center justify-end ${
+                                                                log.timelineType === 'A_CAMINHO' ? 'bg-indigo-500' : 'bg-blue-500'
+                                                            }`}
+                                                            style={{ width: `${Math.min(100, Math.max(0, log.progress))}%` }}
+                                                        >
+                                                            <div className={`absolute -right-1 w-2.5 h-2.5 rounded-full shadow-sm ring-1 ${log.timelineType === 'A_CAMINHO' ? (isDarkMode ? 'bg-indigo-400 ring-indigo-900' : 'bg-indigo-500 ring-white') : (isDarkMode ? 'bg-blue-400 ring-blue-900' : 'bg-blue-500 ring-white')}`} />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {log.author && (
+                                                    <div className="mt-2 text-[8px] flex justify-between items-center border-t border-slate-100 dark:border-slate-800 pt-2">
+                                                        <span className={`font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-slate-950 text-slate-500' : 'bg-slate-100 text-slate-500'}`}>
+                                                            {log.type}
+                                                        </span>
+                                                        <span className={`font-mono flex items-center gap-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                            <UserCheck size={8} /> {log.author}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )})
+                        ) : (
+                            <div className="text-center py-8 opacity-50">
+                                <History size={24} className="mx-auto mb-2 text-slate-400" />
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nenhum registro encontrado</p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
         </div>
 
         {/* FOOTER: ACTION ORIENTED DESIGNATION */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100">
+        <div className={`p-4 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
             {!isFinished && (
                 <div className="grid grid-cols-2 gap-3 mb-4">
                     {/* OPERADOR */}
@@ -710,13 +907,13 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                             <UserPlus size={10} className="text-indigo-500" /> Operador
                         </label>
                         {localFlight.operator ? (
-                            <div className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg group hover:border-indigo-300 transition-all shadow-sm">
+                            <div className={`flex items-center justify-between border p-2 rounded-lg group transition-all shadow-sm ${isDarkMode ? 'bg-slate-900 border-slate-800 hover:border-indigo-500/50' : 'bg-white border-slate-200 hover:border-indigo-300'}`}>
                                 <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center text-[10px] font-bold border border-indigo-100">
+                                    <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold border ${isDarkMode ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
                                         {localFlight.operator.charAt(0)}
                                     </div>
                                     <div className="overflow-hidden">
-                                        <div className="text-[10px] font-bold text-slate-900 uppercase leading-tight truncate">{localFlight.operator} {localFlight.fleet ? `| ${localFlight.fleet}` : ''}</div>
+                                        <div className={`text-[10px] font-bold uppercase leading-tight truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{localFlight.operator} {localFlight.fleet ? `| ${localFlight.fleet}` : ''}</div>
                                         <div className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">
                                             {localFlight.vehicleType || 'S/ TIPO'}
                                         </div>
@@ -724,7 +921,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                                 </div>
                                 <button 
                                     onClick={() => setIsAssignModalOpen(true)}
-                                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                    className={`p-1.5 rounded-lg transition-all ${isDarkMode ? 'text-slate-500 hover:text-indigo-400 hover:bg-slate-800' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                                 >
                                     <RefreshCw size={10} />
                                 </button>
@@ -732,7 +929,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         ) : (
                             <button 
                                 onClick={() => setIsAssignModalOpen(true)}
-                                className="w-full h-[36px] bg-white border border-dashed border-slate-300 rounded-lg text-[9px] font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest"
+                                className={`w-full h-[36px] border border-dashed rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 uppercase tracking-widest transition-all ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10' : 'bg-white border-slate-300 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/30'}`}
                             >
                                 <UserPlus size={14} /> Designar
                             </button>
@@ -747,13 +944,13 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         {localFlight.operator ? (
                             <div className="relative">
                                 {localFlight.supportOperator ? (
-                                    <div className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg group hover:border-emerald-300 transition-all shadow-sm">
+                                    <div className={`flex items-center justify-between border p-2 rounded-lg group transition-all shadow-sm ${isDarkMode ? 'bg-slate-900 border-slate-800 hover:border-emerald-500/50' : 'bg-white border-slate-200 hover:border-emerald-300'}`}>
                                         <div className="flex items-center gap-2">
-                                            <div className="w-7 h-7 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center text-[10px] font-bold border border-emerald-100">
+                                            <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold border ${isDarkMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
                                                 {localFlight.supportOperator.charAt(0)}
                                             </div>
                                             <div className="overflow-hidden">
-                                                <div className="text-[10px] font-bold text-slate-900 uppercase leading-tight truncate">
+                                                <div className={`text-[10px] font-bold uppercase leading-tight truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                                                     {localFlight.supportOperator} 
                                                     {operators.find(op => op.warName === localFlight.supportOperator)?.assignedVehicle ? ` | ${operators.find(op => op.warName === localFlight.supportOperator)?.assignedVehicle}` : ''}
                                                 </div>
@@ -767,7 +964,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                                                 setLocalFlight(updated);
                                                 onUpdate(updated);
                                             }}
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                                            className={`p-1.5 rounded-lg transition-all ${isDarkMode ? 'text-slate-500 hover:text-red-400 hover:bg-slate-800' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
                                         >
                                             <X size={10} />
                                         </button>
@@ -775,14 +972,14 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                                 ) : (
                                     <button 
                                         onClick={() => onOpenAssignSupport && onOpenAssignSupport(localFlight)}
-                                        className="w-full h-[36px] bg-white border border-dashed border-slate-300 rounded-lg text-[9px] font-bold text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/30 transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest"
+                                        className={`w-full h-[36px] border border-dashed rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 uppercase tracking-widest transition-all ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-500 hover:text-emerald-400 hover:border-emerald-500/50 hover:bg-emerald-500/10' : 'bg-white border-slate-300 text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/30'}`}
                                     >
                                         <Plus size={14} /> Adicionar
                                     </button>
                                 )}
                             </div>
                         ) : (
-                            <div className="w-full h-[36px] bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-[9px] font-bold text-slate-300 uppercase tracking-widest">
+                            <div className={`w-full h-[36px] border rounded-lg flex items-center justify-center text-[9px] font-bold uppercase tracking-widest ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-600' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
                                 Aguardando
                             </div>
                         )}

@@ -309,7 +309,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
   );
 
   const telemetryBar = (
-    <div className={`h-16 shrink-0 border-b px-8 flex items-center justify-between z-30 ${isDarkMode ? "bg-slate-950 border-slate-800/40 text-slate-200" : "bg-[#2D8E48] border-[#206a34] text-white shadow-sm"} w-full`}>
+    <div className={`h-16 shrink-0 border-b px-8 flex items-center justify-between z-30 ${isDarkMode ? "bg-slate-950 border-slate-800/40 text-slate-200" : "bg-[#2D8E48] border-[#206a34] text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} w-full`}>
         <div className="flex items-center gap-10">
             {/* Localização */}
             <div className="flex items-center gap-6">
@@ -373,7 +373,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
   );
 
   return (
-    <div className={`w-full h-full flex flex-col overflow-hidden font-sans ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-200 text-slate-800'}`}>
+    <div className={`w-full h-full flex flex-col overflow-hidden font-sans ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-white text-slate-800'}`}>
         {portalTarget ? createPortal(headers, portalTarget) : headers}
         
         {telemetryBar}

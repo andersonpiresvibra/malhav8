@@ -7,6 +7,63 @@ const checkConfig = () => {
   }
 };
 
+export interface AuditLogEntry {
+  entity_type: string;
+  entity_id?: string;
+  action_type: string;
+  flight_number?: string;
+  flight_date?: string;
+  registration?: string;
+  field_changed?: string;
+  old_value?: string;
+  new_value?: string;
+  user_name?: string;
+  user_role?: string;
+  metadata?: any;
+}
+
+export const insertAuditLog = async (logData: AuditLogEntry): Promise<void> => {
+  if (!isSupabaseConfigured()) return;
+  try {
+    let safeEntityId = null;
+    if (logData.entity_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(logData.entity_id)) {
+      safeEntityId = logData.entity_id;
+    }
+    
+    const metadata = logData.metadata || {};
+    if (logData.entity_id && !safeEntityId) {
+        metadata.frontend_id = logData.entity_id;
+    }
+
+    const payload = { ...logData, entity_id: safeEntityId, metadata };
+
+    const { error } = await supabase.from('audit_logs').insert([payload]);
+    if (error) console.error('[Audit Log] Failed to insert log:', error.message);
+  } catch (err) {
+    console.error('[Audit Log] Exception inserting log:', err);
+  }
+};
+
+export const getAuditLogs = async (limitCount: number = 1000): Promise<AuditLogEntry[]> => {
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limitCount);
+      
+    if (error) {
+      console.error('[Audit Log] Failed to fetch logs:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[Audit Log] Exception fetching logs:', err);
+    return [];
+  }
+};
+
 export const getVehicles = async (): Promise<Vehicle[]> => {
   checkConfig();
   const { data, error } = await supabase.from('vehicles').select('*');

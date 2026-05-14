@@ -25,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
+    { id: 'AERODROMO' as ViewState, icon: LayoutDashboard, label: 'Aeródromo' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
@@ -32,13 +33,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN';
 
   return (
-    <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 ${
+    <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-50 ${
       isDarkMode 
         ? 'bg-slate-900 border-slate-800' 
-        : 'bg-[#004D24] border-transparent'
+        : 'bg-[#617b7b] border-transparent shadow-[2px_0_8px_rgba(0,0,0,0.5)]'
     }`}>
       <div className="flex flex-col gap-6 w-full items-center flex-1">
-        <nav className={`flex flex-col gap-4 w-full px-2 ${!isDarkMode ? 'bg-[#004D24]' : ''}`}>
+        <nav className={`flex flex-col gap-4 w-full px-2 ${!isDarkMode ? 'bg-[#617b7b]' : ''}`}>
           {navItems.map((item) => {
             const isActive = activeView === item.id;
             const Icon = item.icon;

@@ -189,6 +189,7 @@ export interface FlightData {
   observations?: string; // Mantido para compatibilidade, mas idealmente derivado de logs
   delayJustification?: string; // Justificativa de atraso se ETD estourado
   isPinned?: boolean; // Se o voo está fixado no topo
+  isReforco?: boolean; // Se o voo é um reforço
   isHiddenFromGrid?: boolean; // Se foi limpo do grid mas deve permanecer no relatório
   isMeshFlight?: boolean; // Se é um voo da malha base não ativado
   assignmentTime?: Date; // Hr.D (Hora de designação)
@@ -196,7 +197,7 @@ export interface FlightData {
   report?: FlightReport; // Report for presence and delays
 }
 
-export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN';
+export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO';
 
 export interface AircraftType {
   id: string;

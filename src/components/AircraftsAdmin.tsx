@@ -356,7 +356,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   return (
     <div className={`flex flex-col h-full ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}>
         {/* HEADER */}
-        <div className={`shrink-0 h-16 border-b flex items-center justify-between px-4 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className={`shrink-0 h-16 border-b flex items-center justify-between px-4 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.5)]'} z-20`}>
            <div className="flex flex-col justify-center">
                <div className="flex items-center gap-2">
                     <Database size={16} className={isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} />
