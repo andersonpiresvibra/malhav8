@@ -54,6 +54,13 @@ const App: React.FC = () => {
   const [globalOperators, setGlobalOperators] = useState<OperatorProfile[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  const lastManualActionRef = useRef<number>(0);
+
+  const handleManualFlightsUpdate = useCallback((action: React.SetStateAction<FlightData[]>) => {
+    setGlobalFlights(action);
+    lastManualActionRef.current = Date.now();
+    console.log("[Sync] Ação manual detectada. Cooldown de 15s iniciado.");
+  }, []);
 
   useEffect(() => {
     import('./services/supabaseService').then(async ({ getVehicles, getOperators, getFlights, getRootMesh, getBaseMeshFlights, getAerodromoConfig }) => {
@@ -153,7 +160,13 @@ const App: React.FC = () => {
     if (!user) return; // Only sync if authenticated
     
     const syncInterval = setInterval(() => {
-      if (isEditingRef.current) return; // Pause polling when user is editing
+      if (isEditingRef.current) return;
+      
+      // Cooldown de 15 segundos após ação manual para evitar race conditions
+      const timeSinceLastAction = Date.now() - lastManualActionRef.current;
+      if (timeSinceLastAction < 15000) {
+        return;
+      }
       
       import('./services/supabaseService').then(async ({ getFlights, getOperators, getVehicles }) => {
         try {
@@ -164,11 +177,47 @@ const App: React.FC = () => {
              getVehicles()
           ]);
           
-          if (flights && flights.length > 0) {
+          if (flights) {
             setGlobalFlights(prev => {
-              // Only update if there are changes to avoid excessive re-renders
-              const isDifferent = JSON.stringify(prev) !== JSON.stringify(flights);
-              return isDifferent ? flights : prev;
+              const now = Date.now();
+              const isRecentAction = (now - lastManualActionRef.current) < 20000; // 20s window
+
+              // 1. Manter voos de outras datas intocados
+              const otherDatesFlights = prev.filter(f => f.date && f.date !== today);
+              
+              // 2. Para a data sincronizada (hoje), mesclamos em vez de substituir
+              const todayLocal = prev.filter(f => f.date === today || !f.date);
+              
+              // Começamos com a lista do banco como base
+              const mergedToday = [...flights];
+              
+              // Adicionamos voos locais que ainda NÃO estão no banco
+              todayLocal.forEach(localF => {
+                 const existsInDB = flights.some(dbF => dbF.id === localF.id);
+                 if (!existsInDB) {
+                    // Se for uma ação manual recente, MANTEMOS o voo local mesmo que não esteja no banco ainda
+                    if (isRecentAction) {
+                        mergedToday.push(localF);
+                    } else {
+                        // Se não for recente e não estiver no banco, o voo pode ter sido deletado
+                        // ou nunca persistido. No regime enterprise, vamos ser conservadores 
+                        // e manter por enquanto para evitar "flicker" de sumiço.
+                        mergedToday.push(localF); 
+                    }
+                 }
+              });
+
+              // Remover duplicatas por ID (caso algum tenha sido adicionado manualmente com o mesmo ID)
+              const finalToday = Array.from(new Map(mergedToday.map(f => [f.id, f])).values());
+
+              const updatedGlobal = [...otherDatesFlights, ...finalToday];
+              const isDifferent = JSON.stringify(prev) !== JSON.stringify(updatedGlobal);
+              
+              if (isDifferent) {
+                console.log(`[Sync] Malha sincronizada com sucesso. Total: ${updatedGlobal.length} voos.`);
+                return updatedGlobal;
+              }
+              return prev;
             });
           }
           
@@ -350,7 +399,7 @@ const App: React.FC = () => {
         ...f,
         date: tomorrowStr // Update the date of the active flights to tomorrow so they appear tomorrow
     }));
-    setGlobalFlights(unfinishedTransferred);
+    handleManualFlightsUpdate(unfinishedTransferred);
 
     // 4. Transferir Malha Planejada para o dia seguinte
 
@@ -648,7 +697,7 @@ const App: React.FC = () => {
                 {view === 'GRID_OPS' && (
                   <GridOps 
                     flights={globalFlights} 
-                    onUpdateFlights={setGlobalFlights} 
+                    onUpdateFlights={handleManualFlightsUpdate} 
                     vehicles={globalVehicles}
                     operators={globalOperators}
                     initialTab={gridOpsInitialTab}
@@ -675,7 +724,7 @@ const App: React.FC = () => {
                     operators={globalOperators}
                     onUpdateOperators={setGlobalOperators}
                     flights={globalFlights}
-                    onUpdateFlights={setGlobalFlights}
+                    onUpdateFlights={handleManualFlightsUpdate}
                     vehicles={globalVehicles}
                     onOpenCreateModal={() => {
                         setPendingAction('CREATE');
@@ -695,10 +744,15 @@ const App: React.FC = () => {
                     setMeshFlights={setMeshFlights}
                     currentMeshDate={currentMeshDate}
                     setCurrentMeshDate={setCurrentMeshDate}
-                    setFlights={setGlobalFlights}
+                    setFlights={handleManualFlightsUpdate}
                     globalFlights={globalFlights}
                     onActivateMesh={(newFlights) => {
-                      setGlobalFlights(prev => [...newFlights, ...prev]);
+                      handleManualFlightsUpdate(prev => {
+                        // Mesclar novos voos com os existentes, priorizando os novos em caso de conflito de ID
+                        const combined = [...newFlights, ...prev];
+                        return Array.from(new Map(combined.map(f => [f.id, f])).values());
+                      });
+                      
                       import('./services/supabaseService').then(({ bulkInsertFlights }) => {
                         bulkInsertFlights(newFlights).catch(err => {
                           console.error("Falha ao salvar na malha operacional:", err);
@@ -752,7 +806,7 @@ const App: React.FC = () => {
                     onRemoveFlight={async (flightId) => {
                       if (!confirm("Deseja desvincular este voo da posição atual?")) return;
                       // Update Local Otimista
-                      setGlobalFlights(prev => prev.map(f => f.id === flightId ? { ...f, positionId: '', pitId: undefined, positionType: undefined } : f));
+                      handleManualFlightsUpdate(prev => prev.map(f => f.id === flightId ? { ...f, positionId: '', pitId: undefined, positionType: undefined } : f));
                       // Update Backend
                       import('./services/supabaseService').then(({ clearFlightPosition }) => {
                         clearFlightPosition(flightId).catch(err => {

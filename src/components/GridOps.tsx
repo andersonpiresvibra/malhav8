@@ -357,7 +357,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
   }, [focusedCell, editingCell]);
 
-  const syncFlight = (updatedFlight: FlightData, shouldPersist: boolean = false) => {
+  const syncFlight = (updatedFlight: FlightData, shouldPersist: boolean = true) => {
     onUpdateFlights(prev => prev.map(f => f.id === updatedFlight.id ? updatedFlight : f));
     
     if (shouldPersist) {
@@ -705,34 +705,37 @@ export const GridOps: React.FC<GridOpsProps> = ({
   useEffect(() => {
     const interval = setInterval(() => {
         onUpdateFlights(prevFlights => {
-            return prevFlights.map(f => {
+            let hasChanges = false;
+            const changedFlights: FlightData[] = [];
+            
+            const updated = prevFlights.map(f => {
                 const minutesToETD = getMinutesDiff(f.etd, f.date);
+                let updatedF = { ...f };
+                let isModified = false;
                 
                 // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
-                // Só move para fila se NÃO tiver operador e estiver no prazo crítico (mas não ultrapassado demais)
                 if (f.status === FlightStatus.CHEGADA && minutesToETD < 60 && minutesToETD >= -120 && !f.operator && !f.isExcludedFromQueue) {
+                    isModified = true;
                     const newLog = createNewLog('SISTEMA', 'Voo movido para FILA automaticamente (ETD < 60min).', 'SISTEMA');
-                    return { 
-                        ...f, 
+                    updatedF = { 
+                        ...updatedF, 
                         status: FlightStatus.FILA,
                         logs: [...(f.logs || []), newLog]
                     };
                 }
                 
-                // NOVA LÓGICA: Início de abastecimento automático (Time-triggered)
-                // O operador precisa de 5 min para "A CAMINHO" e 5 min para "ACOPLANDO" (Total 10 mins).
+                // NOVA LÓGICA: Início de abastecimento automático
                 const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
                 if ((f.status === FlightStatus.DESIGNADO || f.status === FlightStatus.PRÉ) && f.operator && hasPosition) {
                     const designationTime = f.designationTime ? new Date(f.designationTime).getTime() : 0;
                     if (designationTime > 0) {
                         const minsSinceDesig = (Date.now() - designationTime) / 60000;
-                        
                         if (minsSinceDesig >= 10) {
-                            // Se o voo já está atrasado (menor que 30) ou se for pra iniciar por tempo (ETD <= 25)
                             if (minutesToETD <= 25 || minutesToETD < 30) {
+                                isModified = true;
                                 const newLog = createNewLog('SISTEMA', 'Início aut. de abastecimento (10m deslocamento/acoplamento respeitados).', 'SISTEMA');
-                                return {
-                                    ...f,
+                                updatedF = {
+                                    ...updatedF,
                                     status: FlightStatus.ABASTECENDO,
                                     startTime: new Date(),
                                     logs: [...(f.logs || []), newLog]
@@ -742,8 +745,22 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     }
                 }
                 
+                if (isModified) {
+                    hasChanges = true;
+                    changedFlights.push(updatedF);
+                    return updatedF;
+                }
                 return f;
             });
+
+            if (hasChanges) {
+                // Persistir no banco
+                changedFlights.forEach(f => {
+                    upsertFlight(f).catch(err => console.error("Erro na persistência automática:", err));
+                });
+                return updated;
+            }
+            return prevFlights;
         });
     }, 5000);
     return () => clearInterval(interval);

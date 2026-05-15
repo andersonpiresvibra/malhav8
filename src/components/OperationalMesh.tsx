@@ -231,9 +231,14 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
     const timer = setTimeout(() => {
       if (meshFlights.length > 0) {
         const flightsWithDate = meshFlights.map(f => ({...f, date: f.date || currentMeshDate}));
-        upsertBaseMeshFlights(flightsWithDate).catch(err => console.error("Error autosaving mesh base:", err));
-      } else {
-        clearBaseMeshFlights(currentMeshDate).catch(err => console.error("Error clearing mesh base:", err));
+        upsertBaseMeshFlights(flightsWithDate).catch(err => {
+            console.error("Error autosaving mesh base:", err);
+            setAlertState({
+                isOpen: true,
+                title: 'Erro de Banco de Dados (Auto-Save)',
+                message: `O salvamento automático falhou. Os dados podem desaparecer ao recarregar a página.\nErro: ${err.message}`
+            });
+        });
       }
     }, 1500);
     return () => clearTimeout(timer);
@@ -1668,6 +1673,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
             setFocusedCell(null);
             setEditingCell(null);
             setShowClearMeshModal(false);
+            import('../services/supabaseService').then(({ clearBaseMeshFlights }) => {
+                clearBaseMeshFlights(currentMeshDate).catch(err => console.error("Error clearing mesh base:", err));
+            });
           }}
           onClose={() => setShowClearMeshModal(false)}
         />
