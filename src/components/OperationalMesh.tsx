@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Database, History } from 'lucide-react';
-import { INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
 import { FlightData, FlightStatus, AircraftType, MeshFlight } from '../types';
 import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
+import { generateUUID } from '../utils/uuid';
 import { TimeConflictModal } from './TimeConflictModal';
 import { BulkNextDayModal } from './BulkNextDayModal';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { supabase } from '../lib/supabase';
+import { upsertBaseMeshFlights, clearBaseMeshFlights } from '../services/supabaseService';
 import { formatAirlineName } from '../utils/airlineUtils';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
@@ -225,6 +226,19 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
   const [editingCellOriginalValue, setEditingCellOriginalValue] = useState<string>('');
   const [showCalendar, setShowCalendar] = useState(false);
 
+  // Auto-save changes to the database
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (meshFlights.length > 0) {
+        const flightsWithDate = meshFlights.map(f => ({...f, date: f.date || currentMeshDate}));
+        upsertBaseMeshFlights(flightsWithDate).catch(err => console.error("Error autosaving mesh base:", err));
+      } else {
+        clearBaseMeshFlights(currentMeshDate).catch(err => console.error("Error clearing mesh base:", err));
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [meshFlights, currentMeshDate]);
+
   const handlePrevDay = () => {
     const d = new Date(currentMeshDate + 'T00:00:00');
     d.setDate(d.getDate() - 1);
@@ -379,7 +393,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
 
   const handleAddFlight = () => {
     const newFlight: MeshFlight = {
-      id: `new-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: generateUUID(),
       airline: '',
       airlineCode: '',
       departureFlightNumber: '',
@@ -1038,11 +1052,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                     }
                     
                     if (prevFlights.length === 0) {
-                        prevFlights = INITIAL_MESH_FLIGHTS.map((f, i) => ({
-                             ...f, 
-                             id: `mesh-${prevDateStr}-${Date.now()}-${i}`,
-                             date: prevDateStr
-                        }));
+                        prevFlights = [];
                     }
 
                     if (prevFlights && prevFlights.length > 0) {
@@ -1274,7 +1284,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                             };
 
                             newFlights.push({
-                              id: `imp-${Date.now()}-${i}`,
+                              id: generateUUID(),
                               airline: getAirlineName(cia),
                               airlineCode: cia,
                               flightNumber: vooCheg,
@@ -1323,14 +1333,28 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                 </label>
 
                 <button 
-                  onClick={() => {
-                    handleActivate();
+                  onClick={async () => {
                     setShowOptionsDropdown(false);
+                    try {
+                        const flightsWithDate = meshFlights.map(f => ({...f, date: f.date || currentMeshDate}));
+                        await upsertBaseMeshFlights(flightsWithDate);
+                        setAlertState({
+                             isOpen: true, 
+                             title: 'Sucesso', 
+                             message: 'A malha base foi enviada para o banco de dados com sucesso.'
+                        });
+                    } catch (err: any) {
+                        setAlertState({
+                             isOpen: true, 
+                             title: 'Erro', 
+                             message: `Falha ao salvar no banco de dados: ${err.message}`
+                        });
+                    }
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-[#FEDC00]/20 hover:text-[#FEDC00]' : 'text-slate-600 hover:bg-[#FEDC00]/20 hover:text-slate-900'}`}
                 >
                   <RefreshCw size={14} />
-                  Sincronizar Malha
+                  Sinc. BD
                 </button>
 
                 <button 

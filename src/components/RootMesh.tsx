@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy, Network } from 'lucide-react';
-import { INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
 import { FlightData, FlightStatus, AircraftType, MeshFlight } from '../types';
 import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
@@ -9,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { bulkInsertFlights, upsertRootMesh, clearRootMesh, deleteRootMeshFlight } from '../services/supabaseService';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
+import { generateUUID } from '../utils/uuid';
 import { TimeConflictModal } from './TimeConflictModal';
 import { PieChartDashboard } from './PieChartDashboard';
 import { formatAirlineName } from '../utils/airlineUtils';
@@ -329,7 +329,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
 
   const handleAddFlight = () => {
     const newFlight: MeshFlight = {
-      id: `new-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: generateUUID(),
       airline: '',
       airlineCode: '',
       departureFlightNumber: '',
@@ -353,13 +353,11 @@ export const RootMesh: React.FC<RootMeshProps> = ({
     setFocusedCell(null);
     setFlightActionMenu(null);
 
-    if (!id.startsWith('new-') && !id.startsWith('imp-')) {
-       try {
-         await deleteRootMeshFlight(id);
-       } catch (err) {
-         setMeshFlights(originalFlights);
-         alert("Erro ao excluir do banco de dados.");
-       }
+    try {
+      await deleteRootMeshFlight(id);
+    } catch (err) {
+      setMeshFlights(originalFlights);
+      alert("Erro ao excluir do banco de dados.");
     }
   };
 
@@ -1036,7 +1034,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                             };
 
                             newFlights.push({
-                              id: `imp-${Date.now()}-${i}`,
+                              id: generateUUID(),
                               airline: getAirlineName(cia),
                               airlineCode: cia,
                               flightNumber: vooCheg,

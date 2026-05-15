@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo } from 'react';
 import { ViewState, FlightData, Vehicle, MeshFlight } from './types';
 
-import { INITIAL_MESH_FLIGHTS } from './data/operationalMesh';
 import { getLocalTodayDateStr } from './utils/shiftUtils';
 import { DashboardHeader } from './components/DashboardHeader';
 import { Spinner } from './components/ui/Spinner';
@@ -57,14 +56,15 @@ const App: React.FC = () => {
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
   useEffect(() => {
-    import('./services/supabaseService').then(async ({ getVehicles, getOperators, getFlights, getRootMesh, getAerodromoConfig }) => {
+    import('./services/supabaseService').then(async ({ getVehicles, getOperators, getFlights, getRootMesh, getBaseMeshFlights, getAerodromoConfig }) => {
       try {
         const today = getLocalTodayDateStr();
-        const [vehicles, operators, flights, rootMesh, aerodromoConfig] = await Promise.all([
+        const [vehicles, operators, flights, rootMesh, baseMesh, aerodromoConfig] = await Promise.all([
           getVehicles(),
           getOperators(),
           getFlights(today),
           getRootMesh(),
+          getBaseMeshFlights(today),
           getAerodromoConfig()
         ]);
         
@@ -72,6 +72,7 @@ const App: React.FC = () => {
         console.log("Supabase Operators returned:", operators);
         console.log("Supabase Flights returned:", flights);
         console.log("Supabase Root Mesh returned:", rootMesh);
+        console.log("Supabase Base Mesh returned:", baseMesh);
         console.log("Supabase Aerodromo Config returned:", aerodromoConfig);
         
         if (vehicles && vehicles.length > 0) {
@@ -90,6 +91,11 @@ const App: React.FC = () => {
         if (rootMesh && rootMesh.length > 0) {
           console.log(`Povoando ${rootMesh.length} registros de Malha Raiz do Supabase`);
           setRootMeshFlights(rootMesh);
+        }
+        
+        if (baseMesh && baseMesh.length > 0) {
+          console.log(`Povoando ${baseMesh.length} registros de Malha Base do Supabase para a data ${today}`);
+          setMeshFlightsByDate(prev => ({ ...prev, [today]: baseMesh }));
         }
 
         if (aerodromoConfig) {
@@ -123,87 +129,57 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const [meshFlightsByDate, setMeshFlightsByDate] = useState<Record<string, MeshFlight[]>>(() => {
-    const saved = localStorage.getItem('meshFlightsByDate');
-    const today = getLocalTodayDateStr();
-    
-    let loadedData: Record<string, MeshFlight[]> | null = null;
-    if (saved) {
-      try {
-        loadedData = JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse meshFlightsByDate', e);
-      }
-    }
-    
-    if (!loadedData) {
-      // Fallback: load old single mesh if exists
-      const oldSaved = localStorage.getItem('meshFlights');
-      if (oldSaved) {
-         try {
-            loadedData = { [today]: JSON.parse(oldSaved) };
-         } catch (e) {}
-      }
-    }
-    
-    if (!loadedData) {
-        loadedData = { [today]: INITIAL_MESH_FLIGHTS };
-    }
+  const [meshFlightsByDate, setMeshFlightsByDate] = useState<Record<string, MeshFlight[]>>({});
 
-    return loadedData;
-  });
+  const [rootMeshFlights, setRootMeshFlights] = useState<MeshFlight[]>([]);
 
-  const [rootMeshFlights, setRootMeshFlights] = useState<MeshFlight[]>(() => {
-    const saved = localStorage.getItem('rootMeshFlights');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse rootMeshFlights', e);
-      }
-    }
-    
-    // Fallback to initial mapping
-    return INITIAL_MESH_FLIGHTS.map((f, i) => ({ ...f }));
-  });
-
-  useEffect(() => {
-    localStorage.setItem('rootMeshFlights', JSON.stringify(rootMeshFlights));
-  }, [rootMeshFlights]);
 
   const [currentMeshDate, setCurrentMeshDate] = useState<string>(
       () => getLocalTodayDateStr()
   );
   
-  const meshFlights = meshFlightsByDate[currentMeshDate] || INITIAL_MESH_FLIGHTS.map((f, i) => ({
-      ...f, 
-      id: `mesh-${currentMeshDate}-${i}`,
-      date: currentMeshDate
-  }));
+  useEffect(() => {
+    import('./services/supabaseService').then(async ({ getBaseMeshFlights }) => {
+       try {
+           const mesh = await getBaseMeshFlights(currentMeshDate);
+           if (mesh && mesh.length > 0) {
+              setMeshFlightsByDate(prev => ({ ...prev, [currentMeshDate]: mesh }));
+           } else {
+              setMeshFlightsByDate(prev => ({ ...prev, [currentMeshDate]: [] }));
+           }
+       } catch (err) {
+           console.error("Error fetching base mesh for date: " + currentMeshDate, err);
+       }
+    });
+  }, [currentMeshDate]);
+
+  const meshFlights = meshFlightsByDate[currentMeshDate] || [];
   
   const setMeshFlights = useCallback((action: React.SetStateAction<MeshFlight[]>) => {
       setMeshFlightsByDate(prev => {
-          const current = prev[currentMeshDate] || INITIAL_MESH_FLIGHTS.map((f, i) => ({
-              ...f, 
-              id: `mesh-${currentMeshDate}-${i}`,
-              date: currentMeshDate
-          }));
+          const current = prev[currentMeshDate] || [];
           const updated = typeof action === 'function' ? action(current) : action;
           return { ...prev, [currentMeshDate]: updated };
       });
   }, [currentMeshDate]);
 
   useEffect(() => {
-    localStorage.setItem('meshFlightsByDate', JSON.stringify(meshFlightsByDate));
-  }, [meshFlightsByDate]);
-
-  useEffect(() => {
-    if (!localStorage.getItem('migration_no_mocks_v5')) {
+    if (!localStorage.getItem('migration_no_mocks_v8')) {
       localStorage.removeItem('globalFlights');
       localStorage.removeItem('meshFlights');
       localStorage.removeItem('globalOperators');
-      localStorage.setItem('migration_no_mocks_v5', 'true');
-      window.location.reload();
+      localStorage.removeItem('rootMeshFlights');
+      localStorage.removeItem('meshFlightsByDate');
+      localStorage.setItem('migration_no_mocks_v8', 'true');
+      
+      import('./services/supabaseService').then(({ clearAllBaseMeshFlights, clearRootMesh }) => {
+          clearRootMesh().catch(console.error);
+          clearAllBaseMeshFlights().catch(console.error);
+      });
+      
+      setTimeout(() => {
+          window.location.reload();
+      }, 500);
     }
   }, []);
 
@@ -662,6 +638,12 @@ const App: React.FC = () => {
                     globalFlights={globalFlights}
                     onActivateMesh={(newFlights) => {
                       setGlobalFlights(prev => [...newFlights, ...prev]);
+                      import('./services/supabaseService').then(({ bulkInsertFlights }) => {
+                        bulkInsertFlights(newFlights).catch(err => {
+                          console.error("Falha ao salvar na malha operacional:", err);
+                          alert(`Erro Crítico no Banco de Dados (Operacional):\n${err.message}\nVerifique se a tabela 'flights' possui todas as colunas necessárias.`);
+                        });
+                      });
                     }}
                     positionsMetadata={positionsMetadata}
                     positionRestrictions={positionRestrictions}
