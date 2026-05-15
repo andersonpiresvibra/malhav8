@@ -93,6 +93,7 @@ interface GridOpsProps {
     onOpenReport?: (flight: FlightData) => void;
     pendingAction?: 'CREATE' | 'IMPORT' | null;
     setPendingAction?: React.Dispatch<React.SetStateAction<'CREATE' | 'IMPORT' | null>>;
+    onEditingStateChange?: (isEditing: boolean) => void;
     ltName: string;
     currentMeshDate?: string;
     positionRestrictions: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
@@ -227,6 +228,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     onOpenReport,
     pendingAction,
     setPendingAction,
+    onEditingStateChange,
     ltName,
     currentMeshDate,
     positionRestrictions
@@ -622,6 +624,40 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [missingPositionModalFlight, setMissingPositionModalFlight] = useState<FlightData | null>(null);
   const [confirmRemoveOperatorFlight, setConfirmRemoveOperatorFlight] = useState<FlightData | null>(null);
   const [confirmFinishModalFlight, setConfirmFinishModalFlight] = useState<FlightData | null>(null);
+
+  const isEditingAny = useMemo(() => {
+    return !!(
+      editingCell ||
+      openMenuId ||
+      isCreateModalOpen ||
+      isImportModalOpen ||
+      selectedFlight ||
+      reportInputFlight ||
+      standbyModalFlightId ||
+      observationModalFlight ||
+      calcoModalFlight ||
+      delayModalFlightId ||
+      assignModalFlight ||
+      assignSupportModalFlight ||
+      cancelModalFlight ||
+      deleteModalFlight ||
+      confirmStartModalFlight ||
+      missingPositionModalFlight ||
+      confirmRemoveOperatorFlight ||
+      confirmFinishModalFlight
+    );
+  }, [
+    editingCell, openMenuId, isCreateModalOpen, isImportModalOpen, selectedFlight, reportInputFlight,
+    standbyModalFlightId, observationModalFlight, calcoModalFlight, delayModalFlightId, assignModalFlight,
+    assignSupportModalFlight, cancelModalFlight, deleteModalFlight, confirmStartModalFlight,
+    missingPositionModalFlight, confirmRemoveOperatorFlight, confirmFinishModalFlight
+  ]);
+
+  useEffect(() => {
+    if (onEditingStateChange) {
+      onEditingStateChange(isEditingAny);
+    }
+  }, [isEditingAny, onEditingStateChange]);
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);

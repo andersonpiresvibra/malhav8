@@ -165,8 +165,11 @@ export interface FlightData {
   fuelStatus: number;
   status: FlightStatus;
   operator?: string;
+  operatorId?: string;
   supportOperator?: string;
+  supportOperatorId?: string;
   fleet?: string;
+  vehicleId?: string;
   fleetType?: 'SRV' | 'CTA';
   vehicleType?: VehicleType;
   volume?: number;

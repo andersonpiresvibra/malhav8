@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo, useRef } from 'react';
 import { ViewState, FlightData, Vehicle, MeshFlight } from './types';
 
 import { getLocalTodayDateStr } from './utils/shiftUtils';
@@ -138,11 +138,19 @@ const App: React.FC = () => {
       () => getLocalTodayDateStr()
   );
   
+  const [isGridEditing, setIsGridEditing] = useState(false);
+  const isEditingRef = useRef(isGridEditing);
+  useEffect(() => {
+    isEditingRef.current = isGridEditing;
+  }, [isGridEditing]);
+
   // REAL-TIME SYNC POLLING
   useEffect(() => {
     if (!user) return; // Only sync if authenticated
     
     const syncInterval = setInterval(() => {
+      if (isEditingRef.current) return; // Pause polling when user is editing
+      
       import('./services/supabaseService').then(async ({ getFlights, getOperators, getVehicles }) => {
         try {
           const today = getLocalTodayDateStr();
@@ -648,6 +656,7 @@ const App: React.FC = () => {
                     }}
                     pendingAction={pendingAction}
                     setPendingAction={setPendingAction}
+                    onEditingStateChange={setIsGridEditing}
                     ltName={ltName}
                     currentMeshDate={currentMeshDate}
                   />

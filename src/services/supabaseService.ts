@@ -65,12 +65,15 @@ export const getAuditLogs = async (limitCount: number = 1000): Promise<AuditLogE
   }
 };
 
+let operatorsCache: { id: string; warName: string }[] = [];
+let vehiclesCache: { id: string; fleetNumber: string }[] = [];
+
 export const getVehicles = async (): Promise<Vehicle[]> => {
   checkConfig();
   const { data, error } = await supabase.from('vehicles').select('*');
   if (error) throw error;
   
-            return data.map((v: any) => ({
+            const mapped = data.map((v: any) => ({
               id: v.fleet_number?.toString() || v.id?.toString(),
               type: v.type?.toString().toUpperCase() === 'CTA' ? 'CTA' : 'SERVIDOR',
               manufacturer: v.manufacturer,
@@ -83,6 +86,11 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
               isActive: v.status !== 'INATIVO',
               observations: v.observations
             })) as Vehicle[];
+            vehiclesCache = data.map((v: any) => ({
+              id: v.id,
+              fleetNumber: v.fleet_number?.toString()
+            }));
+            return mapped;
 };
 
 export const getOperators = async (): Promise<OperatorProfile[]> => {
@@ -90,6 +98,8 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
   const { data, error } = await supabase.from('operators').select('*, operator_work_days(work_date, day_type)');
   if (error) throw error;
   
+  operatorsCache = data.map((o: any) => ({ id: o.id, warName: o.war_name }));
+
   return data.map((o: any) => ({
     id: o.id,
     fullName: o.full_name,
@@ -189,7 +199,7 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
   checkConfig();
   const { data, error } = await supabase
     .from('flights')
-    .select('*')
+    .select('*, operators(war_name), vehicles(fleet_number)')
     .eq('date_ref', dateRef);
     
   if (error) {
@@ -216,7 +226,10 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
     pitId: f.pit_id,
     fuelStatus: f.fuel_status || 0,
     status: f.status as FlightStatus,
-    operator: f.operator_id, // Map ID to string for now or fetch joined?
+    operator: f.operators?.war_name || undefined,
+    operatorId: f.operator_id || undefined,
+    fleet: f.vehicles?.fleet_number || undefined,
+    vehicleId: f.vehicle_id || undefined,
     vehicleType: f.vehicle_type as any,
     volume: f.volume,
     isOnGround: f.is_on_ground,
@@ -252,8 +265,8 @@ export const upsertFlight = async (flight: FlightData): Promise<void> => {
     pit_id: flight.pitId || null,
     fuel_status: flight.fuelStatus,
     status: flight.status,
-    operator_id: flight.operator || null,
-    vehicle_id: flight.fleet || null,
+    operator_id: flight.operatorId || operatorsCache.find(o => o.warName === flight.operator)?.id || null,
+    vehicle_id: flight.vehicleId || vehiclesCache.find(v => v.fleetNumber === flight.fleet)?.id || null,
     volume: flight.volume || 0,
     is_on_ground: flight.isOnGround || false,
     delay_justification: flight.delayJustification || null,
@@ -591,8 +604,8 @@ export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> =>
       pit_id: flight.pitId || null,
       fuel_status: flight.fuelStatus,
       status: flight.status,
-      operator_id: flight.operator || null,
-      vehicle_id: flight.fleet || null,
+      operator_id: flight.operatorId || operatorsCache.find(o => o.warName === flight.operator)?.id || null,
+      vehicle_id: flight.vehicleId || vehiclesCache.find(v => v.fleetNumber === flight.fleet)?.id || null,
       volume: flight.volume || 0,
       is_on_ground: flight.isOnGround || false,
       delay_justification: flight.delayJustification || null,
