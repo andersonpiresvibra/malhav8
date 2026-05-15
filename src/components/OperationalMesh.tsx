@@ -592,7 +592,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
       }
       
       return {
-        id: `mesh-${Date.now()}-${mesh.id}`,
+        id: generateUUID(),
         airline: mesh.airline,
         airlineCode: derivedCode,
         registration: mesh.registration.toUpperCase(),
@@ -1074,7 +1074,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                              if (window.confirm(`Deseja Mesclar e Atualizar a malha atual com os dados do dia anterior?\n(Isso adicionará novos voos e atualizará os dados [Prefixo, Posição, etc] dos voos existentes).`)) {
                                  const updatedFlights = prevFlights.map((f: any, i: number) => ({
                                      ...f, 
-                                     id: `mesh-${currentMeshDate}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                                     id: generateUUID(),
                                      date: currentMeshDate
                                  }));
                                  

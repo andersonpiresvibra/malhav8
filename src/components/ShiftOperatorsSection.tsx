@@ -128,11 +128,9 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
       const mission = getActiveMission(p.warName);
       if (isActive) {
           if (mission) {
-              finalStatus = mission.status === 'ABASTECENDO' ? 'ENCHIMENTO' : 'OCUPADO';
+              finalStatus = mission.status === 'DESIGNADO' ? 'DESIGNADO' : 'OCUPADO';
           } else {
-              if (finalStatus === 'OCUPADO' || finalStatus === 'ENCHIMENTO') {
-                  finalStatus = 'DISPONÍVEL';
-              }
+              finalStatus = 'DISPONÍVEL';
           }
       }
 

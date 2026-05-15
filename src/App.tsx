@@ -138,6 +138,50 @@ const App: React.FC = () => {
       () => getLocalTodayDateStr()
   );
   
+  // REAL-TIME SYNC POLLING
+  useEffect(() => {
+    if (!user) return; // Only sync if authenticated
+    
+    const syncInterval = setInterval(() => {
+      import('./services/supabaseService').then(async ({ getFlights, getOperators, getVehicles }) => {
+        try {
+          const today = getLocalTodayDateStr();
+          const [flights, operators, vehicles] = await Promise.all([
+             getFlights(today),
+             getOperators(),
+             getVehicles()
+          ]);
+          
+          if (flights && flights.length > 0) {
+            setGlobalFlights(prev => {
+              // Only update if there are changes to avoid excessive re-renders
+              const isDifferent = JSON.stringify(prev) !== JSON.stringify(flights);
+              return isDifferent ? flights : prev;
+            });
+          }
+          
+          if (operators && operators.length > 0) {
+            setGlobalOperators(prev => {
+              const isDifferent = JSON.stringify(prev) !== JSON.stringify(operators);
+              return isDifferent ? operators : prev;
+            });
+          }
+
+          if (vehicles && vehicles.length > 0) {
+            setGlobalVehicles(prev => {
+              const isDifferent = JSON.stringify(prev) !== JSON.stringify(vehicles);
+              return isDifferent ? vehicles : prev;
+            });
+          }
+        } catch (e) {
+          console.error("Auto-sync failed:", e);
+        }
+      });
+    }, 10000); // 10 seconds auto-refresh Real-Time
+    
+    return () => clearInterval(syncInterval);
+  }, [user]);
+
   useEffect(() => {
     import('./services/supabaseService').then(async ({ getBaseMeshFlights }) => {
        try {
