@@ -163,6 +163,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
 
   const filteredTeam = useMemo(() => {
     const baseList = teamMembers.filter(op => 
+      !['FOLGA', 'FÉRIAS', 'AFAST.', 'FOLG.'].includes(op.status || '') &&
       (activeShift === 'GERAL' || (op.shift && op.shift.cycle === activeShift)) &&
       (!activeCategory || activeCategory === 'AERODROMO' || op.patio === activeCategory || op.patio === 'AMBOS') &&
       (op.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -411,7 +412,25 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                             }
                             
                             // Determinar se o operador está em algum estado inativo para aplicar uma opacidade condicional no card inteiro (se desejado, ou não colocar para evitar que fique 'opaco')
-                            const isInactive = ['INATIVO', 'FOLGA', 'INTERVALO', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'].includes(op.status || '');
+                            const isInactive = ['INATIVO', 'INTERVALO', 'DESCONECTADO'].includes(op.status || '') || !op.assignedVehicle;
+
+                            const isCta = op.assignedVehicle?.includes('CTA-');
+                            const isSrv = op.assignedVehicle?.includes('SRV-');
+                            
+                            let fleetBadgeStyle = '';
+                            if (op.assignedVehicle) {
+                                if (isCta) {
+                                    fleetBadgeStyle = 'bg-[#EAB308] text-black border-[#CA8A04] shadow-sm hover:bg-[#FDE047]'; // tailwind yellow-500 / yellow-600 / yellow-300
+                                } else if (isSrv) {
+                                    fleetBadgeStyle = 'bg-[#3B82F6] text-white border-[#2563EB] shadow-sm hover:bg-[#60A5FA]'; // tailwind blue-500 / blue-600 / blue-400
+                                } else {
+                                    fleetBadgeStyle = isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700' : 'bg-slate-200 text-slate-800 border-slate-300 hover:bg-slate-300';
+                                }
+                            } else {
+                                fleetBadgeStyle = isAvailable || isDesignated || isHandsOn
+                                    ? (isDarkMode ? 'bg-slate-950/10 text-slate-950/60 border-slate-950/20 hover:bg-slate-950/30' : 'bg-white/20 text-white/80 border-white/20 hover:bg-white/40')
+                                    : (isDarkMode ? 'bg-slate-900 text-slate-600 border-slate-800 hover:bg-slate-800 hover:text-slate-400' : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600');
+                            }
 
                             return (
                                 <div 
@@ -428,15 +447,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                         <div className="absolute top-1.5 right-1.5 flex items-center gap-1.5">
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); setSelectedOpForVehicle(op); }}
-                                                className={`flex items-center justify-center font-mono font-black transition-colors rounded px-1.5 py-0.5 border ${
-                                                    op.assignedVehicle
-                                                        ? isAvailable || isDesignated || isHandsOn
-                                                            ? isDarkMode ? 'bg-slate-950/20 text-slate-950/80 border-slate-950/20 hover:bg-slate-950/40' : 'bg-white/20 text-white border-white/20 hover:bg-white/40'
-                                                            : isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-                                                        : isAvailable || isDesignated || isHandsOn
-                                                            ? isDarkMode ? 'bg-slate-950/10 text-slate-950/50 border-slate-950/20 hover:bg-slate-950/30 text-[9px]' : 'bg-white/10 text-white/60 border-white/20 hover:bg-white/30 text-[9px]'
-                                                            : isDarkMode ? 'bg-slate-900 text-slate-600 border-slate-800 hover:bg-slate-800 hover:text-slate-400 text-[9px]' : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600 text-[9px]'
-                                                } ${op.assignedVehicle ? 'text-sm min-w-[32px]' : 'text-[9px] uppercase min-w-[32px]'}`}
+                                                className={`flex items-center justify-center font-mono font-black transition-colors rounded px-1.5 py-0.5 border ${fleetBadgeStyle} ${op.assignedVehicle ? 'text-sm min-w-[32px]' : 'text-[9px] uppercase min-w-[32px]'}`}
                                             >
                                                 {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : '+'}
                                             </button>
@@ -517,7 +528,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                 const mission = getActiveMission(op.warName);
                                 // @ts-ignore
                                 const flightsToday = op.stats ? Math.floor((op.stats.flightsWeekly || 0) / 6) + (mission ? 1 : 0) : 0;
-                                const isInactive = ['INATIVO', 'FOLGA', 'INTERVALO', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'].includes(op.status || '');
+                                const isInactive = ['INATIVO', 'INTERVALO', 'DESCONECTADO'].includes(op.status || '') || !op.assignedVehicle;
                                 
                                 return (
                                     <tr 
@@ -545,20 +556,32 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-sm font-mono font-black">
-                                            <button 
-                                                onClick={() => setSelectedOpForVehicle(op)}
-                                                className={`flex items-center justify-center min-w-[36px] px-2 py-1 rounded border transition-colors uppercase ${
-                                                    op.assignedVehicle 
-                                                        ? isDarkMode 
-                                                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' 
-                                                            : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-                                                        : isDarkMode 
-                                                            ? 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700 hover:text-slate-300 text-[10px]' 
-                                                            : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700 text-[10px]'
-                                                }`}
-                                            >
-                                                {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : 'Vincular'}
-                                            </button>
+                                            {(() => {
+                                                const isCta = op.assignedVehicle?.includes('CTA-');
+                                                const isSrv = op.assignedVehicle?.includes('SRV-');
+                                                
+                                                let btnClass = '';
+                                                if (op.assignedVehicle) {
+                                                    if (isCta) {
+                                                        btnClass = 'bg-[#EAB308] text-black border-[#CA8A04] hover:bg-[#FDE047]';
+                                                    } else if (isSrv) {
+                                                        btnClass = 'bg-[#3B82F6] text-white border-[#2563EB] hover:bg-[#60A5FA]';
+                                                    } else {
+                                                        btnClass = isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100';
+                                                    }
+                                                } else {
+                                                    btnClass = isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700 hover:text-slate-300 text-[10px]' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700 text-[10px]';
+                                                }
+                                                
+                                                return (
+                                                    <button 
+                                                        onClick={() => setSelectedOpForVehicle(op)}
+                                                        className={`flex items-center justify-center min-w-[36px] px-2 py-1 rounded border transition-colors uppercase shadow-sm ${btnClass}`}
+                                                    >
+                                                        {op.assignedVehicle ? op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') : 'Vincular'}
+                                                    </button>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
