@@ -331,7 +331,7 @@ export const getRootMesh = async (): Promise<MeshFlight[]> => {
 export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
   if (!isSupabaseConfigured()) return;
   
-  const payload = flights.map(f => {
+  let payload = flights.map(f => {
     const obj: any = {
       airline: f.airline,
       cia: f.airline,
