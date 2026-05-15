@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo } from 'react';
-import { ViewState, FlightData, Vehicle } from './types';
+import { ViewState, FlightData, Vehicle, MeshFlight } from './types';
 
-import { MeshFlight, INITIAL_MESH_FLIGHTS } from './data/operationalMesh';
+import { INITIAL_MESH_FLIGHTS } from './data/operationalMesh';
 import { getLocalTodayDateStr } from './utils/shiftUtils';
 import { DashboardHeader } from './components/DashboardHeader';
 import { Spinner } from './components/ui/Spinner';
@@ -57,26 +57,54 @@ const App: React.FC = () => {
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
   useEffect(() => {
-    import('./services/supabaseService').then(async ({ getVehicles, getOperators }) => {
+    import('./services/supabaseService').then(async ({ getVehicles, getOperators, getFlights, getRootMesh, getAerodromoConfig }) => {
       try {
-        const [vehicles, operators] = await Promise.all([
+        const today = getLocalTodayDateStr();
+        const [vehicles, operators, flights, rootMesh, aerodromoConfig] = await Promise.all([
           getVehicles(),
-          getOperators()
+          getOperators(),
+          getFlights(today),
+          getRootMesh(),
+          getAerodromoConfig()
         ]);
         
         console.log("Supabase Vehicles returned:", vehicles);
         console.log("Supabase Operators returned:", operators);
+        console.log("Supabase Flights returned:", flights);
+        console.log("Supabase Root Mesh returned:", rootMesh);
+        console.log("Supabase Aerodromo Config returned:", aerodromoConfig);
         
         if (vehicles && vehicles.length > 0) {
           setGlobalVehicles(vehicles);
-        } else if (vehicles && vehicles.length === 0) {
-          console.warn("Nenhum veículo encontrado no Supabase. Tabelas vazias ou bloqueadas por RLS.");
         }
 
         if (operators && operators.length > 0) {
           setGlobalOperators(operators);
-        } else if (operators && operators.length === 0) {
-          console.warn("Nenhum operador encontrado no Supabase. Tabelas vazias ou bloqueadas por RLS.");
+        }
+
+        if (flights && flights.length > 0) {
+          console.log(`Povoando ${flights.length} voos do Supabase para a data ${today}`);
+          setGlobalFlights(flights);
+        }
+
+        if (rootMesh && rootMesh.length > 0) {
+          console.log(`Povoando ${rootMesh.length} registros de Malha Raiz do Supabase`);
+          setRootMeshFlights(rootMesh);
+        }
+
+        if (aerodromoConfig) {
+          if (aerodromoConfig.positions_metadata && Object.keys(aerodromoConfig.positions_metadata).length > 0) {
+            setPositionsMetadata(aerodromoConfig.positions_metadata);
+          }
+          if (aerodromoConfig.position_restrictions && Object.keys(aerodromoConfig.position_restrictions).length > 0) {
+            setPositionRestrictions(aerodromoConfig.position_restrictions);
+          }
+          if (aerodromoConfig.disabled_positions && aerodromoConfig.disabled_positions.length > 0) {
+            setDisabledPositions(new Set(aerodromoConfig.disabled_positions));
+          }
+          if (aerodromoConfig.patio_positions && Object.keys(aerodromoConfig.patio_positions).length > 0) {
+            setPatioPositions(aerodromoConfig.patio_positions);
+          }
         }
         
         if (vehicles.length === 0 && operators.length === 0) {
@@ -397,21 +425,61 @@ const App: React.FC = () => {
     return initial;
   });
 
+  const syncAerodromoConfig = useCallback(async (updates: Partial<any>) => {
+    try {
+       const { updateAerodromoConfig } = await import('./services/supabaseService');
+       await updateAerodromoConfig({
+          patio_positions: patioPositions,
+          positions_metadata: positionsMetadata,
+          position_restrictions: positionRestrictions,
+          disabled_positions: Array.from(disabledPositions),
+          ...updates // Override the specific piece changing at this moment
+       });
+    } catch(err) {
+       console.error("Failed to sync aerodromo config", err);
+    }
+  }, [patioPositions, positionsMetadata, positionRestrictions, disabledPositions]);
+
   useEffect(() => {
-    localStorage.setItem('disabledPositions', JSON.stringify(Array.from(disabledPositions)));
+    const serialized = Array.from(disabledPositions);
+    localStorage.setItem('disabledPositions', JSON.stringify(serialized));
+    syncAerodromoConfig({ disabled_positions: serialized });
   }, [disabledPositions]);
 
   useEffect(() => {
     localStorage.setItem('positionsMetadata', JSON.stringify(positionsMetadata));
+    syncAerodromoConfig({ positions_metadata: positionsMetadata });
   }, [positionsMetadata]);
 
   useEffect(() => {
     localStorage.setItem('patioPositions', JSON.stringify(patioPositions));
+    syncAerodromoConfig({ patio_positions: patioPositions });
   }, [patioPositions]);
 
   useEffect(() => {
     localStorage.setItem('positionRestrictions', JSON.stringify(positionRestrictions));
+    syncAerodromoConfig({ position_restrictions: positionRestrictions });
   }, [positionRestrictions]);
+
+  const clearAllPositionAssignments = useCallback(async () => {
+    try {
+      const { clearAllFlightAssignments } = await import('./services/supabaseService');
+      
+      console.log(`[Database] Iniciando limpeza profunda de TODAS as posições`);
+      
+      // 1. Update local state IMEDIATAMENTE (Otimista)
+      setGlobalFlights(prev => prev.map(f => ({ ...f, positionId: '', pitId: undefined, positionType: undefined })));
+      
+      // 2. Persist no Banco de Dados (Todas as datas)
+      await clearAllFlightAssignments();
+      
+      alert("⚠️ SUCESSO: Todas as posições de pátio foram liberadas no sistema e no banco de dados.");
+      window.location.reload();
+    } catch (err) {
+      console.error('Falha crítica na limpeza global:', err);
+      alert('Erro ao sincronizar limpeza. Verifique sua conexão com o Supabase.');
+    }
+  }, []);
 
   const handleViewChange = (newView: ViewState) => {
     setView(newView);
@@ -633,6 +701,17 @@ const App: React.FC = () => {
                     disabledPositions={disabledPositions}
                     positionsMetadata={positionsMetadata}
                     positionRestrictions={positionRestrictions}
+                    onRemoveFlight={async (flightId) => {
+                      if (!confirm("Deseja desvincular este voo da posição atual?")) return;
+                      // Update Local Otimista
+                      setGlobalFlights(prev => prev.map(f => f.id === flightId ? { ...f, positionId: '', pitId: undefined, positionType: undefined } : f));
+                      // Update Backend
+                      import('./services/supabaseService').then(({ clearFlightPosition }) => {
+                        clearFlightPosition(flightId).catch(err => {
+                           console.error("Falha ao desvincular voo:", err);
+                        });
+                      });
+                    }}
                   />
                 )}
                 {view === 'AERODROMO_ADMIN' && (
@@ -646,6 +725,7 @@ const App: React.FC = () => {
                     positionRestrictions={positionRestrictions}
                     setPositionRestrictions={setPositionRestrictions}
                     flights={globalFlights}
+                    onClearAllAssignments={clearAllPositionAssignments}
                   />
                 )}
               </Suspense>

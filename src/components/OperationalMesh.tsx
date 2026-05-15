@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Database, History } from 'lucide-react';
-import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
-import { FlightData, FlightStatus, AircraftType } from '../types';
+import { INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
+import { FlightData, FlightStatus, AircraftType, MeshFlight } from '../types';
 import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
@@ -1532,7 +1532,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
 
                         return (
                           <td 
-                            key={`${flight.id}-${col.key}`} 
+                            key={`${flight.id}-${String(col.key)}`} 
                             data-col={cIdx}
                             onClick={() => {
                               if (flight.disabled) return;

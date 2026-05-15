@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plane, Calendar, Clock, MapPin, Hash, Tag, Globe } from 'lucide-react';
 import { FlightData, FlightStatus, FlightLog, AircraftType } from '../types';
+import { generateUUID } from '../utils/uuid';
 import { useTheme } from '../contexts/ThemeContext';
 import { TimeConflictModal } from './TimeConflictModal';
 import { supabase } from '../lib/supabase';
@@ -140,7 +141,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
     const airlineName = airlineCode === 'RG' ? 'GOL' : (airlineCode === 'LA' ? 'LATAM' : (airlineCode === 'AD' ? 'AZUL' : 'OUTRA'));
 
     const newFlight: FlightData = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       airline: airlineName,
       airlineCode: airlineCode,
       registration: formData.registration.toUpperCase(),

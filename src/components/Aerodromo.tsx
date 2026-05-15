@@ -18,6 +18,7 @@ interface AerodromoProps {
     disabledPositions?: Set<string>;
     positionsMetadata?: Record<string, PositionMetadata>;
     positionRestrictions?: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
+    onRemoveFlight?: (flightId: string) => void;
 }
 
 interface ExternalSnapshot {
@@ -33,15 +34,12 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
   flights = [], 
   disabledPositions = new Set(),
   positionsMetadata = {},
-  positionRestrictions = {}
+  positionRestrictions = {},
+  onRemoveFlight
 }) => {
   const { isDarkMode } = useTheme();
   // Simulação de dados vindo do Scraping (GRU Airport Site)
-  const [externalSnapshot, setExternalSnapshot] = useState<Map<string, ExternalSnapshot>>(new Map([
-      ['204R', { posId: '204R', airline: 'UNITED AIRLINES', flightNumber: 'UA845', registration: 'N172UA', updatedAt: '21:05' }],
-      ['210', { posId: '210', airline: 'AMERICAN AIRLINES', flightNumber: 'AA951', registration: 'N789AA', updatedAt: '21:05' }],
-      ['105L', { posId: '105L', airline: 'TAP PORTUGAL', flightNumber: 'TP082', registration: 'CS-TOW', updatedAt: '21:10' }],
-  ]));
+  const [externalSnapshot, setExternalSnapshot] = useState<Map<string, ExternalSnapshot>>(new Map());
 
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -295,7 +293,18 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                     {isDisabled ? (
                       <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border shadow-sm ${isDarkMode ? 'bg-red-900/30 text-red-500 border-red-900/50' : 'bg-red-100 text-red-600 border-red-200'}`}>OFF</span>
                     ) : isOccupied ? (
-                      <span className={`text-[10px] font-black uppercase border px-2 py-0.5 rounded shadow-sm ${isThirdParty ? (isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200') : (isDarkMode ? 'bg-blue-900/30 text-blue-400 border-blue-900/50' : 'bg-blue-50 text-blue-700 border-blue-200')}`}>{displayAirline}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-black uppercase border px-2 py-0.5 rounded shadow-sm ${isThirdParty ? (isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200') : (isDarkMode ? 'bg-blue-900/30 text-blue-400 border-blue-900/50' : 'bg-blue-50 text-blue-700 border-blue-200')}`}>{displayAirline}</span>
+                        {flight && onRemoveFlight && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); onRemoveFlight(flight.id); }} 
+                            className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-1 rounded transition-colors"
+                            title="Desvincular Voo da Posição"
+                          >
+                             <Ban size={10} strokeWidth={3} />
+                          </button>
+                        )}
+                      </div>
                     ) : null}
                   </div>
                   
@@ -527,6 +536,15 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                                                   disabled={isOccupied}
                                                 >
                                                     <Anchor size={14} strokeWidth={2.5} />
+                                                </button>
+                                            )}
+                                            {flight && onRemoveFlight && (
+                                                <button 
+                                                  onClick={(e) => { e.stopPropagation(); onRemoveFlight(flight.id); }} 
+                                                  className="p-1.5 rounded-lg text-red-500 hover:bg-red-500 hover:text-white transition-colors border border-red-500/20" 
+                                                  title="Liberar / Desvincular Posição"
+                                                >
+                                                    <Ban size={14} strokeWidth={2.5} />
                                                 </button>
                                             )}
                                             <div className="flex items-center gap-2">

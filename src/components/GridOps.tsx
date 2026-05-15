@@ -14,7 +14,7 @@ import { AirlineLogo } from './AirlineLogo';
 import { Spinner } from './ui/Spinner';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { InlineOperatorSelect } from './ui/InlineOperatorSelect';
-import { insertAuditLog } from '../services/supabaseService';
+import { insertAuditLog, upsertFlight, deleteFlight } from '../services/supabaseService';
 import { useAuth } from '../contexts/AuthContext';
 
 import { 
@@ -76,10 +76,8 @@ import { DelayJustificationModal } from './modals/DelayJustificationModal';
 import { ObservationModal } from './modals/ObservationModal';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { ImportModal } from './modals/ImportModal';
-import { Vehicle } from '../types';
-
+import { Vehicle, MeshFlight } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
-import { MeshFlight } from '../data/operationalMesh';
 
 interface GridOpsProps {
     flights: FlightData[];
@@ -354,9 +352,15 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
   }, [focusedCell, editingCell]);
 
-  const syncFlight = (updatedFlight: FlightData) => {
+  const syncFlight = (updatedFlight: FlightData, shouldPersist: boolean = false) => {
     onUpdateFlights(prev => prev.map(f => f.id === updatedFlight.id ? updatedFlight : f));
     
+    if (shouldPersist) {
+      upsertFlight(updatedFlight).catch(err => {
+        console.error('Failed to persist flight update:', err);
+      });
+    }
+
     if (setMeshFlights) {
       setMeshFlights(prevMesh => prevMesh.map(m => {
         const flightIdBase = updatedFlight.id.replace(/^mesh-\d+-/, '');
@@ -402,13 +406,20 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
 
     const updatedFlight = { ...flight, [field]: newValue };
-    syncFlight(updatedFlight);
+    syncFlight(updatedFlight); // Local update only
   };
 
   const confirmedConflictsRef = useRef<Set<string>>(new Set());
 
   const handleFinishEdit = (rowId: string, colKey: string) => {
     setEditingCell(null);
+
+    const flight = flights.find(f => f.id === rowId);
+    if (flight) {
+      // Persist on blur
+      upsertFlight(flight).catch(err => console.error('Error on blur persistence:', err));
+    }
+
     if (colKey === 'etd') {
         const flight = flights.find(f => f.id === rowId);
         if (flight && flight.etd && flight.etd.length >= 4) {
@@ -612,6 +623,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         date: newFlight.date || dateStr
     };
     onUpdateFlights(prev => [flightWithDate, ...prev]);
+    upsertFlight(flightWithDate).catch(err => console.error('Error persisting new flight:', err));
     addToast('VOO CRIADO', `Voo ${newFlight.flightNumber} criado com sucesso.`, 'success');
     setIsCreateModalOpen(false);
   };
@@ -1082,11 +1094,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
       const newLog = createNewLog('MANUAL', 'Voo movido para FILA manualmente.', 'GESTOR_MESA');
       logAudit('MOVE_TO_QUEUE', flight, 'status', flight.status, 'FILA');
-      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { 
-          ...f, 
-          status: FlightStatus.FILA,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+      
+      const updated = { 
+        ...flight, 
+        status: FlightStatus.FILA,
+        logs: [...(flight.logs || []), newLog]
+      };
+      
+      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? updated : f));
+      upsertFlight(updated).catch(err => console.error('Error persisting status change:', err));
+      
       addToast('VOO NA FILA', `Voo ${flight.flightNumber} adicionado à fila de prioridade.`, 'success');
   };
 
@@ -1097,14 +1114,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
       const timeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const newLog = createNewLog('SISTEMA', `Início de abastecimento confirmado às ${timeStr}.`, 'GESTOR_MESA');
       
-      if (flight) logAudit('START_FLIGHT', flight, 'status', flight.status, 'ABASTECENDO');
-      
-      onUpdateFlights(prev => prev.map(f => f.id === id ? { 
-          ...f, 
+      if (flight) {
+        logAudit('START_FLIGHT', flight, 'status', flight.status, 'ABASTECENDO');
+        const updated = { 
+          ...flight, 
           status: FlightStatus.ABASTECENDO, 
           startTime: start,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+          logs: [...(flight.logs || []), newLog]
+        };
+        onUpdateFlights(prev => prev.map(f => f.id === id ? updated : f));
+        upsertFlight(updated).catch(err => console.error('Error persisting manual start:', err));
+      }
   };
 
   const handleManualFinish = (flight: FlightData, e: React.MouseEvent) => {
@@ -1137,6 +1157,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
       logAudit('DELETE_FLIGHT', deleteModalFlight);
       
       onUpdateFlights(prev => prev.filter(f => f.id !== deleteModalFlight.id));
+      deleteFlight(deleteModalFlight.id).catch(err => console.error('Error deleting from DB:', err));
+      
       addToast('VOO EXCLUÍDO', `Voo ${deleteModalFlight.flightNumber || deleteModalFlight.departureFlightNumber} foi removido do sistema.`, 'info');
       setDeleteModalFlight(null);
   };
@@ -1147,11 +1169,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
       const newLog = createNewLog('MANUAL', 'Voo CANCELADO manualmente pelo gestor.', 'GESTOR_MESA');
       logAudit('CANCEL_FLIGHT', cancelModalFlight, 'status', cancelModalFlight.status, 'CANCELADO');
       
-      onUpdateFlights(prev => prev.map(f => f.id === cancelModalFlight.id ? { 
-          ...f, 
+      const updated = { 
+          ...cancelModalFlight, 
           status: FlightStatus.CANCELADO,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+          logs: [...(cancelModalFlight.logs || []), newLog]
+      };
+      
+      onUpdateFlights(prev => prev.map(f => f.id === cancelModalFlight.id ? updated : f));
+      upsertFlight(updated).catch(err => console.error('Error persisting cancel:', err));
       
       addToast('VOO CANCELADO', `Voo ${cancelModalFlight.flightNumber} foi cancelado.`, 'info');
       setCancelModalFlight(null);
@@ -1160,11 +1185,15 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const handleReportCalco = (flight: FlightData, e: React.MouseEvent) => {
       e.stopPropagation();
       const newLog = createNewLog('MANUAL', 'Calço reportado manualmente pelo gestor.', 'GESTOR_MESA');
-      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { 
-          ...f, 
+      const updated = { 
+          ...flight, 
           isOnGround: true,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+          logs: [...(flight.logs || []), newLog]
+      };
+      
+      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? updated : f));
+      upsertFlight(updated).catch(err => console.error('Error persisting calco:', err));
+      
       addToast('CALÇO REPORTADO', `Aeronave ${flight.registration} (Voo ${flight.flightNumber}) em calço.`, 'success');
       setOpenMenuId(null);
   };
@@ -1186,13 +1215,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
           });
       }
 
-      onUpdateFlights(prev => prev.map(f => f.id === id ? { 
-          ...f, 
+      const updated = { 
+          ...flight, 
           status: FlightStatus.FINALIZADO, 
           endTime: new Date(),
           delayJustification: delayJustification,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+          logs: [...(flight.logs || []), newLog]
+      };
+
+      onUpdateFlights(prev => prev.map(f => f.id === id ? updated : f));
+      upsertFlight(updated).catch(err => console.error('Error persisting finish:', err));
+
       addToast(
           delayJustification ? 'ATRASO REGISTRADO' : 'OPERAÇÃO CONCLUÍDA', 
           `Voo ${flightNumber} finalizado${delayJustification ? ' com relatório de atraso' : ''}.`, 
@@ -1214,12 +1247,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const handleRemoveStandby = (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
       const newLog = createNewLog('MANUAL', 'Removido de Standby. Retomando prioridade.', 'GESTOR_MESA');
-      onUpdateFlights(prev => prev.map(f => f.id === id ? { 
-          ...f, 
-          isStandby: false, 
-          standbyReason: undefined,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+      onUpdateFlights(prev => prev.map(f => {
+          if (f.id === id) {
+              const updated = { 
+                  ...f, 
+                  isStandby: false, 
+                  standbyReason: undefined,
+                  logs: [...(f.logs || []), newLog]
+              };
+              upsertFlight(updated).catch(err => console.error('Error persisting standby removal:', err));
+              return updated;
+          }
+          return f;
+      }));
   };
 
   const handleConfirmVisual = (id: string, flightNumber: string, e: React.MouseEvent) => {
@@ -1250,7 +1290,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
       onUpdateFlights(prev => prev.map(f => {
           if (f.id === id) {
               const newLog = createNewLog('MANUAL', f.isPinned ? 'Voo desfixado do topo pelo gestor.' : 'Voo fixado no topo pelo gestor.', 'GESTOR_MESA');
-              return { ...f, isPinned: !f.isPinned, logs: [...(f.logs || []), newLog] };
+              const updated = { ...f, isPinned: !f.isPinned, logs: [...(f.logs || []), newLog] };
+              upsertFlight(updated).catch(err => console.error('Error persisting pin:', err));
+              return updated;
           }
           return f;
       }));
@@ -1260,14 +1302,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const handleReforco = (flight: FlightData, e: React.MouseEvent) => {
       e.stopPropagation();
       const newLog = createNewLog('MANUAL', 'Voo redirecionado para REFORÇO (Fila).', 'GESTOR_MESA');
-      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { 
-          ...f, 
+      
+      const updated = { 
+          ...flight, 
           status: FlightStatus.FILA,
           isReforco: true,
           operator: undefined,
           designationTime: undefined,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+          logs: [...(flight.logs || []), newLog]
+      };
+      
+      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? updated : f));
+      upsertFlight(updated).catch(err => console.error('Error persisting reforco status:', err));
+      
       addToast('REFORÇO', `Voo ${flight.flightNumber} retornado para a fila.`, 'success');
       setOpenMenuId(null);
   };
@@ -1293,13 +1340,18 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const handleConfirmRemoveOperator = () => {
       if (!confirmRemoveOperatorFlight) return;
       const newLog = createNewLog('MANUAL', 'Operador removido. Voo retornou para a fila.', 'GESTOR_MESA');
-      onUpdateFlights(prev => prev.map(f => f.id === confirmRemoveOperatorFlight.id ? { 
-          ...f, 
+      
+      const updated = { 
+          ...confirmRemoveOperatorFlight, 
           status: FlightStatus.FILA,
           operator: undefined,
           designationTime: undefined,
-          logs: [...(f.logs || []), newLog]
-      } : f));
+          logs: [...(confirmRemoveOperatorFlight.logs || []), newLog]
+      };
+
+      onUpdateFlights(prev => prev.map(f => f.id === confirmRemoveOperatorFlight.id ? updated : f));
+      upsertFlight(updated).catch(err => console.error('Error persisting operator removal:', err));
+      
       addToast('OPERADOR REMOVIDO', `Operador removido do voo ${confirmRemoveOperatorFlight.flightNumber}.`, 'info');
       setConfirmRemoveOperatorFlight(null);
   };
@@ -1330,9 +1382,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
               assigned_by: ltName 
           });
 
-          // IMPORTANTE: Ao designar, o status vai para DESIGNADO, removendo automaticamente da FILA
-          onUpdateFlights(prev => prev.map(f => f.id === assignModalFlight.id ? { 
-              ...f, 
+          const updated = { 
+              ...assignModalFlight, 
               status: FlightStatus.DESIGNADO, 
               operator: operator.warName,
               fleet: operator.assignedVehicle,
@@ -1340,8 +1391,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
               designationTime: new Date(),
               assignmentTime: new Date(),
               assignedByLt: ltName,
-              logs: [...(f.logs || []), newLog]
-          } : f));
+              logs: [...(assignModalFlight.logs || []), newLog]
+          };
+
+          onUpdateFlights(prev => prev.map(f => f.id === assignModalFlight.id ? updated : f));
+          upsertFlight(updated).catch(err => console.error('Error persisting operator assignment:', err));
 
           addToast('DESIGNADO', `Operador ${operator.warName} assumiu voo ${assignModalFlight.flightNumber}.`, 'success');
           setAssignModalFlight(null);
@@ -1362,11 +1416,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
               fleet: operator.assignedVehicle 
           });
 
-          onUpdateFlights(prev => prev.map(f => f.id === assignSupportModalFlight.id ? { 
-              ...f, 
+          const updated = { 
+              ...assignSupportModalFlight, 
               supportOperator: operator.warName,
-              logs: [...(f.logs || []), newLog]
-          } : f));
+              logs: [...(assignSupportModalFlight.logs || []), newLog]
+          };
+
+          onUpdateFlights(prev => prev.map(f => f.id === assignSupportModalFlight.id ? updated : f));
+          upsertFlight(updated).catch(err => console.error('Error persisting support operator assignment:', err));
 
           addToast('APOIO DESIGNADO', `Operador ${operator.warName} assumiu como apoio no voo ${assignSupportModalFlight.flightNumber}.`, 'success');
           setAssignSupportModalFlight(null);
@@ -1408,11 +1465,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const handleSaveObservation = () => {
     if (observationModalFlight && newObservation.trim()) {
       const newLog = createNewLog('OBSERVACAO', newObservation.trim(), 'GESTOR_MESA');
+      const updated = { ...observationModalFlight, logs: [...(observationModalFlight.logs || []), newLog] };
+      
       onUpdateFlights(prev => prev.map(f => 
-        f.id === observationModalFlight.id 
-          ? { ...f, logs: [...(f.logs || []), newLog] } 
-          : f
+        f.id === observationModalFlight.id ? updated : f
       ));
+      upsertFlight(updated).catch(err => console.error('Error persisting observation:', err));
+      
       addToast('OBSERVAÇÃO REGISTRADA', `Nota adicionada ao voo ${observationModalFlight.flightNumber}.`, 'success');
       setObservationModalFlight(null);
       setNewObservation('');

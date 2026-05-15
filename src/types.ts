@@ -197,6 +197,26 @@ export interface FlightData {
   report?: FlightReport; // Report for presence and delays
 }
 
+export interface MeshFlight {
+  id: string;
+  airline: string;
+  airlineCode: string;
+  departureFlightNumber: string;
+  destination: string;
+  etd: string;
+  // Variable fields
+  registration: string;
+  eta: string;
+  flightNumber?: string; // V. Chegada
+  positionId: string;
+  actualArrivalTime: string;
+  model: string;
+  // UI States
+  disabled?: boolean;
+  isNew?: boolean;
+  date?: string; // Add date field for time overrides
+}
+
 export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN';
 
 export interface AircraftType {

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts';
-import { MeshFlight } from '../data/operationalMesh';
+import { MeshFlight } from '../types';
 
 interface DashboardProps {
   flights: MeshFlight[];

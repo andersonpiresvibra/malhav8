@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { FlightData } from '../types';
 
 import { POSITIONS_BY_PATIO, PATIO_LABELS, PositionMetadata } from '../constants/aerodromoConfig';
@@ -18,6 +19,7 @@ interface AerodromoAdminProps {
   flights: FlightData[];
   patioPositions: Record<string, string[]>;
   setPatioPositions: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  onClearAllAssignments?: () => void;
 }
 
 export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({ 
@@ -29,11 +31,14 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
   setPositionRestrictions,
   flights,
   patioPositions,
-  setPatioPositions
+  setPatioPositions,
+  onClearAllAssignments
 }) => {
   const { isDarkMode } = useTheme();
+  const { user } = useAuth();
   const [activePatioId, setActivePatioId] = useState('2');
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'HYBRID' | 'SRV' | 'CTA' | 'REMOTA' | 'INACTIVE'>('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newPos, setNewPos] = useState({ id: '', patio: '2', type: 'PIT' as 'PIT' | 'REMOTA' });
   const [showOptions, setShowOptions] = useState(false);
@@ -44,40 +49,98 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
   const activeFlightsByPos = useMemo(() => {
     const map = new Map<string, FlightData>();
     flights.forEach(f => {
-      if (f.positionId) map.set(f.positionId, f);
+      // Only consider flights that are ACTIVE or in progress
+      if (f.positionId && f.status !== 'FINALIZADO' && f.status !== 'CANCELADO') {
+        map.set(f.positionId, f);
+      }
     });
     return map;
   }, [flights]);
 
+  const baseList = useMemo(() => {
+    return searchTerm ? allPositions : currentPositions;
+  }, [searchTerm, allPositions, currentPositions]);
+
   const stats = useMemo(() => {
+    // Calculamos as estatísticas com base no que está visível (Filtro ou Busca)
+    const baseListRef = searchTerm ? allPositions : currentPositions;
+    const total = baseListRef.length;
+    
     return {
-      total: allPositions.length,
-      hybrid: allPositions.filter(id => positionsMetadata[id]?.type === 'PIT' && (positionRestrictions[id] === 'HYBRID' || !positionRestrictions[id])).length,
-      srvOnly: allPositions.filter(id => positionsMetadata[id]?.type === 'PIT' && positionRestrictions[id] === 'SRV').length,
-      ctaOnly: allPositions.filter(id => positionsMetadata[id]?.type === 'PIT' && positionRestrictions[id] === 'CTA').length,
-      remote: allPositions.filter(id => positionsMetadata[id]?.type === 'REMOTA').length
+      total,
+      hybrid: baseListRef.filter(id => {
+        if (disabledPositions.has(id)) return false;
+        const meta = positionsMetadata[id];
+        const rest = positionRestrictions[id] || 'HYBRID';
+        return meta?.type === 'PIT' && (rest === 'HYBRID' || !rest);
+      }).length,
+      srvOnly: baseListRef.filter(id => !disabledPositions.has(id) && positionRestrictions[id] === 'SRV' && positionsMetadata[id]?.type === 'PIT').length,
+      ctaOnly: baseListRef.filter(id => {
+        if (disabledPositions.has(id)) return false;
+        const meta = positionsMetadata[id];
+        const rest = positionRestrictions[id];
+        return (meta?.type === 'PIT' && rest === 'CTA') || meta?.type === 'REMOTA';
+      }).length,
+      remote: baseListRef.filter(id => !disabledPositions.has(id) && positionsMetadata[id]?.type === 'REMOTA').length,
+      inactive: baseListRef.filter(id => disabledPositions.has(id)).length
     };
-  }, [allPositions, positionsMetadata, positionRestrictions]);
+  }, [allPositions, currentPositions, searchTerm, positionsMetadata, positionRestrictions, disabledPositions]);
 
   const displayedPositions = useMemo(() => {
-    const list = searchTerm ? allPositions : currentPositions;
-    if (!searchTerm) return list;
-    return list.filter(p => p.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [allPositions, currentPositions, searchTerm]);
+    let list = baseList;
+    
+    if (activeFilter !== 'ALL') {
+      list = list.filter(id => {
+        const isDisabled = disabledPositions.has(id);
+        if (activeFilter === 'INACTIVE') return isDisabled;
+        if (isDisabled) return false; // Filter categories only show active ones
+        
+        const meta = positionsMetadata[id];
+        const rest = positionRestrictions[id] || 'HYBRID';
+        
+        if (activeFilter === 'HYBRID') return meta?.type === 'PIT' && (rest === 'HYBRID' || !rest);
+        if (activeFilter === 'SRV') return meta?.type === 'PIT' && rest === 'SRV';
+        if (activeFilter === 'CTA') return (meta?.type === 'PIT' && rest === 'CTA') || meta?.type === 'REMOTA';
+        if (activeFilter === 'REMOTA') return meta?.type === 'REMOTA';
+        return true;
+      });
+    }
+
+    return list;
+  }, [baseList, activeFilter, disabledPositions, positionsMetadata, positionRestrictions]);
 
   const toggleDisabled = (posId: string) => {
-    if (activeFlightsByPos.has(posId)) return;
     setDisabledPositions(prev => {
       const next = new Set(prev);
       if (next.has(posId)) next.delete(posId); else next.add(posId);
       return next;
     });
+    
+    // Log de Auditoria para rastreabilidade em SBGR
+    console.log(`[Admin] Posição ${posId} alterada por ${user?.email || 'Admin'}`);
+  };
+
+  const handleClearAllAssignments = async () => {
+    if (!confirm("⚠️ ATENÇÃO: Isso irá desvincular TODOS os voos de todas as posições no BANCO DE DADOS. Esta ação é irreversível. Deseja continuar?")) return;
+    
+    try {
+      if (onClearAllAssignments) {
+        await onClearAllAssignments();
+        alert("BASE DE DADOS LIMPA: Todas as associações de pátio foram removidas com sucesso.");
+      }
+    } catch (err) {
+      console.error("Erro na limpeza global:", err);
+      alert("Erro ao limpar banco de dados.");
+    }
   };
 
   const toggleType = (posId: string) => {
-    if (activeFlightsByPos.has(posId)) return;
-    const current = positionsMetadata[posId];
-    const nextType = current.type === 'PIT' ? 'REMOTA' : 'PIT';
+    // Não impedimos a troca de tipo se houver voo (apenas alertamos no console para auditoria)
+    if (activeFlightsByPos.has(posId)) {
+      console.warn(`[Audit] Mudança de tipo em posição ocupada: ${posId}`);
+    }
+    const currentMeta = positionsMetadata[posId];
+    const nextType = currentMeta?.type === 'PIT' ? 'REMOTA' : 'PIT';
     
     setPositionsMetadata(prev => ({
        ...prev,
@@ -180,31 +243,49 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-6 mr-4 px-4 py-1.5 rounded bg-white/5 border border-white/5 h-10">
-          <div className="flex flex-col items-center min-w-[40px]">
-            <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Total</span>
-            <span className="text-sm font-black leading-none italic">{stats.total}</span>
-          </div>
+        <div className={`flex items-center gap-1 mr-4 px-1 py-1 rounded-xl transition-all ${isDarkMode ? 'bg-[#0a0f1d] shadow-inner shadow-black/60' : 'bg-slate-200'} border ${isDarkMode ? 'border-white/5' : 'border-slate-300'}`}>
+          <button 
+            onClick={() => setActiveFilter('ALL')}
+            className={`flex flex-col items-center justify-center min-w-[60px] h-10 px-3 rounded-lg transition-all duration-200 ${activeFilter === 'ALL' ? (isDarkMode ? 'bg-white/10 text-emerald-400 scale-[1.02] shadow-[0_0_15px_rgba(52,211,153,0.1)]' : 'bg-white shadow-md text-slate-900') : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <span className="text-[7px] font-black uppercase tracking-widest leading-none mb-1">Geral</span>
+            <span className={`text-xs font-black leading-none ${activeFilter === 'ALL' ? 'text-emerald-400' : ''}`}>{stats.total}</span>
+          </button>
 
-          <div className={`w-[1px] h-6 ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
+          <div className={`w-[1px] h-6 mx-1 ${isDarkMode ? 'bg-white/5' : 'bg-slate-300'}`}></div>
 
-          <div className="flex items-center gap-6">
-            <div className="flex flex-col items-center">
-              <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-emerald-500/60' : 'text-emerald-600'}`}>Hibridas</span>
-              <span className="text-xs font-black">{stats.hybrid}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-yellow-500/60' : 'text-yellow-600'}`}>Somente SRV</span>
-              <span className="text-xs font-black">{stats.srvOnly}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-500/60' : 'text-indigo-600'}`}>Somente CTA</span>
-              <span className="text-xs font-black">{stats.ctaOnly}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500/60' : 'text-slate-600'}`}>Remotas</span>
-              <span className="text-xs font-black">{stats.remote}</span>
-            </div>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setActiveFilter('HYBRID')}
+              className={`flex flex-col items-center justify-center min-w-[70px] h-10 px-2 rounded-lg transition-all duration-200 ${activeFilter === 'HYBRID' ? (isDarkMode ? 'bg-emerald-500/10 text-emerald-400 scale-[1.02]' : 'bg-emerald-500 text-white shadow-md') : 'text-slate-500 hover:text-emerald-500'}`}
+            >
+              <span className="text-[7px] font-black uppercase tracking-widest leading-none mb-1">Híbridas</span>
+              <span className="text-xs font-black leading-none">{stats.hybrid}</span>
+            </button>
+            <button 
+              onClick={() => setActiveFilter('SRV')}
+              className={`flex flex-col items-center justify-center min-w-[55px] h-10 px-2 rounded-lg transition-all duration-200 ${activeFilter === 'SRV' ? (isDarkMode ? 'bg-indigo-500/10 text-indigo-400 scale-[1.02]' : 'bg-indigo-500 text-white shadow-md') : 'text-slate-500 hover:text-indigo-500'}`}
+            >
+              <span className="text-[7px] font-black uppercase tracking-widest leading-none mb-1">SRV</span>
+              <span className="text-xs font-black leading-none">{stats.srvOnly}</span>
+            </button>
+            <button 
+              onClick={() => setActiveFilter('CTA')}
+              className={`flex flex-col items-center justify-center min-w-[55px] h-10 px-2 rounded-lg transition-all duration-200 ${activeFilter === 'CTA' ? (isDarkMode ? 'bg-yellow-500/10 text-yellow-400 scale-[1.02]' : 'bg-yellow-500 text-white shadow-md') : 'text-slate-500 hover:text-yellow-500'}`}
+            >
+              <span className="text-[7px] font-black uppercase tracking-widest leading-none mb-1">CTA</span>
+              <span className="text-xs font-black leading-none">{stats.ctaOnly}</span>
+            </button>
+            
+            <div className={`w-[1px] h-6 mx-1 ${isDarkMode ? 'bg-white/5' : 'bg-slate-300'}`}></div>
+
+            <button 
+              onClick={() => setActiveFilter('INACTIVE')}
+              className={`flex flex-col items-center justify-center min-w-[65px] h-10 px-2 rounded-lg transition-all duration-200 ${activeFilter === 'INACTIVE' ? (isDarkMode ? 'bg-red-500/15 text-red-400 scale-[1.02]' : 'bg-red-600 text-white shadow-md') : 'text-slate-500 hover:text-red-500'}`}
+            >
+              <span className="text-[7px] font-black uppercase tracking-widest leading-none mb-1">Inativas</span>
+              <span className="text-xs font-black leading-none">{stats.inactive}</span>
+            </button>
           </div>
         </div>
 
@@ -246,6 +327,13 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     className={`absolute right-0 mt-2 w-48 rounded-xl border shadow-xl z-[70] overflow-hidden ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
                   >
+                    <button 
+                      onClick={() => { handleClearAllAssignments(); setShowOptions(false); }}
+                      className={`w-full px-4 py-3 text-left flex items-center gap-3 transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}
+                    >
+                      <Trash2 size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Limpar Todas Posições</span>
+                    </button>
                     <button 
                       onClick={() => { setShowAddModal(true); setShowOptions(false); }}
                       className={`w-full px-4 py-3 text-left flex items-center gap-3 transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-50 text-slate-600'}`}
@@ -352,11 +440,10 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
                   <div className="flex-1 flex flex-col justify-center gap-1 px-2">
                     <button 
                       onClick={() => toggleDisabled(posId)}
-                      disabled={hasFlight}
-                      className={`flex items-center justify-between w-full p-1 rounded transition-colors ${isDisabled ? 'text-red-500 bg-red-500/10' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
+                      className={`flex items-center justify-between w-full p-2 rounded-lg transition-all duration-200 ${isDisabled ? 'text-red-500 bg-red-500/20' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
                     >
-                        <Power size={12} strokeWidth={2.5} />
-                        <span className="text-[8px] font-black uppercase">{isDisabled ? 'OFF' : 'ATIVO'}</span>
+                        <Power size={14} strokeWidth={2.5} />
+                        <span className="text-[8px] font-black uppercase tracking-widest">{isDisabled ? 'OFF' : 'ATIVO'}</span>
                     </button>
 
                     <button 

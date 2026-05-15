@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy, Network } from 'lucide-react';
-import { MeshFlight, INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
-import { FlightData, FlightStatus, AircraftType } from '../types';
+import { INITIAL_MESH_FLIGHTS } from '../data/operationalMesh';
+import { FlightData, FlightStatus, AircraftType, MeshFlight } from '../types';
 import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { bulkInsertFlights, upsertRootMesh, clearRootMesh, deleteRootMeshFlight } from '../services/supabaseService';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
 import { TimeConflictModal } from './TimeConflictModal';
@@ -213,6 +214,27 @@ export const RootMesh: React.FC<RootMeshProps> = ({
   const [timeConflictData, setTimeConflictData] = useState<{rowId: string, oldEtd: string, newEtd: string}|null>(null);
   const confirmedConflictsRef = useRef<Set<string>>(new Set());
   const [editingCellOriginalValue, setEditingCellOriginalValue] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveRootMeshDB = async () => {
+    setIsSaving(true);
+    try {
+      await upsertRootMesh(meshFlights);
+      setAlertState({
+        isOpen: true,
+        title: 'Malha Raiz Salva',
+        message: 'Todos os registros da Malha Raiz foram persistidos no Supabase com sucesso.'
+      });
+    } catch (err: any) {
+      setAlertState({
+        isOpen: true,
+        title: 'Erro ao Salvar',
+        message: `Não foi possível salvar a malha raiz: ${err.message}`
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleFinishEdit = (rowId: string, colIndex: number) => {
     setEditingCell(null);
@@ -322,13 +344,24 @@ export const RootMesh: React.FC<RootMeshProps> = ({
     setFocusedCell({ rowId: newFlight.id, col: 0 });
   };
 
-  const handleDeleteFlight = (id: string) => {
+  const handleDeleteFlight = async (id: string) => {
+    // Optimistic delete
+    const originalFlights = [...meshFlights];
     setMeshFlights(prev => prev.filter(f => f.id !== id));
     setFocusedCell(null);
     setFlightActionMenu(null);
+
+    if (!id.startsWith('new-') && !id.startsWith('imp-')) {
+       try {
+         await deleteRootMeshFlight(id);
+       } catch (err) {
+         setMeshFlights(originalFlights);
+         alert("Erro ao excluir do banco de dados.");
+       }
+    }
   };
 
-  const handleRemoveDuplicates = () => {
+  const handleRemoveDuplicates = async () => {
     const seen = new Set<string>();
     const uniqueFlights: MeshFlight[] = [];
     let removedCount = 0;
@@ -423,7 +456,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
     };
   };
 
-  const handleGenerateMesh = () => {
+  const handleGenerateMesh = async () => {
     const activeFlights = meshFlights.filter(f => !f.disabled);
     const inconsistent = activeFlights.filter(f => !getFlightErrors(f).isValid);
 
@@ -436,34 +469,73 @@ export const RootMesh: React.FC<RootMeshProps> = ({
         return;
     }
 
-    if (!window.confirm(`Isso irá sobrescrever a Malha Base inteira do mês ${targetMonth}. Deseja continuar?`)) {
+    if (!window.confirm(`Isso irá gravar a Malha Base inteira do mês ${targetMonth} diretamente no Banco de Dados (Supabase). Deseja continuar?`)) {
       return;
     }
 
     const [year, month] = targetMonth.split('-');
     const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
     
-    setMeshFlightsByDate(prev => {
-      const newMap = { ...prev };
-      
-      for (let day = 1; day <= daysInMonth; day++) {
+    const allGeneratedFlights: FlightData[] = [];
+    
+    // Preparar dados para o banco
+    for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
-        // Map root flights to instances for this date
-        newMap[dateStr] = activeFlights.map((f, i) => ({
-          ...f,
-          id: `mesh-${dateStr}-${i}`,
-          date: dateStr,
-        }));
-      }
-      
-      return newMap;
-    });
+        activeFlights.forEach((f, i) => {
+            const flightId = `mesh-${dateStr}-${i}-${Math.random().toString(36).substring(2, 7)}`;
+            allGeneratedFlights.push({
+                id: flightId,
+                date: dateStr,
+                airline: f.airline,
+                airlineCode: f.airlineCode,
+                flightNumber: f.flightNumber || f.departureFlightNumber,
+                departureFlightNumber: f.departureFlightNumber,
+                destination: f.destination,
+                etd: f.etd,
+                registration: f.registration,
+                eta: f.eta || f.etd, // Fallback ETA = ETD
+                origin: '',
+                actualArrivalTime: f.actualArrivalTime || '',
+                positionId: f.positionId,
+                model: f.model,
+                status: 'PRÉ' as FlightStatus,
+                fuelStatus: 0,
+                volume: 0,
+                isOnGround: false,
+                logs: [],
+                report: {}
+            });
+        });
+    }
 
-    setAlertState({
-        isOpen: true, 
-        title: 'Sucesso!', 
-        message: `A Malha Base foi gerada com sucesso para todos os ${daysInMonth} dias de ${targetMonth}. Verifique a aba Malha Base.`
-    });
+    try {
+        setAlertState({
+            isOpen: true, 
+            title: 'Gerando Malha...', 
+            message: `Processando ${allGeneratedFlights.length} registros. Por favor, aguarde...`
+        });
+        
+        await bulkInsertFlights(allGeneratedFlights);
+        
+        setMeshFlightsByDate(prev => {
+            const newMap = { ...prev };
+            // Optional: Update local state for the month if needed, 
+            // but usually GridOps fetches per day from DB anyway.
+            return newMap;
+        });
+
+        setAlertState({
+            isOpen: true, 
+            title: 'Sucesso!', 
+            message: `A Malha Base foi gerada e PERSISTIDA no banco para todos os ${daysInMonth} dias de ${targetMonth}.`
+        });
+    } catch (err: any) {
+        setAlertState({
+            isOpen: true, 
+            title: 'Erro na Geração', 
+            message: `Falha ao salvar no banco: ${err.message}`
+        });
+    }
   };
 
   // 1. Filtragem Base para Contadores (AO VIVO)
@@ -1003,6 +1075,17 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                 </label>
 
                 <button 
+                  onClick={handleSaveRootMeshDB}
+                  disabled={isSaving}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300' : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                >
+                  {isSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  Salvar Malha Raiz
+                </button>
+
+                <div className={`my-1 border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`} />
+
+                <button 
                   onClick={() => {
                     handleGenerateMesh();
                     setShowOptionsDropdown(false);
@@ -1292,11 +1375,16 @@ export const RootMesh: React.FC<RootMeshProps> = ({
       {showClearMeshModal && (
         <ConfirmActionModal
           type="clearMesh"
-          onConfirm={() => {
-            setMeshFlights([]);
-            setFocusedCell(null);
-            setEditingCell(null);
-            setShowClearMeshModal(false);
+          onConfirm={async () => {
+            try {
+              await clearRootMesh();
+              setMeshFlights([]);
+              setFocusedCell(null);
+              setEditingCell(null);
+              setShowClearMeshModal(false);
+            } catch (err: any) {
+              alert("Erro ao limpar malha no banco: " + err.message);
+            }
           }}
           onClose={() => setShowClearMeshModal(false)}
         />
