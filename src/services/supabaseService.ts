@@ -84,13 +84,41 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
               counterInitial: v.counter_initial,
               counterFinal: v.counter_final,
               isActive: v.status !== 'INATIVO',
-              observations: v.observations
+              observations: v.observations,
+              operatorId: v.operator_id
             })) as Vehicle[];
             vehiclesCache = data.map((v: any) => ({
               id: v.id,
               fleetNumber: v.fleet_number?.toString()
             }));
             return mapped;
+};
+
+export const updateVehicleOperator = async (vehicleFleetNumber: string | null, operatorId: string | null) => {
+  checkConfig();
+  
+  // Se for null, vamos desvincular o operador do veículo dele atual
+  if (vehicleFleetNumber === null && operatorId) {
+    const { error } = await supabase
+      .from('vehicles')
+      .update({ operator_id: null })
+      .eq('operator_id', operatorId);
+    if (error) console.error("Error unlinking vehicle from operator:", error);
+    return;
+  }
+  
+  if (vehicleFleetNumber && operatorId) {
+    // 1. Remove qualquer outro veículo que esse operador possa ter
+    await supabase.from('vehicles').update({ operator_id: null }).eq('operator_id', operatorId);
+    
+    // 2. Vincula o novo
+    const cleanVehicleId = vehicleFleetNumber.replace('SRV-', '').replace('CTA-', '');
+    const vehicle = vehiclesCache.find(v => v.fleetNumber === cleanVehicleId || v.id === vehicleFleetNumber);
+    if (!vehicle) return;
+    
+    // Desvincula quem estava com este veículo
+    await supabase.from('vehicles').update({ operator_id: operatorId }).eq('id', vehicle.id);
+  }
 };
 
 export const getOperators = async (): Promise<OperatorProfile[]> => {

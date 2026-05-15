@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { OperatorProfile, ShiftCycle, OperatorCategory, FlightData, Vehicle } from '../types';
 import { getCurrentShift } from '../utils/shiftUtils';
+import { updateVehicleOperator, upsertFlight } from '../services/supabaseService';
 
 import { SelectVehicleModal } from './modals/SelectVehicleModal';
 
@@ -180,14 +181,14 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
     });
   }, [teamMembers, activeShift, activeCategory, searchTerm]);
 
-  const handleAssignVehicle = (operatorId: string, vehicleId: string) => {
+  const handleAssignVehicle = async (operatorId: string, vehicleId: string) => {
     let selectedWarName = '';
     let unassignedWarName = '';
 
     const updatedOps = operators.map(op => {
         if (op.id === operatorId) {
             selectedWarName = op.warName;
-            return { ...op, assignedVehicle: vehicleId };
+            return { ...op, assignedVehicle: vehicleId !== '' ? vehicleId : undefined };
         }
         // If another operator had this vehicle, unassign it to avoid conflicts
         if (vehicleId !== '' && op.assignedVehicle === vehicleId) {
@@ -198,6 +199,13 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
     });
     
     onUpdateOperators(updatedOps);
+
+    // Call Supabase locally
+    try {
+       await updateVehicleOperator(vehicleId !== '' ? vehicleId : null, operatorId);
+    } catch (e) {
+       console.error("Failed to update vehicle in DB", e);
+    }
 
     // Sync flights
     if (onUpdateFlights && flights) {
@@ -223,6 +231,15 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
         });
         if (changed) {
             onUpdateFlights(newFlights);
+            // Persist the changes to Supabase so it does NOT get overwritten by polling
+            newFlights.forEach(f => {
+               if (selectedWarName && f.operator === selectedWarName) {
+                   upsertFlight(f).catch(console.error);
+               }
+               if (unassignedWarName && f.operator === unassignedWarName) {
+                   upsertFlight(f).catch(console.error);
+               }
+            });
         }
     }
   };

@@ -80,7 +80,11 @@ const App: React.FC = () => {
         }
 
         if (operators && operators.length > 0) {
-          setGlobalOperators(operators);
+          const mappedOperators = operators.map(op => {
+             const assignedVeh = vehicles?.find(v => v.operatorId === op.id);
+             return { ...op, assignedVehicle: assignedVeh ? `${assignedVeh.type === 'CTA' ? 'CTA' : 'SRV'}-${assignedVeh.id}` : undefined };
+          });
+          setGlobalOperators(mappedOperators);
         }
 
         if (flights && flights.length > 0) {
@@ -169,9 +173,13 @@ const App: React.FC = () => {
           }
           
           if (operators && operators.length > 0) {
+            const mappedOperators = operators.map(op => {
+               const assignedVeh = vehicles?.find(v => v.operatorId === op.id);
+               return { ...op, assignedVehicle: assignedVeh ? `${assignedVeh.type === 'CTA' ? 'CTA' : 'SRV'}-${assignedVeh.id}` : undefined };
+            });
             setGlobalOperators(prev => {
-              const isDifferent = JSON.stringify(prev) !== JSON.stringify(operators);
-              return isDifferent ? operators : prev;
+              const isDifferent = JSON.stringify(prev) !== JSON.stringify(mappedOperators);
+              return isDifferent ? mappedOperators : prev;
             });
           }
 

@@ -22,6 +22,7 @@ export interface Vehicle {
   maxFlowRate: number; // L/min
   hasPlatform: boolean;
   operatorName?: string;
+  operatorId?: string; // UUID do operador vinculado
   currentPosition?: string;
   lastPosition?: string;
   capacity?: number; // Litros (relevante para CTA)

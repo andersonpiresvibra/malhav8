@@ -1359,6 +1359,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           status: FlightStatus.FILA,
           isReforco: true,
           operator: undefined,
+          operatorId: undefined,
+          supportOperator: undefined,
+          supportOperatorId: undefined,
           designationTime: undefined,
           logs: [...(flight.logs || []), newLog]
       };
@@ -1396,6 +1399,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           ...confirmRemoveOperatorFlight, 
           status: FlightStatus.FILA,
           operator: undefined,
+          operatorId: undefined,
+          supportOperator: undefined,
+          supportOperatorId: undefined,
           designationTime: undefined,
           logs: [...(confirmRemoveOperatorFlight.logs || []), newLog]
       };
@@ -1437,6 +1443,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
               ...assignModalFlight, 
               status: FlightStatus.DESIGNADO, 
               operator: operator.warName,
+              operatorId: operator.id,
               fleet: operator.assignedVehicle,
               fleetType: operator.assignedVehicle?.startsWith('CTA') ? 'CTA' : operator.assignedVehicle?.startsWith('SRV') ? 'SRV' : undefined,
               designationTime: new Date(),
@@ -1470,6 +1477,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           const updated = { 
               ...assignSupportModalFlight, 
               supportOperator: operator.warName,
+              supportOperatorId: operator.id,
               logs: [...(assignSupportModalFlight.logs || []), newLog]
           };
 

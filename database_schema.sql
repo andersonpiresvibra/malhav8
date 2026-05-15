@@ -37,6 +37,7 @@ CREATE TABLE vehicles (
     atve VARCHAR(50),
     atve_expiry DATE,
     observations TEXT,
+    operator_id UUID REFERENCES operators(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
