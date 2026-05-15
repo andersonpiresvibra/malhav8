@@ -424,7 +424,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         `}
                      >
                         <div className="w-5 h-5 flex items-center justify-center bg-white rounded-sm overflow-hidden shrink-0 shadow-sm border border-slate-200">
-                            <AirlineLogo airlineCode={airline} className="w-full h-full object-contain" fallback={<span className="text-black text-[8px] font-black leading-none">{airline.slice(0, 3)}</span>} />
+                            <AirlineLogo airlineCode={airline} showName={false} size="md" />
                         </div>
                         {airline}
                      </button>
@@ -473,7 +473,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                             return (
                                                 <td key={`${aircraft.id}-logo`} className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center relative pointer-events-none align-middle`}>
                                                     <div className="w-8 h-8 rounded bg-white overflow-hidden mx-auto flex items-center justify-center p-0.5 shadow-sm border border-slate-200">
-                                                        <AirlineLogo airlineCode={aircraft.airline} className="w-full h-full object-contain" fallback={<span className="text-black text-[8px] font-black tabular-nums">{aircraft.airline.slice(0, 3)}</span>} />
+                                                        <AirlineLogo airlineCode={aircraft.airline} showName={false} size="md" />
                                                     </div>
                                                 </td>
                                             )

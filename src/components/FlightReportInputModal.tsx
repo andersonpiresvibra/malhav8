@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { FlightData, FlightStatus } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -59,12 +60,12 @@ export const FlightReportInputModal: React.FC<FlightReportInputModalProps> = ({ 
       onClose();
   };
 
-  return (
+  return createPortal(
     <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         style={{ left: position.x, top: position.y }}
-        className={`fixed z-[110] w-full max-w-[400px] flex flex-col rounded-[8px] shadow-2xl border-[0.5px] ${isDarkMode ? 'border-amber-500/30 bg-slate-900/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl overflow-hidden`}
+        className={`fixed z-[9991] w-full max-w-[400px] flex flex-col rounded-[8px] shadow-2xl border-[0.5px] ${isDarkMode ? 'border-amber-500/30 bg-slate-900/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl overflow-hidden`}
     >
         <div 
             onMouseDown={handleMouseDown}
@@ -225,6 +226,6 @@ export const FlightReportInputModal: React.FC<FlightReportInputModalProps> = ({ 
                 Salvar Relatório
             </button>
         </div>
-    </motion.div>
+    </motion.div>, document.body
   );
 };

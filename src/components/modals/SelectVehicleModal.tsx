@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Truck, X, Search, AlertTriangle, Link2Off, CheckCircle2, Lock } from 'lucide-react';
 import { Vehicle, OperatorProfile } from '../../types';
@@ -92,7 +93,7 @@ export const SelectVehicleModal: React.FC<SelectVehicleModalProps> = ({
         onClose();
     };
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             {pendingSelection ? (
                 <div className={`${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'} border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative flex flex-col p-6 animate-in zoom-in-95`}>
@@ -305,7 +306,8 @@ export const SelectVehicleModal: React.FC<SelectVehicleModalProps> = ({
                     </div>
                 </div>
             )}
-        </div>
+        </div>,
+        document.body
     );
 };
 

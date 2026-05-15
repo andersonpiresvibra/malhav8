@@ -1,0 +1,34 @@
+export const formatAirlineName = (name: string): string => {
+  if (!name) return '';
+  const upper = name.toUpperCase();
+  if (upper.includes('LATAM') || upper.includes('TAM')) return 'LATAM';
+  if (upper.includes('GOL') || upper.includes('GLO')) return 'GOL';
+  if (upper.includes('AZUL') || upper.includes('AZU')) return 'AZUL';
+  if (upper.includes('AMERICAN')) return 'AMERICAN';
+  if (upper.includes('DELTA')) return 'DELTA';
+  if (upper.includes('UNITED')) return 'UNITED';
+  if (upper.includes('TAP')) return 'TAP';
+  if (upper.includes('COPA')) return 'COPA';
+  if (upper.includes('FRANCE') || upper === 'AF') return 'AIR FRANCE';
+  if (upper.includes('KLM')) return 'KLM';
+  if (upper.includes('LUFTHANSA')) return 'LUFTHANSA';
+  if (upper.includes('BRITISH')) return 'BRITISH';
+  if (upper.includes('IBERIA')) return 'IBERIA';
+  if (upper.includes('EMIRATES')) return 'EMIRATES';
+  if (upper.includes('QATAR')) return 'QATAR';
+  if (upper.includes('SKY')) return 'SKY';
+  if (upper.includes('AEROLINEAS') || upper.includes('AEROLÍNEAS')) return 'AEROLINEAS';
+  if (upper.includes('BOA') || upper.includes('BOLIVIANA')) return 'BOA';
+  if (upper.includes('AVIANCA')) return 'AVIANCA';
+  if (upper.includes('SWISS')) return 'SWISS';
+  if (upper.includes('TURKISH')) return 'TURKISH';
+  if (upper.includes('ETHIOPIAN')) return 'ETHIOPIAN';
+  if (upper.includes('AIR CANADA')) return 'AIR CANADA';
+  if (upper.includes('AEROMEXICO') || upper.includes('AEROMÉXICO')) return 'AEROMEXICO';
+  if (upper.includes('ITA') || upper.includes('ITALIA')) return 'ITA';
+  if (upper.includes('TOTAL')) return 'TOTAL';
+  if (upper.includes('EUROPA')) return 'AIR EUROPA';
+  if (upper.includes('VOEPASS') || upper.includes('PASSAREDO')) return 'VOEPASS';
+
+  return upper.replace(/( AIRLINES| AIRWAYS| LINHAS AÉREAS| LINHAS AEREAS| S\.A\.| S\/A| TRANSPORTES AÉREOS| TRANSPORTES AEREOS)/gi, '').trim();
+};

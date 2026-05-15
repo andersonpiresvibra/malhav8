@@ -1312,7 +1312,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
     setBulkAbsence(null);
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       
@@ -1569,7 +1569,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isDarkMode, operator, onC
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

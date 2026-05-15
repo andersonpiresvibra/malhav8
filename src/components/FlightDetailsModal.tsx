@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { FlightData, FlightLog, OperatorProfile, Vehicle, FlightStatus } from '../types';
 
@@ -506,14 +507,14 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
 
   const timelineLogs = computeTimelineLogs();
 
-  return (
+  return createPortal(
     <>
     <motion.div 
         ref={windowRef}
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         style={{ left: position.x, top: position.y }}
-        className={`fixed z-[100] w-full max-w-[400px] flex flex-col rounded-[8px] shadow-2xl border-[0.5px] ${isDarkMode ? 'border-emerald-500/30 bg-slate-900/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl overflow-hidden`}
+        className={`fixed z-[9990] w-full max-w-[400px] flex flex-col rounded-[8px] shadow-2xl border-[0.5px] ${isDarkMode ? 'border-emerald-500/30 bg-slate-900/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl overflow-hidden`}
     >
         {/* HEADER COMPACT & SOPHISTICATED */}
         <div 
@@ -1032,6 +1033,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
         operators={operators}
         onConfirm={handleAssignOperator}
     />
-  </>
+  </>,
+  document.body
 );
 };

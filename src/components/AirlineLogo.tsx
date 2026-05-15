@@ -52,8 +52,44 @@ export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className
   const [imgError, setImgError] = useState(false);
   const { isDarkMode } = useTheme();
   
+  const getNormalizedInfo = (code: string) => {
+    const upperCode = code.toUpperCase();
+    if (upperCode.includes('LA') && upperCode.includes('TAM') || upperCode.includes('LATAM')) return { iata: 'LA', name: 'LATAM' };
+    if (upperCode.includes('GOL') || upperCode.includes('G3') || upperCode.includes('GLO')) return { iata: 'G3', name: 'GOL' };
+    if (upperCode.includes('AZUL') || upperCode.includes('AD') || upperCode.includes('AZU')) return { iata: 'AD', name: 'AZUL' };
+    if (upperCode.includes('TAP') || upperCode.includes('TP')) return { iata: 'TP', name: 'TAP' };
+    if (upperCode.includes('FRANCE') || upperCode.includes('AFR') || upperCode.includes('AF')) return { iata: 'AF', name: 'AIR FRANCE' };
+    if (upperCode.includes('LUFTHANSA') || upperCode.includes('DLH') || upperCode.includes('LH')) return { iata: 'LH', name: 'LUFTHANSA' };
+    if (upperCode.includes('COPA') || upperCode.includes('CM') || upperCode.includes('CMP')) return { iata: 'CM', name: 'COPA' };
+    if (upperCode.includes('UNITED') || upperCode.includes('UA') || upperCode.includes('UAL')) return { iata: 'UA', name: 'UNITED' };
+    if (upperCode.includes('AMERICAN') || upperCode.includes('AA') || upperCode.includes('AAL')) return { iata: 'AA', name: 'AMERICAN' };
+    if (upperCode.includes('KLM') || upperCode.includes('KL')) return { iata: 'KL', name: 'KLM' };
+    if (upperCode.includes('DELTA') || upperCode.includes('DL') || upperCode.includes('DAL')) return { iata: 'DL', name: 'DELTA' };
+    if (upperCode.includes('TOTAL') || upperCode.includes('TT')) return { iata: 'TT', name: 'TOTAL' };
+    if (upperCode.includes('QATAR') || upperCode.includes('QR') || upperCode.includes('QTR')) return { iata: 'QR', name: 'QATAR' };
+    if (upperCode.includes('EMIRATES') || upperCode.includes('EK') || upperCode.includes('UAE')) return { iata: 'EK', name: 'EMIRATES' };
+    if (upperCode.includes('AEROLINEAS') || upperCode.includes('AR') || upperCode.includes('ARG')) return { iata: 'AR', name: 'AEROLINEAS' };
+    if (upperCode.includes('SKY') || upperCode.includes('H2') || upperCode.includes('SKU')) return { iata: 'H2', name: 'SKY' };
+    if (upperCode.includes('AVIANCA') || upperCode.includes('AV') || upperCode.includes('AVA')) return { iata: 'AV', name: 'AVIANCA' };
+    if (upperCode.includes('BOA') || upperCode.includes('OB') || upperCode.includes('BOV')) return { iata: 'OB', name: 'BOA' };
+    if (upperCode.includes('BRITISH') || upperCode.includes('BA') || upperCode.includes('BAW')) return { iata: 'BA', name: 'BRITISH' };
+    if (upperCode.includes('IBERIA') || upperCode.includes('IB') || upperCode.includes('IBE')) return { iata: 'IB', name: 'IBERIA' };
+    if (upperCode.includes('SWISS') || upperCode.includes('LX') || upperCode.includes('SWR')) return { iata: 'LX', name: 'SWISS' };
+    if (upperCode.includes('ITA') || upperCode.includes('AZ') || upperCode.includes('ITY')) return { iata: 'AZ', name: 'ITA' };
+    if (upperCode.includes('TURKISH') || upperCode.includes('TK') || upperCode.includes('THY')) return { iata: 'TK', name: 'TURKISH' };
+    if (upperCode.includes('ETHIOPIAN') || upperCode.includes('ET') || upperCode.includes('ETH')) return { iata: 'ET', name: 'ETHIOPIAN' };
+    if (upperCode.includes('AIR CANADA') || upperCode.includes('AC') || upperCode.includes('ACA')) return { iata: 'AC', name: 'AIR CANADA' };
+    if (upperCode.includes('AEROMEXICO') || upperCode.includes('AM') || upperCode.includes('AMX')) return { iata: 'AM', name: 'AEROMEXICO' };
+
+    const info = AIRLINE_INFO[upperCode];
+    if (info) return info;
+
+    // Try to find by name partially
+    return { iata: upperCode.substring(0,2), name: upperCode.split(' ')[0] };
+  };
+
   const normalizedCode = airlineCode?.toUpperCase() || '';
-  const info = AIRLINE_INFO[normalizedCode] || { iata: normalizedCode, name: normalizedCode };
+  const info = getNormalizedInfo(normalizedCode);
   
   const iconUrl = `https://images.kiwi.com/airlines/64/${info.iata}.png`;
 

@@ -11,6 +11,7 @@ import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
 import { TimeConflictModal } from './TimeConflictModal';
 import { PieChartDashboard } from './PieChartDashboard';
+import { formatAirlineName } from '../utils/airlineUtils';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     if (!targetTimeStr) return 0;
@@ -188,6 +189,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
   const [menuPosition, setMenuPosition] = useState<{ top: number, left: number } | null>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
+  const [optionsMenuRect, setOptionsMenuRect] = useState<DOMRect | null>(null);
   const [showClearMeshModal, setShowClearMeshModal] = useState(false);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
   const [aircraftsDB, setAircraftsDB] = useState<AircraftType[]>([]);
@@ -860,7 +862,11 @@ export const RootMesh: React.FC<RootMeshProps> = ({
 
         <div className="relative" ref={optionsMenuRef}>
           <button 
-            onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setOptionsMenuRect(rect);
+              setShowOptionsDropdown(!showOptionsDropdown);
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00] h-7`}
           >
             <Settings size={14} className={showOptionsDropdown ? 'animate-spin-slow' : ''} />
@@ -868,8 +874,12 @@ export const RootMesh: React.FC<RootMeshProps> = ({
             <ChevronDown size={14} className={`transition-transform duration-200 ${showOptionsDropdown ? 'rotate-180' : ''}`} />
           </button>
 
-          {showOptionsDropdown && (
-            <div className={`absolute right-0 top-full mt-2 w-56 ${isDarkMode ? "bg-slate-900 border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-slate-200 shadow-xl"} border rounded-xl z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2`}>
+          {showOptionsDropdown && optionsMenuRect && createPortal(
+            <div 
+              ref={optionsMenuRef}
+              style={{ top: optionsMenuRect.bottom + 8, left: optionsMenuRect.right - 224 }}
+              className={`fixed w-56 ${isDarkMode ? "bg-slate-900 border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-slate-200 shadow-xl"} border rounded-xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2`}
+            >
               <div className="p-1.5 space-y-0.5">
                 <div className="px-3 py-2 border-b border-white/5 mb-1">
                   <span className={`text-[9px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Ações da Malha Base</span>
@@ -1117,7 +1127,8 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                   Limpar Malha Raiz
                 </button>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>
@@ -1332,7 +1343,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                                   ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'text-slate-950 font-black' : ''}
                                 `}
                               >
-                                <span>{isMandatoryEmpty ? '?' : (String(cellValue) || '-')}</span>
+                                <span>{isMandatoryEmpty ? '?' : (col.key === 'airline' ? formatAirlineName(String(cellValue)) : String(cellValue) || '-')}</span>
                                 {isMandatoryEmpty && flight.id === focusedCell?.rowId && (
                                     <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
                                 )}

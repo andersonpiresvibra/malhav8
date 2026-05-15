@@ -163,7 +163,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
 
   const filteredTeam = useMemo(() => {
     const baseList = teamMembers.filter(op => 
-      !['FOLGA', 'FÉRIAS', 'AFAST.', 'FOLG.'].includes(op.status || '') &&
+      !['INATIVO', 'FOLGA', 'FÉRIAS', 'AFAST.', 'FOLG.'].includes(op.status || '') &&
       (activeShift === 'GERAL' || (op.shift && op.shift.cycle === activeShift)) &&
       (!activeCategory || activeCategory === 'AERODROMO' || op.patio === activeCategory || op.patio === 'AMBOS') &&
       (op.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -389,13 +389,13 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                             const flightsToday = op.stats ? Math.floor((op.stats.flightsWeekly || 0) / 6) + (mission ? 1 : 0) : 0;
                             
                             // LÓGICA DE CORES
-                            const isAvailable = op.status === 'DISPONÍVEL' && !mission;
+                            const isAvailable = op.status === 'DISPONÍVEL' && !mission && !!op.assignedVehicle;
                             const isDesignated = mission && mission.status === 'DESIGNADO';
                             const isHandsOn = (mission && mission.status === 'ABASTECENDO') || op.status === 'ENCHIMENTO' || op.status === 'OCUPADO';
                             
                             let cardStyle = isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-slate-700 border-slate-300 shadow-sm'; // Inativo/Default
                             let badgeStyle = isDarkMode ? 'bg-slate-900 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200';
-                            let statusLabel = op.status;
+                            let statusLabel = (!op.assignedVehicle && op.status === 'DISPONÍVEL') ? 'SEM VIATURA' : op.status;
 
                             if (isAvailable) {
                                 cardStyle = isDarkMode ? 'bg-emerald-500 text-slate-950 border-emerald-500 shadow-[0_10px_25px_rgba(16,185,129,0.2)]' : 'bg-emerald-600 text-white border-emerald-600 shadow-md';

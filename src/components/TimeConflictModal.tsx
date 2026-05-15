@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, Clock, CalendarDays, Undo2 } from 'lucide-react';
 
 interface TimeConflictModalProps {
@@ -18,7 +19,7 @@ export const TimeConflictModal: React.FC<TimeConflictModalProps> = ({
   onCorrect,
   onDiscard
 }) => {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
       <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border ${isDarkMode ? 'bg-slate-900 border-red-900/50' : 'bg-white border-red-200'}`}>
         <div className={`p-6 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'} flex items-center gap-4`}>
@@ -87,6 +88,7 @@ export const TimeConflictModal: React.FC<TimeConflictModalProps> = ({
             </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

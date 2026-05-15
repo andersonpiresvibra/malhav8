@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Upload } from 'lucide-react';
 
 interface ImportModalProps {
@@ -8,7 +9,7 @@ interface ImportModalProps {
 }
 
 export const ImportModal: React.FC<ImportModalProps> = ({ isDarkMode, onClose, onImport }) => {
-    return (
+    return createPortal(
         <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center animate-in fade-in">
             <div className={`w-full max-w-md rounded-xl shadow-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} overflow-hidden animate-in zoom-in-95 duration-200`}>
                 <div className={`flex justify-between items-center p-6 border-b ${isDarkMode ? 'border-slate-800 bg-slate-950' : 'border-[#004D24] bg-[#004D24]'}`}>
@@ -59,6 +60,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isDarkMode, onClose, o
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

@@ -461,7 +461,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                                             <div className={`text-[10px] font-black py-1 px-2 rounded ${isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400'}`}>EXT</div>
                                         ) : flight ? (
                                             <div className="flex justify-center">
-                                                <AirlineLogo airlineCode={flight.airlineCode || 'GEN'} size="xl" showName={false} />
+                                                <AirlineLogo airlineCode={flight.airlineCode || flight.airline || 'GEN'} size="xl" showName={false} />
                                             </div>
                                         ) : '--'}
                                     </td>

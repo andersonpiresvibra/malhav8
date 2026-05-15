@@ -95,6 +95,7 @@ interface GridOpsProps {
     setPendingAction?: React.Dispatch<React.SetStateAction<'CREATE' | 'IMPORT' | null>>;
     ltName: string;
     currentMeshDate?: string;
+    positionRestrictions: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
 }
 
 const parseTime = (timeStr: string) => {
@@ -227,7 +228,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
     pendingAction,
     setPendingAction,
     ltName,
-    currentMeshDate
+    currentMeshDate,
+    positionRestrictions
 }) => {
   const { isDarkMode } = useTheme();
   const { user, warName } = useAuth();
@@ -315,6 +317,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [newObservation, setNewObservation] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
+  const [optionsMenuRect, setOptionsMenuRect] = useState<DOMRect | null>(null);
   const [timeConflictData, setTimeConflictData] = useState<{rowId: string, oldEtd: string, newEtd: string} | null>(null);
   
   // NEW: Spreadsheet inline editing states
@@ -403,6 +406,18 @@ export const GridOps: React.FC<GridOpsProps> = ({
       if (newValue.length > 5) newValue = newValue.slice(0, 5);
     } else if (field === 'fuelStatus' || field === 'volume' || field === 'maxFlowRate') {
       newValue = parseFloat(value) || 0;
+    } else if (field === 'positionId') {
+      let payload: FlightData = { ...flight, [field]: newValue };
+      const restrictionType = positionRestrictions[newValue];
+      if (restrictionType === 'CTA') {
+        payload.positionType = 'CTA';
+      } else if (restrictionType === 'SRV') {
+        payload.positionType = 'SRV';
+      } else if (payload.positionType) {
+        payload.positionType = undefined;
+      }
+      syncFlight(payload);
+      return;
     }
 
     const updatedFlight = { ...flight, [field]: newValue };
@@ -876,7 +891,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isEditing = editable && editingCell?.rowId === row.id && editingCell?.col === colKey;
     
     // Custom styling for CTA positions
-    const isCTA = colKey === 'positionId' && row.positionType === 'CTA';
+    const isCTA = colKey === 'positionId' && (row.positionType === 'CTA' || positionRestrictions[row.positionId as string] === 'CTA');
     const ctaClasses = isCTA ? 'bg-yellow-400 text-slate-900 border-yellow-500' : '';
 
     let cellStyle = className;
@@ -983,7 +998,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           >
             {extraLabel}
             {colKey === 'airlineCode' ? (
-              <AirlineLogo airlineCode={row.airlineCode} className={isFocused && editable && isDarkMode ? 'invert brightness-200 justify-start' : 'justify-start'} />
+              <AirlineLogo airlineCode={row.airlineCode || row.airline} className={isFocused && editable && isDarkMode ? 'invert brightness-200 justify-start' : 'justify-start'} />
             ) : (
               value || '--'
             )}
@@ -1742,15 +1757,23 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const optionsDropdownContent = (
     <div className="relative" ref={optionsMenuRef}>
         <button 
-            onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
+            onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setOptionsMenuRect(rect);
+                setShowOptionsDropdown(!showOptionsDropdown);
+            }}
             className={`flex items-center gap-2 px-6 py-2 rounded-md border border-[#FEDC00] transition-all font-bold uppercase tracking-wider text-[11px] bg-[#FEDC00] text-[#4e4141] hover:bg-[#e5c600] shadow-sm`}
         >
             <span>Opções</span>
             <Settings size={14} />
         </button>
 
-        {showOptionsDropdown && (
-            <div className={`absolute right-0 top-11 w-56 ${isDarkMode ? "bg-slate-900 border-emerald-500/30 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-emerald-500/30 shadow-xl"} border rounded-xl z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2`}>
+        {showOptionsDropdown && optionsMenuRect && createPortal(
+            <div 
+                ref={optionsMenuRef}
+                style={{ top: optionsMenuRect.bottom + 8, left: optionsMenuRect.right - 224 }}
+                className={`fixed w-56 ${isDarkMode ? "bg-slate-900 border-emerald-500/30 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-emerald-500/30 shadow-xl"} border rounded-xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2`}
+            >
                 <div className="p-1.5 space-y-0.5">
                     <div className="px-3 py-2 border-b border-white/5 mb-1">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Ações da Malha</span>
@@ -1840,7 +1863,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         Limpar Malha Oper.
                     </button>
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
     </div>
   );

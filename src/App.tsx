@@ -416,12 +416,16 @@ const App: React.FC = () => {
 
   const [positionRestrictions, setPositionRestrictions] = useState<Record<string, 'HYBRID' | 'CTA' | 'SRV'>>(() => {
     const saved = localStorage.getItem('positionRestrictions');
-    if (saved) return JSON.parse(saved);
     
     const initial: Record<string, 'HYBRID' | 'CTA' | 'SRV'> = {};
     Object.entries(POSITIONS_METADATA).forEach(([id, meta]) => {
       initial[id] = (meta as any).type === 'REMOTA' ? 'CTA' : 'HYBRID';
     });
+
+    if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...initial, ...parsed };
+    }
     return initial;
   });
 
@@ -543,7 +547,7 @@ const App: React.FC = () => {
       )}
 
       {isNameInvalid && (
-        <div className="fixed inset-x-0 bottom-0 top-20 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-x-0 bottom-0 top-20 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className={`border ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-[#004D24]/30'} rounded-xl p-8 max-w-md w-full shadow-2xl text-center relative overflow-hidden`}>
                 <div className={`absolute top-0 inset-x-0 h-1 ${isDarkMode ? 'bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-600' : 'bg-[#004D24]'} animate-pulse`}></div>
                 <h2 className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-900'} mb-2 tracking-tight uppercase`}>PRIMEIRO ACESSO</h2>
@@ -617,6 +621,7 @@ const App: React.FC = () => {
                     meshFlights={meshFlights}
                     setMeshFlights={setMeshFlights}
                     onOpenShiftOperators={() => handleViewChange('SHIFT_OPERATORS')}
+                    positionRestrictions={positionRestrictions}
                     onOpenReport={(flight) => {
                         setTargetReportFlight(flight);
                         handleViewChange('REPORTS');

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { OperatorProfile, FlightData, Vehicle } from '../types';
 import { UserPlus, AlertTriangle, X, Check, User, Clock, Briefcase } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
@@ -117,7 +118,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
         subtitle = `Frota ${vehicle.id} • ${vehicle.type}`;
     }
 
-    return (
+    return createPortal(
         <div 
             className="fixed inset-0 z-[9999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
             onClick={handleClose}
@@ -288,6 +289,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

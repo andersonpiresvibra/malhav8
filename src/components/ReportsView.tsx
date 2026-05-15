@@ -805,7 +805,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                             className={`h-14 border-b ${isDarkMode ? 'border-slate-800/30 hover:bg-slate-900' : 'border-slate-200/50 hover:bg-slate-50'} cursor-pointer transition-colors group`}
                                         >
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-left`}>
-                                                <AirlineLogo airlineCode={flight.airlineCode} className={statusColorClass} />
+                                                <AirlineLogo airlineCode={flight.airlineCode || flight.airline} className={statusColorClass} />
                                             </td>
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center ${whiteColorClass} font-mono tracking-tighter`}>{flight.flightNumber}</td>
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${emeraldColorClass} tracking-tighter uppercase`}>{flight.registration}</td>
