@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Copy, Network } from 'lucide-react';
-import { FlightData, FlightStatus, AircraftType, MeshFlight } from '../types';
+import { FlightData, FlightStatus, AircraftType, MeshFlight, StaticFlight } from '../types';
 import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
-import { bulkInsertFlights, upsertRootMesh, clearRootMesh, deleteRootMeshFlight } from '../services/supabaseService';
+import { bulkInsertFlights, upsertRootMesh, clearRootMesh, deleteRootMeshFlight, getDestinos } from '../services/supabaseService';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
 import { generateUUID } from '../utils/uuid';
@@ -153,7 +153,7 @@ const formatImportTime = (rawVal: string) => {
 const COLUMNS: { key: MeshField | any; label: string; width: string; isVariable: boolean }[] = [
   { key: 'airline', label: 'Cia', width: 'w-[140px]', isVariable: false },
   { key: 'flightNumber', label: 'V.Cheg', width: 'w-[75px]', isVariable: false },
-  { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-[75px]', isVariable: false },
+  { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-[75px]', isVariable: true },
   { key: 'destination', label: 'Destino', width: 'w-[75px]', isVariable: false },
   { key: 'etd', label: 'ETD', width: 'w-[65px]', isVariable: false },
   { key: 'registration', label: 'Prefixo', width: 'w-[110px]', isVariable: true },
@@ -194,10 +194,14 @@ export const RootMesh: React.FC<RootMeshProps> = ({
   const [showClearMeshModal, setShowClearMeshModal] = useState(false);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
   const [aircraftsDB, setAircraftsDB] = useState<AircraftType[]>([]);
+  const [destinosDB, setDestinosDB] = useState<StaticFlight[]>([]);
 
   useEffect(() => {
     supabase.from('aircrafts').select('*').then(res => {
         if (res.data) setAircraftsDB(res.data);
+    });
+    getDestinos().then(destinos => {
+      setDestinosDB(destinos as StaticFlight[]);
     });
   }, []);
   const lastStableFlightsRef = useRef<MeshFlight[]>([]);
@@ -316,6 +320,40 @@ export const RootMesh: React.FC<RootMeshProps> = ({
         }
     }
     
+    // Auto-fill Destination and Airline based on V.Saída / V.Cheg
+    let autoDestination: string | undefined;
+    let autoAirline: string | undefined;
+
+    if (field === 'flightNumber' || field === 'departureFlightNumber') {
+        const normalizedInput = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+        const match = destinosDB.find(d => {
+            const f1 = String(d.flightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            const f2 = String(d.departureFlightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            const f3 = String((d as any).voo || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            
+            if (f1 === normalizedInput || f2 === normalizedInput || f3 === normalizedInput) return true;
+            
+            const numOnlyInput = normalizedInput.replace(/[^0-9]/g, '');
+            if (numOnlyInput.length > 2) {
+                const num1 = f1.replace(/[^0-9]/g, '');
+                const num2 = f2.replace(/[^0-9]/g, '');
+                
+                if ((num1 === numOnlyInput || Number(num1) === Number(numOnlyInput)) && num1.length > 0) {
+                    const airlineCodeInput = normalizedInput.replace(/[0-9]/g, '');
+                    const rowAirlineCode = String(d.airlineCode || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                    if (!airlineCodeInput || !rowAirlineCode || rowAirlineCode.includes(airlineCodeInput) || f1.includes(airlineCodeInput)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        });
+        if (match) {
+            autoDestination = match.destination;
+            autoAirline = match.airline;
+        }
+    }
+    
     setMeshFlights(prev => {
         const updated = [...prev];
         const idx = updated.findIndex(f => f.id === id);
@@ -323,6 +361,20 @@ export const RootMesh: React.FC<RootMeshProps> = ({
             updated[idx] = { ...updated[idx], [field]: newValue };
             if (autoModel !== undefined) {
                 updated[idx].model = autoModel;
+            }
+            if (autoDestination !== undefined) {
+                updated[idx].destination = autoDestination;
+            }
+            if (autoAirline !== undefined) {
+                updated[idx].airline = autoAirline;
+                // Try guessing airline Code from the airline name
+                const airlineUpper = autoAirline.toUpperCase();
+                let code = updated[idx].airlineCode;
+                if (airlineUpper.includes('GOL')) code = 'RG';
+                else if (airlineUpper.includes('LATAM')) code = 'LA';
+                else if (airlineUpper.includes('AZUL')) code = 'AD';
+                else code = autoAirline.slice(0, 3).toUpperCase();
+                updated[idx].airlineCode = code;
             }
         }
         return updated;
@@ -1298,8 +1350,9 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                                 setFocusedCell({ rowId: flight.id, col: cIdx });
                                 setEditingCell(null);
                                 // Garantir foco no div para capturar o handleKeyDown imediatamente (técnica Excel)
+                                const target = e.currentTarget;
                                 setTimeout(() => {
-                                  (e.currentTarget.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
+                                  (target.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
                                 }, 0);
                               }
                             }}

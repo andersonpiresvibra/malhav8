@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plane, Send, Search, Edit2, Trash2, Play, ClipboardList, Plus, Ban, AlertCircle, MoreVertical, Settings, ChevronDown, RefreshCw, Upload, ChevronLeft, ChevronRight, Calendar, Database, History } from 'lucide-react';
-import { FlightData, FlightStatus, AircraftType, MeshFlight } from '../types';
+import { FlightData, FlightStatus, AircraftType, MeshFlight, StaticFlight } from '../types';
 import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
@@ -11,7 +11,7 @@ import { TimeConflictModal } from './TimeConflictModal';
 import { BulkNextDayModal } from './BulkNextDayModal';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { supabase } from '../lib/supabase';
-import { upsertBaseMeshFlights, clearBaseMeshFlights } from '../services/supabaseService';
+import { upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos } from '../services/supabaseService';
 import { formatAirlineName } from '../utils/airlineUtils';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
@@ -159,7 +159,7 @@ const formatImportTime = (rawVal: string) => {
 const COLUMNS: { key: MeshField; label: string; width: string; isVariable: boolean }[] = [
   { key: 'airline', label: 'Cia', width: 'w-24', isVariable: false },
   { key: 'flightNumber', label: 'V.Cheg', width: 'w-24', isVariable: true },
-  { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-24', isVariable: false },
+  { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-24', isVariable: true },
   { key: 'destination', label: 'Destino', width: 'w-24', isVariable: false },
   { key: 'etd', label: 'ETD', width: 'w-20', isVariable: true },
   { key: 'registration', label: 'Prefixo', width: 'w-28', isVariable: true },
@@ -201,10 +201,14 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
   const lastStableFlightsRef = useRef<MeshFlight[]>([]);
   const lastFiltersRef = useRef({ readyStateFilter, activeShift, searchTerm });
   const [aircraftsDB, setAircraftsDB] = useState<AircraftType[]>([]);
+  const [destinosDB, setDestinosDB] = useState<StaticFlight[]>([]);
 
   useEffect(() => {
     supabase.from('aircrafts').select('*').then(res => {
       if (res.data) setAircraftsDB(res.data as AircraftType[]);
+    });
+    getDestinos().then(destinos => {
+      setDestinosDB(destinos as StaticFlight[]);
     });
   }, []);
 
@@ -350,6 +354,51 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
         }
     }
     
+    // Auto-fill Destination and Airline based on V.Saída / V.Cheg
+    let autoDestination: string | undefined;
+    let autoAirline: string | undefined;
+
+    if (field === 'flightNumber' || field === 'departureFlightNumber') {
+        const normalizedInput = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+        
+        console.log(`[Auto-Map] Searching for Voo: ${normalizedInput} in ${destinosDB.length} destinos...`);
+
+        const match = destinosDB.find(d => {
+            const f1 = String(d.flightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            const f2 = String(d.departureFlightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            const f3 = String((d as any).voo || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            
+            if (f1 === normalizedInput || f2 === normalizedInput || f3 === normalizedInput) return true;
+            
+            // Try to match partial strings like "CM0758" matching "CM758"
+            // or if the DB only recorded "758" or "0758"
+            const numOnlyInput = normalizedInput.replace(/[^0-9]/g, '');
+            if (numOnlyInput.length > 2) {
+                const num1 = f1.replace(/[^0-9]/g, '');
+                const num2 = f2.replace(/[^0-9]/g, '');
+                
+                // Compare numeric part (e.g., 0758 === 0758)
+                if ((num1 === numOnlyInput || Number(num1) === Number(numOnlyInput)) && num1.length > 0) {
+                    // Make sure the airline code also matches if provided
+                    const airlineCodeInput = normalizedInput.replace(/[0-9]/g, '');
+                    const rowAirlineCode = String(d.airlineCode || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                    if (!airlineCodeInput || !rowAirlineCode || rowAirlineCode.includes(airlineCodeInput) || f1.includes(airlineCodeInput)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        });
+        
+        if (match) {
+            console.log(`[Auto-Map] Found Match!`, match);
+            autoDestination = match.destination;
+            autoAirline = match.airline;
+        } else {
+            console.log(`[Auto-Map] No match found for ${normalizedInput}`);
+        }
+    }
+    
     setMeshFlights(prev => {
         const updated = [...prev];
         const idx = updated.findIndex(f => f.id === id);
@@ -364,6 +413,19 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                  else if (autoAirlineCode === 'LA') updated[idx].airline = 'LATAM';
                  else if (autoAirlineCode === 'AD') updated[idx].airline = 'AZUL';
                  else updated[idx].airline = autoAirlineCode;
+            }
+            if (autoDestination !== undefined) {
+                updated[idx].destination = autoDestination;
+            }
+            if (autoAirline !== undefined) {
+                updated[idx].airline = autoAirline;
+                const airlineUpper = autoAirline.toUpperCase();
+                let code = updated[idx].airlineCode;
+                if (airlineUpper.includes('GOL')) code = 'RG';
+                else if (airlineUpper.includes('LATAM')) code = 'LA';
+                else if (airlineUpper.includes('AZUL')) code = 'AD';
+                else code = autoAirline.slice(0, 3).toUpperCase();
+                updated[idx].airlineCode = code;
             }
         }
         return updated;
@@ -1585,8 +1647,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                                 setFocusedCell({ rowId: flight.id, col: cIdx });
                                 setEditingCell(null);
                                 // Garantir foco no div para capturar o handleKeyDown imediatamente (técnica Excel)
+                                const target = e.currentTarget;
                                 setTimeout(() => {
-                                  (e.currentTarget.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
+                                  (target.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
                                 }, 0);
                               }
                             }}

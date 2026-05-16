@@ -593,8 +593,9 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
                             onClick={(e) => {
                                 setFocusedCell({ rowId: v.id, col: colIndex });
                                 // Garantir foco para capturar o handleKeyDown imediatamente (técnica Excel)
+                                const target = e.currentTarget;
                                 setTimeout(() => {
-                                  (e.currentTarget as HTMLElement).focus();
+                                  (target as HTMLElement).focus();
                                 }, 0);
                             }}
                             onDoubleClick={() => {

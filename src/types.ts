@@ -156,6 +156,7 @@ export interface FlightData {
   registration: string;
   origin: string;
   destination: string;
+  city?: string;
   eta: string;
   etd: string;
   actualArrivalTime?: string; // Horário de Calço (ATA)

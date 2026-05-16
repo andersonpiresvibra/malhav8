@@ -68,6 +68,25 @@ export const getAuditLogs = async (limitCount: number = 1000): Promise<AuditLogE
 let operatorsCache: { id: string; warName: string }[] = [];
 let vehiclesCache: { id: string; fleetNumber: string }[] = [];
 
+export const getDestinos = async (): Promise<any[]> => {
+  checkConfig();
+  const { data, error } = await supabase.from('destinos').select('*');
+  if (error) throw error;
+  
+  if (data && data.length > 0) {
+      return data.map((d: any) => ({
+          ...d,
+          flightNumber: d.flightNumber || d.flight_number || d.voo || d.prefixo || d.voo_chegada || d.voo_saida,
+          departureFlightNumber: d.departureFlightNumber || d.voo_saida || d.departure_flight_number,
+          airlineCode: d.airlineCode || d.airline_code || d.cia_cod || d.codigo_cia,
+          airline: d.airline || d.cia || d.airline_name || d.companhia || d.empresa,
+          destination: d.destination || d.destino || d.dest || d.cidade || d.city
+      }));
+  }
+  
+  return [];
+};
+
 export const getVehicles = async (): Promise<Vehicle[]> => {
   checkConfig();
   const { data, error } = await supabase.from('frotas').select('*');
@@ -509,50 +528,55 @@ export const clearRootMesh = async (): Promise<void> => {
 export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]> => {
   checkConfig();
   
-  // Find the date column name dynamically if it exists
-  let dateCol = 'date';
-  
   let { data, error } = await supabase
-    .from('malha_dia')
+    .from('flights')
     .select('*')
-    .eq('date', dateRef)
+    .eq('date_ref', dateRef)
+    .eq('status', 'PRÉ') // Apenas os da Malha Base
     .order('etd');
     
-  if (error && error.message.includes("Could not find the table")) {
-     throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_dia ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date text, airline text, cia text, airline_code text, flight_number text, departure_flight_number text, destination text, destination_icao text, etd text, registration text, eta text, position_id text, actual_arrival_time text, model text, is_disabled boolean, updated_at timestamp );`);
-  } else if (error && error.message.includes("does not exist")) {
-     console.warn("[Supabase] column 'date' does not exist, falling back to fetching everything...");
-     const fallback = await supabase.from('malha_dia').select('*');
+  if (error && error.message.includes("does not exist")) {
+     console.warn("[Supabase] fallback para getBaseMesh...", error.message);
+     const fallback = await supabase.from('flights').select('*').eq('date_ref', dateRef);
      data = fallback.data;
-     const fallbackError = fallback.error;
-     if (fallbackError) {
-         if (fallbackError.message.includes("Could not find the table")) {
-             throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_dia ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date text, airline text, cia text, airline_code text, flight_number text, departure_flight_number text, destination text, destination_icao text, etd text, registration text, eta text, position_id text, actual_arrival_time text, model text, is_disabled boolean, updated_at timestamp );`);
-         }
-         throw fallbackError;
-     }
-  } else if (error) {
-    console.error(`[Supabase] Error fetching base mesh for ${dateRef}:`, error.message);
+     error = fallback.error;
+  }
+
+  if (error) {
+    console.error(`[Supabase] Error fetching base mesh:`, error.message);
     throw error;
   }
   
   if (!data) return [];
+
+  console.log(`[getBaseMeshFlights] Fetched ${data.length} flights from flights. Filtering for date: ${dateRef}`);
+  console.log(`[getBaseMeshFlights] Sample row:`, data[0]);
   
-  return data.map(dbFlight => ({
+  // Try to find the date column dynamically if it's named something else
+  const filteredData = data.filter((row: any) => {
+    const rowDate = row.date || row.date_ref || row.data || row.voo_data || row.flight_date;
+    return rowDate === dateRef;
+  });
+
+  console.log(`[getBaseMeshFlights] After filtering: ${filteredData.length} flights match ${dateRef}`);
+  
+  const finalData = filteredData.length > 0 ? filteredData : data; // Fallback to all if date filter fails or if user just wants to see them
+
+  return finalData.map(dbFlight => ({
     id: dbFlight.id,
-    date: dbFlight.date || dateRef, // Fallback to requested date if no date column
-    airline: dbFlight.airline || '',
-    airlineCode: dbFlight.airline_code || dbFlight.airline?.substring(0,3) || '',
-    flightNumber: dbFlight.flight_number || '',
-    departureFlightNumber: dbFlight.departure_flight_number || dbFlight.flight_number || '', // Backup
-    destination: dbFlight.destination || '',
+    date: dbFlight.date || dbFlight.date_ref || dbFlight.data || dbFlight.voo_data || dbFlight.flight_date || dateRef,
+    airline: dbFlight.airline || dbFlight.cia || '',
+    airlineCode: dbFlight.airline_code || dbFlight.cia_cod || dbFlight.airline?.substring(0,3) || '',
+    flightNumber: dbFlight.flight_number || dbFlight.voo || dbFlight.voo_chegada || dbFlight.prefixo || '',
+    departureFlightNumber: dbFlight.departure_flight_number || dbFlight.voo_saida || dbFlight.flight_number || '', // Backup
+    destination: dbFlight.destination || dbFlight.destino || '',
     etd: dbFlight.etd || '00:00',
-    registration: dbFlight.registration || '',
+    registration: dbFlight.registration || dbFlight.matricula || '',
     eta: dbFlight.eta || dbFlight.etd || '00:00',
-    positionId: dbFlight.position_id || '',
+    positionId: dbFlight.position_id || dbFlight.posicao || '',
     actualArrivalTime: dbFlight.actual_arrival_time || '',
-    model: dbFlight.model || '',
-    disabled: dbFlight.is_disabled || false
+    model: dbFlight.model || dbFlight.modelo || dbFlight.equipamento || '',
+    disabled: dbFlight.is_disabled || dbFlight.desabilitado || false
   }));
 };
 
@@ -565,29 +589,27 @@ const cleanTime = (timeStr: string | null | undefined): string | null => {
   return t;
 };
 
-export const upsertBaseMeshFlights = async (flights: MeshFlight[]): Promise<void> => {
-  if (!isSupabaseConfigured() || !flights.length) return;
+export const upsertBaseMeshFlights = async (flightsBase: MeshFlight[]): Promise<void> => {
+  if (!isSupabaseConfigured() || !flightsBase.length) return;
   
-  let payload = flights.map(f => {
+  let payload = flightsBase.map(f => {
     const obj: any = {
-      date: f.date,
+      date_ref: f.date,
       airline: f.airline,
-      cia: f.airline,
       airline_code: f.airlineCode,
       flight_number: f.flightNumber,
       departure_flight_number: f.departureFlightNumber,
       destination: f.destination,
-      destination_icao: f.destination,
       etd: cleanTime(f.etd),
       registration: f.registration,
       eta: cleanTime(f.eta),
       position_id: f.positionId,
       actual_arrival_time: cleanTime(f.actualArrivalTime),
       model: f.model,
-      is_disabled: f.disabled || false,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      status: 'PRÉ'
     };
-    if (f.id) {
+    if (f.id && !f.id.toString().startsWith('mesh-')) {
        obj.id = f.id;
     }
     return obj;
@@ -595,11 +617,11 @@ export const upsertBaseMeshFlights = async (flights: MeshFlight[]): Promise<void
 
   let maxAttempts = 10;
   while (maxAttempts > 0) {
-    const { data, error } = await supabase.from('malha_dia').upsert(payload).select('id');
+    const { data, error } = await supabase.from('flights').upsert(payload).select('id');
     
     if (!error) {
        if (data && data.length === 0 && payload.length > 0) {
-           throw new Error("A inserção falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS) do banco de dados permitem (ou desabilite o RLS da tabela 'malha_dia').");
+           throw new Error("A inserção falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS) do banco de dados permitem (ou desabilite o RLS da tabela 'flights').");
        }
        return;
     }
@@ -616,7 +638,7 @@ export const upsertBaseMeshFlights = async (flights: MeshFlight[]): Promise<void
     }
 
     if (missingCol) {
-       console.warn(`[Supabase] column '${missingCol}' does not exist in malha_dia, retrying without it...`);
+       console.warn(`[Supabase] column '${missingCol}' does not exist in flights, retrying without it...`);
        payload = payload.map(p => {
            const newP = { ...p } as any;
            delete newP[missingCol];
@@ -624,31 +646,19 @@ export const upsertBaseMeshFlights = async (flights: MeshFlight[]): Promise<void
        });
        maxAttempts--;
        if (maxAttempts === 0) {
-           throw new Error(`O banco de dados 'malha_dia' está faltando muitas colunas essenciais. Vá ao SQL Editor no Supabase e crie as colunas correspondentes ou altere o schema. Erro original: ${error.message}`);
+           throw new Error(`O banco de dados 'flights' está faltando muitas colunas essenciais. Erro original: ${error.message}`);
        }
        continue;
     }
 
-    if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode EXATAMENTE este código:\n\nCREATE TABLE malha_dia (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  date text,\n  airline text,\n  cia text,\n  airline_code text,\n  flight_number text,\n  departure_flight_number text,\n  destination text,\n  destination_icao text,\n  etd text,\n  registration text,\n  eta text,\n  position_id text,\n  actual_arrival_time text,\n  model text,\n  is_disabled boolean,\n  updated_at timestamp\n);\n\nErro original: ${error.message}`);
-    } else if (error.message.includes('Could not find') || error.message.includes('does not exist')) {
-       throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode EXATAMENTE este código:\n\nALTER TABLE malha_dia\nADD COLUMN IF NOT EXISTS date text,\nADD COLUMN IF NOT EXISTS airline text,\nADD COLUMN IF NOT EXISTS airline_code text,\nADD COLUMN IF NOT EXISTS flight_number text,\nADD COLUMN IF NOT EXISTS departure_flight_number text,\nADD COLUMN IF NOT EXISTS destination text,\nADD COLUMN IF NOT EXISTS etd text,\nADD COLUMN IF NOT EXISTS registration text,\nADD COLUMN IF NOT EXISTS eta text,\nADD COLUMN IF NOT EXISTS position_id text,\nADD COLUMN IF NOT EXISTS actual_arrival_time text,\nADD COLUMN IF NOT EXISTS model text,\nADD COLUMN IF NOT EXISTS is_disabled boolean,\nADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
-    }
-    throw new Error(`Erro ao inserir na malha_dia: ${error.message}`);
+    throw new Error(`Erro ao inserir na flights (Malha Base): ${error.message}`);
   }
 };
 
 export const clearBaseMeshFlights = async (dateRef: string): Promise<void> => {
    if (!isSupabaseConfigured()) return;
-   const { error } = await supabase.from('malha_dia').delete().eq('date', dateRef);
+   const { error } = await supabase.from('flights').delete().eq('date_ref', dateRef).eq('status', 'PRÉ');
    if (error) {
-      if (error.message.includes("does not exist") && error.message.includes('date')) {
-          console.warn("[Supabase] column 'date' does not exist, clearing all from malha_dia instead");
-          // If the table doesn't have a date column, just clear the whole thing or do nothing.
-          // Let's call clearAllBaseMeshFlights
-          await clearAllBaseMeshFlights();
-          return;
-      }
       console.error(`[Supabase] Error clearing base mesh for ${dateRef}:`, error.message);
       throw error;
    }
@@ -656,7 +666,7 @@ export const clearBaseMeshFlights = async (dateRef: string): Promise<void> => {
 
 export const clearAllBaseMeshFlights = async (): Promise<void> => {
    if (!isSupabaseConfigured()) return;
-   const { error } = await supabase.from('malha_dia').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+   const { error } = await supabase.from('flights').delete().eq('status', 'PRÉ');
    if (error) {
       console.error('[Supabase] Error clearing all base mesh flights:', error.message);
       throw error;

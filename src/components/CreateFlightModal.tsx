@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plane, Calendar, Clock, MapPin, Hash, Tag, Globe } from 'lucide-react';
-import { FlightData, FlightStatus, FlightLog, AircraftType } from '../types';
+import { FlightData, FlightStatus, FlightLog, AircraftType, StaticFlight } from '../types';
 import { generateUUID } from '../utils/uuid';
 import { useTheme } from '../contexts/ThemeContext';
 import { TimeConflictModal } from './TimeConflictModal';
 import { supabase } from '../lib/supabase';
+import { getDestinos } from '../services/supabaseService';
 
 const GOL_PREFIXOS = [
   "PR-GEA", "PR-GEC", "PR-GED", "PR-GEH", "PR-GEI", "PR-GEJ", "PR-GEK", "PR-GEQ", "PR-GIH", "PR-GOQ", "PR-GOR", "PR-VBQ",
@@ -37,23 +38,46 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
     eta: '',
     departureFlightNumber: '', // Saída
     destination: '', // ICAO
+    city: '', // Added city field
     positionId: '',
     etd: ''
   });
 
   const [timeConflict, setTimeConflict] = useState<string | null>(null);
   const [aircraftsDB, setAircraftsDB] = useState<AircraftType[]>([]);
+  const [destinosDB, setDestinosDB] = useState<StaticFlight[]>([]);
 
   useEffect(() => {
     // Fetch aircrafts from DB for auto-complete magic
     supabase.from('aircrafts').select('*').then(res => {
       if (res.data) setAircraftsDB(res.data as AircraftType[]);
     });
+    getDestinos().then(destinos => {
+      setDestinosDB(destinos as StaticFlight[]);
+    });
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     let newValue = value.toUpperCase();
+    
+    if (name === 'flightNumber' || name === 'departureFlightNumber') {
+        const normalizedInput = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+        const match = destinosDB.find(d => 
+            String(d.flightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase() === normalizedInput ||
+            String(d.departureFlightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase() === normalizedInput ||
+            String(d.voo || '').replace(/[^A-Z0-9]/ig, '').toUpperCase() === normalizedInput
+        );
+        if (match) {
+            setFormData(prev => ({ 
+                ...prev, 
+                [name]: newValue,
+                destination: match.destination,
+                city: match.city
+            }));
+            return;
+        }
+    }
     
     if (name === 'eta' || name === 'etd') {
       newValue = value.replace(/[^0-9]/g, '');
@@ -151,6 +175,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
       eta: formData.eta,
       departureFlightNumber: formData.departureFlightNumber.toUpperCase(),
       destination: formData.destination.toUpperCase(),
+      city: formData.city.toUpperCase(),
       positionId: formData.positionId,
       etd: formData.etd,
       date: forceDateStr, // if undefined, GridOps adds activeDateOffset
@@ -327,15 +352,29 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
             </div>
 
             <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Cidade</label>
+              <div className="relative">
+                 <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                 <input 
+                  name="city"
+                  value={formData.city}
+                  readOnly
+                  disabled
+                  className="w-full bg-slate-100 border-2 border-slate-200 text-[11px] font-black text-slate-500 rounded-xl pl-9 pr-3 py-2.5 outline-none uppercase transition-all shadow-sm"
+                />
+              </div>
+            </div>
+
+            <div>
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">ICAO</label>
               <div className="relative">
                  <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                  <input 
                   name="destination"
                   value={formData.destination}
-                  onChange={handleChange}
-                  placeholder="SB..."
-                  className="w-full bg-slate-50 border-2 border-emerald-500 text-[11px] font-black text-slate-900 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-4 focus:ring-emerald-500/10 uppercase placeholder:text-slate-400 transition-all shadow-sm"
+                  readOnly
+                  disabled
+                  className="w-full bg-slate-100 border-2 border-slate-200 text-[11px] font-black text-slate-500 rounded-xl pl-9 pr-3 py-2.5 outline-none uppercase transition-all shadow-sm"
                 />
               </div>
             </div>

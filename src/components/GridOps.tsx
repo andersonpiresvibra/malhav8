@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FlightStatus, FlightData, FlightLog, LogType, OperatorProfile } from '../types';
+import { FlightStatus, FlightData, FlightLog, LogType, OperatorProfile, StaticFlight } from '../types';
 import { getCurrentShift, getLocalTodayDateStr, getLocalDateStr } from '../utils/shiftUtils';
  // Importando perfis para designação
 
@@ -14,7 +14,7 @@ import { AirlineLogo } from './AirlineLogo';
 import { Spinner } from './ui/Spinner';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { InlineOperatorSelect } from './ui/InlineOperatorSelect';
-import { insertAuditLog, upsertFlight, deleteFlight } from '../services/supabaseService';
+import { insertAuditLog, upsertFlight, deleteFlight, getDestinos } from '../services/supabaseService';
 import { useAuth } from '../contexts/AuthContext';
 
 import { 
@@ -281,8 +281,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
      }
   }, [currentMeshDate]);
 
+  const [destinosDB, setDestinosDB] = useState<StaticFlight[]>([]);
+
   useEffect(() => {
     // Manter o hook vazio por enquanto caso no futuro precise carregar dados reais, mas sem o delay simulado
+    getDestinos().then(destinos => {
+      setDestinosDB(destinos as StaticFlight[]);
+    });
   }, []);
 
   useEffect(() => {
@@ -422,8 +427,48 @@ export const GridOps: React.FC<GridOpsProps> = ({
       syncFlight(payload);
       return;
     }
+    
+    // Auto-fill Destination and Airline based on V.Saída / V.Cheg
+    let updatedFlight = { ...flight, [field]: newValue };
 
-    const updatedFlight = { ...flight, [field]: newValue };
+    if (field === 'flightNumber' || field === 'departureFlightNumber') {
+        const normalizedInput = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+        const match = destinosDB.find(d => {
+            const f1 = String(d.flightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            const f2 = String(d.departureFlightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            const f3 = String((d as any).voo || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            
+            if (f1 === normalizedInput || f2 === normalizedInput || f3 === normalizedInput) return true;
+            
+            const numOnlyInput = normalizedInput.replace(/[^0-9]/g, '');
+            if (numOnlyInput.length > 2) {
+                const num1 = f1.replace(/[^0-9]/g, '');
+                const num2 = f2.replace(/[^0-9]/g, '');
+                
+                if ((num1 === numOnlyInput || Number(num1) === Number(numOnlyInput)) && num1.length > 0) {
+                    const airlineCodeInput = normalizedInput.replace(/[0-9]/g, '');
+                    const rowAirlineCode = String(d.airlineCode || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                    if (!airlineCodeInput || !rowAirlineCode || rowAirlineCode.includes(airlineCodeInput) || f1.includes(airlineCodeInput)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        });
+        if (match) {
+            updatedFlight.destination = match.destination;
+            updatedFlight.airline = match.airline;
+            
+            const airlineUpper = match.airline.toUpperCase();
+            let code = updatedFlight.airlineCode;
+            if (airlineUpper.includes('GOL')) code = 'RG';
+            else if (airlineUpper.includes('LATAM')) code = 'LA';
+            else if (airlineUpper.includes('AZUL')) code = 'AD';
+            else code = match.airline.slice(0, 3).toUpperCase();
+            updatedFlight.airlineCode = code;
+        }
+    }
+
     syncFlight(updatedFlight); // Local update only
   };
 
@@ -1048,14 +1093,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
-              if (isFocused) {
-                if (editable) setEditingCell({ rowId: row.id, col: colKey });
+              // Simplificado: qualquer click em célula editável tenta entrar em edição
+              if (editable) {
+                setFocusedCell({ rowId: row.id, col: colKey });
+                setEditingCell({ rowId: row.id, col: colKey });
               } else {
                 setFocusedCell({ rowId: row.id, col: colKey });
                 setEditingCell(null);
-                // Garantir foco no div para capturar o handleKeyDown imediatamente (técnica Excel)
+                const target = e.currentTarget;
                 setTimeout(() => {
-                   (e.currentTarget as HTMLElement).focus();
+                   (target as HTMLElement).focus();
                 }, 0);
               }
             }}
@@ -2224,7 +2271,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           {activeTab === 'FILA' ? (
                             <>
                                 {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1)}
+                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1, true)}
 
                                 {/* ICAO */}
                                 {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 2, false)}
@@ -2277,7 +2324,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           ) : isStreamlinedView ? (
                             <>
                                 {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1)}
+                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1, true)}
 
                                 {/* ICAO */}
                                 {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 2, false)}
@@ -2354,7 +2401,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 1)}
 
                                 {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 2)}
+                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 2, true)}
 
                                 {/* ICAO */}
                                 {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 3, false)}
@@ -2417,7 +2464,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'eta', row.eta, "text-center font-mono", rowIndex, 4)}
 
                                 {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 5)}
+                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 5, true)}
 
                                 {/* ICAO */}
                                 {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 6, false)}

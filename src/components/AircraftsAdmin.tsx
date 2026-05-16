@@ -665,8 +665,9 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                                   setFocusedCell({ rowId: aircraft.id, col: colIndex });
                                                   setEditingCell({ rowId: aircraft.id, col: colIndex });
                                                   // Garantir foco (técnica Excel)
+                                                  const target = e.currentTarget;
                                                   setTimeout(() => {
-                                                     (e.currentTarget as HTMLElement).focus();
+                                                     (target as HTMLElement).focus();
                                                   }, 0);
                                                 }}
                                             >

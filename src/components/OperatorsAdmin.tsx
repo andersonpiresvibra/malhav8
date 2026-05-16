@@ -1026,8 +1026,9 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                               setFocusedCell({ rowId: op.id, col: cIdx });
                               setEditingCell(null);
                               // Garantir foco no div para capturar o handleKeyDown imediatamente (técnica Excel)
+                              const target = e.currentTarget;
                               setTimeout(() => {
-                                (e.currentTarget.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
+                                (target.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
                               }, 0);
                             }
                           }}
