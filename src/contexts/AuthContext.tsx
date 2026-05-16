@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithWarName = async (name: string) => {
     try {
       const { data, error } = await supabase
-        .from('operators')
+        .from('operadores_geral')
         .select('*')
         .ilike('war_name', name)
         .eq('is_lt', 'SIM')

@@ -184,6 +184,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
   const [sortConfig, setSortConfig] = useState<{ key: MeshField; direction: 'asc' | 'desc' }>({ key: 'etd', direction: 'asc' });
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
+  const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
   const tableRef = useRef<HTMLTableElement>(null);
   const [flightActionMenu, setFlightActionMenu] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number, left: number } | null>(null);
@@ -240,6 +241,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
 
   const handleFinishEdit = (rowId: string, colIndex: number) => {
     setEditingCell(null);
+    setIsKeystrokeEdit(false);
     const colKey = COLUMNS[colIndex]?.key;
     const flight = meshFlights.find(f => f.id === rowId);
     if (!flight) return;
@@ -715,6 +717,7 @@ export const RootMesh: React.FC<RootMeshProps> = ({
         // Handle alphanumeric direct entry like Excel
         if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && COLUMNS[colIndex].isVariable) {
           e.preventDefault();
+          setIsKeystrokeEdit(true);
           startEditingCell(flight.id, colIndex);
           handleFieldChange(flight.id, COLUMNS[colIndex].key, e.key);
         }
@@ -1287,13 +1290,17 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                           <td 
                             key={`${flight.id}-${col.key}`} 
                             data-col={cIdx}
-                            onClick={() => {
+                            onClick={(e) => {
                               if (flight.disabled) return;
                               if (isCellFocused && col.isVariable) {
                                 startEditingCell(flight.id, cIdx);
                               } else {
                                 setFocusedCell({ rowId: flight.id, col: cIdx });
                                 setEditingCell(null);
+                                // Garantir foco no div para capturar o handleKeyDown imediatamente (técnica Excel)
+                                setTimeout(() => {
+                                  (e.currentTarget.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
+                                }, 0);
                               }
                             }}
                             className={`
@@ -1308,6 +1315,16 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                               <input 
                                 type="text"
                                 autoFocus
+                                onFocus={(e) => {
+                                  if (isKeystrokeEdit) {
+                                    const val = e.target.value;
+                                    e.target.value = '';
+                                    e.target.value = val;
+                                    setIsKeystrokeEdit(false);
+                                  } else {
+                                    e.target.select();
+                                  }
+                                }}
                                 value={String(flight[col.key as keyof MeshFlight] || '')}
                                 onChange={(e) => handleFieldChange(flight.id, col.key as MeshField, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}

@@ -4,7 +4,7 @@ import { FlightData, FlightStatus } from '../types';
 import { OperatorCell } from './OperatorCell';
 import { AirlineLogo } from './AirlineLogo';
 import { 
-  Search, LayoutGrid, Power, Anchor, Ban, BusFront, List, ChevronUp, ChevronDown
+  Search, LayoutGrid, Power, Anchor, Ban, BusFront, List, ChevronUp, ChevronDown, MapPin, Plane
 } from 'lucide-react';
 
 import { OperatorProfile } from '../types';
@@ -45,6 +45,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [activePatioId, setActivePatioId] = useState('2');
   const [searchTerm, setSearchTerm] = useState('');
+
   const [calcoInputPos, setCalcoInputPos] = useState<string | null>(null);
   const [calcoRegistration, setCalcoRegistration] = useState('');
   const [localFlights, setLocalFlights] = useState<FlightData[]>(flights);

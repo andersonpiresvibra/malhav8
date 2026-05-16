@@ -325,6 +325,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   // NEW: Spreadsheet inline editing states
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: string } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: string } | null>(null);
+  const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
   const [calcoModalFlight, setCalcoModalFlight] = useState<FlightData | null>(null);
   const [calcoModalPosition, setCalcoModalPosition] = useState<string>('');
   const [calcoModalTime, setCalcoModalTime] = useState<string>('');
@@ -430,6 +431,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const handleFinishEdit = (rowId: string, colKey: string) => {
     setEditingCell(null);
+    setIsKeystrokeEdit(false);
 
     const flight = flights.find(f => f.id === rowId);
     if (flight) {
@@ -598,6 +600,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       default:
         if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
           e.preventDefault();
+          setIsKeystrokeEdit(true);
           handleFieldChange(rowId, colKey as keyof FlightData, e.key.toUpperCase());
           setEditingCell({ rowId, col: colKey });
         }
@@ -624,6 +627,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [missingPositionModalFlight, setMissingPositionModalFlight] = useState<FlightData | null>(null);
   const [confirmRemoveOperatorFlight, setConfirmRemoveOperatorFlight] = useState<FlightData | null>(null);
   const [confirmFinishModalFlight, setConfirmFinishModalFlight] = useState<FlightData | null>(null);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
 
   const isEditingAny = useMemo(() => {
     return !!(
@@ -951,12 +955,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     let extraLabel = null;
 
     if (colKey === 'etd' && row.status !== FlightStatus.FINALIZADO && row.status !== FlightStatus.CANCELADO) {
-        const minutesToETD = getMinutesDiff(row.etd, row.date);
-        if (minutesToETD < -120) {
-            cellStyle += isDarkMode ? " text-red-300 bg-red-900/60 font-black tracking-widest" : " text-red-800 bg-red-200 font-black tracking-widest";
-        } else if (minutesToETD < 0) {
-            cellStyle += isDarkMode ? " text-orange-400 bg-orange-950/20" : " text-orange-600 bg-orange-50 font-bold";
-        }
+        // Removido destaque de cor para seguir padrão automático solicitado
     }
 
     if (row.status === FlightStatus.CHEGADA) {
@@ -1027,7 +1026,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
           <input 
             type="text"
             autoFocus
-            onFocus={(e) => e.target.select()}
+            onFocus={(e) => {
+              if (isKeystrokeEdit) {
+                // Posiciona o cursor no final para não sobrescrever o primeiro dígito
+                const val = e.target.value;
+                e.target.value = '';
+                e.target.value = val;
+                setIsKeystrokeEdit(false);
+              } else {
+                e.target.select();
+              }
+            }}
             className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${cellStyle} ${isDarkMode ? (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-slate-900 shadow-inner') : (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-white font-black text-slate-900')}`}
             value={value}
             onChange={(e) => handleFieldChange(row.id, colKey, e.target.value)}
@@ -1044,6 +1053,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
               } else {
                 setFocusedCell({ rowId: row.id, col: colKey });
                 setEditingCell(null);
+                // Garantir foco no div para capturar o handleKeyDown imediatamente (técnica Excel)
+                setTimeout(() => {
+                   (e.currentTarget as HTMLElement).focus();
+                }, 0);
               }
             }}
             onKeyDown={(e) => handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)}
@@ -1779,7 +1792,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isActive = sortConfig.key === columnKey;
     return (
       <th 
-        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} ${className}`}
+        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-[40] grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} ${className}`}
         onClick={() => handleSort(columnKey)}
       >
         <div className={`flex items-center gap-1 ${className.includes('text-center') ? 'justify-center' : 'justify-start'}`}>
@@ -1913,9 +1926,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     </button>
                     <button 
                         onClick={() => {
-                            // Limpar toda a malha operacional
-                            onUpdateFlights([]);
-                            addToast('MALHA OPER.', 'Toda a malha operacional foi removida.', 'warning');
+                            setShowClearAllConfirm(true);
                             setShowOptionsDropdown(false);
                         }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300' : 'text-red-600 hover:bg-red-50 hover:text-red-700'}`}
@@ -2216,7 +2227,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1)}
 
                                 {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, "text-center font-mono text-emerald-500 font-bold text-[10px]", rowIndex, 2, false)}
+                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 2, false)}
 
                                 {/* CITY */}
                                 <td className={`px-1 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
@@ -2269,7 +2280,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1)}
 
                                 {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, "text-center font-mono text-emerald-500 font-bold text-[10px]", rowIndex, 2, false)}
+                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 2, false)}
 
                                 {/* CITY (Not directly editable, derived from destination) */}
                                 <td className={`px-1 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
@@ -2346,7 +2357,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 2)}
 
                                 {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, "text-center font-mono text-emerald-500 font-bold text-[10px]", rowIndex, 3, false)}
+                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 3, false)}
 
                                 {/* CITY */}
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
@@ -2409,7 +2420,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 5)}
 
                                 {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, "text-center font-mono text-emerald-500 font-bold text-[10px]", rowIndex, 6, false)}
+                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 6, false)}
 
                                 {/* CITY */}
                                 <td className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50'} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
@@ -2761,7 +2772,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       )}
 
       {/* CALÇO CONFIRMATION MODAL */}
-      {calcoModalFlight && (
+      {calcoModalFlight && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div 
             className={`${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'} border rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}
@@ -2839,7 +2850,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* CREATE FLIGHT MODAL */}
@@ -2932,6 +2944,47 @@ export const GridOps: React.FC<GridOpsProps> = ({
           flightNumber={confirmFinishModalFlight.flightNumber}
           onConfirm={handleConfirmFinish}
           onClose={() => setConfirmFinishModalFlight(null)}
+        />
+      )}
+
+      {showClearAllConfirm && (
+        <ConfirmActionModal 
+          type="clearMesh"
+          message="Isso irá limpar voos da malha operacional. Você deseja um reset total (apagar tudo) ou o 'Smart Clear' (manter apenas voos com designação ou operação viva)?"
+          onConfirm={(data) => {
+            const clearMode = data?.clearMode || 'all';
+            import('../services/supabaseService').then(({ deleteAllFlightsByDate, deleteInactiveFlightsByDate }) => {
+                const targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + activeDateOffset);
+                const activeDateStr = getLocalDateStr(targetDate);
+                
+                const deleteAction = clearMode === 'all' 
+                    ? deleteAllFlightsByDate(activeDateStr)
+                    : deleteInactiveFlightsByDate(activeDateStr);
+
+                deleteAction
+                    .then(() => {
+                        if (clearMode === 'all') {
+                            onUpdateFlights([]);
+                            addToast('MALHA OPER.', 'Toda a malha operacional da data selecionada foi removida.', 'warning');
+                        } else {
+                            // Smart Clear: Filtramos localmente para manter os que têm operador ou status avançado
+                            onUpdateFlights(prev => prev.filter(f => 
+                                (f.operatorId || f.operator) || // Tem operador
+                                (f.status !== FlightStatus.CHEGADA && f.status !== FlightStatus.FILA) // Status avançado
+                            ));
+                            addToast('MALHA OPER.', 'Voos sem designação foram removidos. Operação mantida.', 'info');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Erro ao limpar banco:', err);
+                        addToast('ERRO', 'Falha ao sincronizar limpeza com o servidor.', 'warning');
+                    });
+            });
+
+            setShowClearAllConfirm(false);
+          }}
+          onClose={() => setShowClearAllConfirm(false)}
         />
       )}
       {timeConflictData && (

@@ -50,6 +50,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
   const [sortConfig, setSortConfig] = useState<{ key: FleetField; direction: 'asc' | 'desc' }>({ key: 'fleetNumber', direction: 'asc' });
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
+  const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
   
   const tableRef = useRef<HTMLTableElement>(null);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
@@ -57,7 +58,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
 
   const fetchFleets = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase.from('vehicles').select('*').order('fleet_number');
+    const { data, error } = await supabase.from('frotas').select('*').order('fleet_number');
     if (!error && data) {
       setFleets(prev => {
         const newUnsaved = prev.filter(f => f.id.startsWith('new-'));
@@ -102,6 +103,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
 
   const handleFinishEdit = async (rowId: string, colIndex: number) => {
     setEditingCell(null);
+    setIsKeystrokeEdit(false);
     const colKey = COLUMNS[colIndex]?.key;
     if (colKey === 'actions') return;
 
@@ -133,7 +135,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
                   plate: v.plate || null,
                   atve: v.atve || null
               };
-              const { data, error } = await supabase.from('vehicles').insert([insertPayload]).select('id').single();
+              const { data, error } = await supabase.from('frotas').insert([insertPayload]).select('id').single();
               if (error) console.error('Error inserting vehicle:', error);
               if (!error && data) {
                   lastStableRef.current = lastStableRef.current.map(f => f.id === rowId ? { ...f, id: data.id } : f);
@@ -141,7 +143,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
               }
           }
       } else {
-        const { error } = await supabase.from('vehicles').update(supabasePayload).eq('id', rowId);
+        const { error } = await supabase.from('frotas').update(supabasePayload).eq('id', rowId);
         if (error) console.error('Error updating vehicle:', error);
       }
     }
@@ -181,7 +183,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
     };
     
     try {
-        const { data, error } = await supabase.from('vehicles').insert([insertPayload]).select().single();
+        const { data, error } = await supabase.from('frotas').insert([insertPayload]).select().single();
         if (error) {
             alert('Erro ao criar frota: ' + error.message);
             return;
@@ -199,7 +201,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
 
   const handleDeleteFleet = async (id: string) => {
     if (!id.startsWith('new-')) {
-      await supabase.from('vehicles').delete().eq('id', id);
+      await supabase.from('frotas').delete().eq('id', id);
     }
     setFleets(prev => prev.filter(f => f.id !== id));
     setFocusedCell(null);
@@ -347,6 +349,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
       default:
         if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
           e.preventDefault();
+          setIsKeystrokeEdit(true);
           startEditingCell(v.id, colIndex);
           handleFieldChange(v.id, COLUMNS[colIndex].key, e.key);
         }
@@ -488,7 +491,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
 
         <div className={`flex-1 min-w-0 overflow-auto ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
           <table ref={tableRef} className="w-full border-collapse table-fixed select-none min-w-[800px]">
-            <thead className={`sticky top-0 z-50 ${isDarkMode ? 'bg-slate-900 border-slate-800 shadow-md' : 'bg-slate-100 border-slate-200 shadow-sm'}`}>
+            <thead className={`sticky top-0 z-[40] ${isDarkMode ? 'bg-slate-900 border-slate-800 shadow-md' : 'bg-slate-100 border-slate-200 shadow-sm'}`}>
               <tr>
                 <th className={`w-10 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} bg-transparent`}></th>
                 {COLUMNS.map((col, idx) => (
@@ -563,6 +566,16 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
                               type="text"
                               autoFocus
                               value={value}
+                              onFocus={(e) => {
+                                if (isKeystrokeEdit) {
+                                  const val = e.target.value;
+                                  e.target.value = '';
+                                  e.target.value = val;
+                                  setIsKeystrokeEdit(false);
+                                } else {
+                                  e.target.select();
+                                }
+                              }}
                               onChange={(e) => handleFieldChange(v.id, col.key, e.target.value)}
                               onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                               onBlur={(e) => {
@@ -577,8 +590,12 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
                         ) : (
                           <div
                             tabIndex={0}
-                            onClick={() => {
+                            onClick={(e) => {
                                 setFocusedCell({ rowId: v.id, col: colIndex });
+                                // Garantir foco para capturar o handleKeyDown imediatamente (técnica Excel)
+                                setTimeout(() => {
+                                  (e.currentTarget as HTMLElement).focus();
+                                }, 0);
                             }}
                             onDoubleClick={() => {
                               if (col.isVariable) startEditingCell(v.id, colIndex);

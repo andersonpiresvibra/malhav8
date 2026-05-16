@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, CalendarDays, Undo2, Ban } from 'lucide-react';
 
 interface BulkNextDayModalProps {
@@ -16,7 +17,7 @@ export const BulkNextDayModal: React.FC<BulkNextDayModalProps> = ({
   onEditToday,
   onCancel
 }) => {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
       <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border ${isDarkMode ? 'bg-slate-900 border-amber-900/50' : 'bg-white border-amber-200'}`}>
         <div className={`p-6 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'} flex items-center gap-4`}>
@@ -72,6 +73,7 @@ export const BulkNextDayModal: React.FC<BulkNextDayModalProps> = ({
             </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

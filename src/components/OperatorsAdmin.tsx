@@ -53,6 +53,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
   const [sortConfig, setSortConfig] = useState<{ key: OperatorField; direction: 'asc' | 'desc' }>({ key: 'warName', direction: 'asc' });
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
+  const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
   const [unlockedRowId, setUnlockedRowId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoUploadRowId, setPhotoUploadRowId] = useState<string | null>(null);
@@ -112,7 +113,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
              // it's better to force save.
              const insertPayload = { photo_url: dataUrl };
              if (!photoUploadRowId.startsWith('new-')) {
-               supabase.from('operators').update(insertPayload).eq('id', photoUploadRowId).then();
+               supabase.from('operadores_geral').update(insertPayload).eq('id', photoUploadRowId).then();
              }
           }, 0);
         }
@@ -126,7 +127,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
   const fetchOperators = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase.from('operators').select('*, operator_work_days(work_date, day_type)').order('war_name');
+    const { data, error } = await supabase.from('operadores_geral').select('*, oper_do_dia(work_date, day_type)').order('war_name');
     if (!error && data) {
       setOperators(prev => {
         const newUnsaved = prev.filter(o => o.id.startsWith('new-'));
@@ -170,6 +171,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
   const handleFinishEdit = async (rowId: string, colIndex: number) => {
     setEditingCell(null);
+    setIsKeystrokeEdit(false);
   };
 
   const startEditingCell = (rowId: string, colIndex: number) => {
@@ -203,7 +205,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
       shift_end: op.shift?.end || null,
     };
 
-    const { error } = await supabase.from('operators').update(supabasePayload).eq('id', op.id);
+    const { error } = await supabase.from('operadores_geral').update(supabasePayload).eq('id', op.id);
     if (error) {
         alert('Erro ao salvar edição: ' + error.message);
     } else {
@@ -309,7 +311,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     };
     
     try {
-        const { data, error } = await supabase.from('operators').insert([insertPayload]).select('id').single();
+        const { data, error } = await supabase.from('operadores_geral').insert([insertPayload]).select('id').single();
         if (error) {
             alert('Erro ao criar operador: ' + error.message);
             return;
@@ -378,7 +380,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         }));
         
         try {
-          const { data: inserted, error } = await supabase.from('operators').insert(insertPayloads).select();
+          const { data: inserted, error } = await supabase.from('operadores_geral').insert(insertPayloads).select();
           if (error) {
              alert('Erro ao importar para o banco: ' + error.message);
              return;
@@ -419,7 +421,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
 
   const handleDeleteOperator = async (id: string) => {
     if (!id.startsWith('new-')) {
-      await supabase.from('operators').delete().eq('id', id);
+      await supabase.from('operadores_geral').delete().eq('id', id);
     }
     setOperators(prev => prev.filter(f => f.id !== id));
     setFocusedCell(null);
@@ -632,6 +634,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
           if (!op.id.startsWith('new-') && unlockedRowId !== op.id) return;
           e.preventDefault();
+          setIsKeystrokeEdit(true);
           startEditingCell(op.id, colIndex);
           handleFieldChange(op.id, COLUMNS[colIndex].key, e.key);
         }
@@ -1016,12 +1019,16 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                         <td 
                           key={`${op.id}-${col.key}`} 
                           data-col={cIdx}
-                          onClick={() => {
+                          onClick={(e) => {
                             if (isCellFocused) {
                               startEditingCell(op.id, cIdx);
                             } else {
                               setFocusedCell({ rowId: op.id, col: cIdx });
                               setEditingCell(null);
+                              // Garantir foco no div para capturar o handleKeyDown imediatamente (técnica Excel)
+                              setTimeout(() => {
+                                (e.currentTarget.querySelector('div[tabIndex="0"]') as HTMLElement)?.focus();
+                              }, 0);
                             }
                           }}
                           className={`
@@ -1053,6 +1060,16 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                               <input 
                                 type="text"
                                 autoFocus
+                                onFocus={(e) => {
+                                  if (isKeystrokeEdit) {
+                                    const val = e.target.value;
+                                    e.target.value = '';
+                                    e.target.value = val;
+                                    setIsKeystrokeEdit(false);
+                                  } else {
+                                    e.target.select();
+                                  }
+                                }}
                                 value={String(cellValue)}
                                 onChange={(e) => handleFieldChange(op.id, col.key as OperatorField, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}

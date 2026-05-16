@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Table, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront } from 'lucide-react';
+import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
@@ -25,7 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
-    { id: 'AERODROMO' as ViewState, icon: LayoutDashboard, label: 'Aeródromo' },
+    { id: 'AERODROMO' as ViewState, icon: Earth, label: 'Aeródromo' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
@@ -33,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AERODROMO_ADMIN';
 
   return (
-    <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-50 ${
+    <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] ${
       isDarkMode 
         ? 'bg-slate-900 border-slate-800' 
         : 'bg-[#617b7b] border-transparent shadow-[2px_0_8px_rgba(0,0,0,0.5)]'
@@ -81,19 +81,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
           }`}>
              <button
                 onClick={() => {
-                   onViewChange('AERODROMO_ADMIN');
-                   setIsMenuOpen(false);
-                }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                   activeView === 'AERODROMO_ADMIN' 
-                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
-                }`}
-             >
-                <Table size={16} /> Posições
-             </button>
-             <button
-                onClick={() => {
                    onViewChange('OPERATIONAL_MESH');
                    setIsMenuOpen(false);
                 }}
@@ -103,7 +90,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} /> Malha Base
+                <Database size={16} /> MalhaBase_BD
+             </button>
+             <button
+                onClick={() => {
+                   onViewChange('AERODROMO_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                   activeView === 'AERODROMO_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Earth size={16} /> AERÓDROMO_BD
              </button>
              <button
                 onClick={() => {
@@ -116,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Users size={16} /> Operadores
+                <Users size={16} /> Operadores_BD
              </button>
              <button
                 onClick={() => {
@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <BusFront size={16} /> Frotas
+                <BusFront size={16} /> Frotas_BD
              </button>
              <button
                 onClick={() => {
@@ -142,7 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Plane size={16} /> Aeronaves
+                <Plane size={16} /> Aeronaves_BD
              </button>
 
              {process.env.NODE_ENV !== 'production' && onSimulateEndOfDay && (

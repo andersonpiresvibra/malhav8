@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plane, Calendar, Clock, MapPin, Hash, Tag, Globe } from 'lucide-react';
 import { FlightData, FlightStatus, FlightLog, AircraftType } from '../types';
 import { generateUUID } from '../utils/uuid';
@@ -193,7 +194,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
     return diffMins < 60;
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
       <div className={`w-full max-w-xl ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-slate-200'} border-[0.5px] rounded-[8px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
         
@@ -424,6 +425,7 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
             }}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

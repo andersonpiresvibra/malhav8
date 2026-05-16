@@ -162,9 +162,9 @@ const App: React.FC = () => {
     const syncInterval = setInterval(() => {
       if (isEditingRef.current) return;
       
-      // Cooldown de 15 segundos após ação manual para evitar race conditions
+      // Cooldown de 8 segundos após ação manual para evitar race conditions
       const timeSinceLastAction = Date.now() - lastManualActionRef.current;
-      if (timeSinceLastAction < 15000) {
+      if (timeSinceLastAction < 8000) {
         return;
       }
       
@@ -180,7 +180,7 @@ const App: React.FC = () => {
           if (flights) {
             setGlobalFlights(prev => {
               const now = Date.now();
-              const isRecentAction = (now - lastManualActionRef.current) < 20000; // 20s window
+              const isRecentAction = (now - lastManualActionRef.current) < 10000; // 10s window
 
               // 1. Manter voos de outras datas intocados
               const otherDatesFlights = prev.filter(f => f.date && f.date !== today);
@@ -691,7 +691,7 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
-          <div id="subheader-portal-target" className="w-full shrink-0 z-30 relative"></div>
+          <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
           <div className="flex-1 overflow-hidden relative">
               <Suspense fallback={<div className="flex items-center justify-center h-full w-full"><Spinner size={48} text="Carregando módulo..." /></div>}>
                 {view === 'GRID_OPS' && (
@@ -748,9 +748,33 @@ const App: React.FC = () => {
                     globalFlights={globalFlights}
                     onActivateMesh={(newFlights) => {
                       handleManualFlightsUpdate(prev => {
-                        // Mesclar novos voos com os existentes, priorizando os novos em caso de conflito de ID
-                        const combined = [...newFlights, ...prev];
-                        return Array.from(new Map(combined.map(f => [f.id, f])).values());
+                        // SMART MERGE: Preservar dados operacionais de voos que já estão na tela
+                        const merged = newFlights.map(newF => {
+                          const existing = prev.find(p => 
+                            p.id === newF.id || 
+                            (p.flightNumber === newF.flightNumber && p.airline === newF.airline && p.date === newF.date)
+                          );
+
+                          // Se o voo já existe e TEM operador ou está em status avançado, preservamos o operacional
+                          if (existing && (existing.operator || existing.status !== 'CHEGADA')) {
+                            console.log(`[SmartMerge] Preservando estado operacional do voo ${existing.airline}${existing.flightNumber}`);
+                            return {
+                              ...newF,
+                              ...existing, // O operacional "vivo" tem prioridade
+                              id: newF.id // Mantemos o ID da malha para consistência de referência
+                            };
+                          }
+                          return newF;
+                        });
+
+                        // Adicionar também voos que estão na tela mas NÃO estão na malha (inserções manuais)
+                        const manualFlights = prev.filter(p => 
+                          !newFlights.some(nf => nf.id === p.id || (nf.flightNumber === p.flightNumber && nf.airline === p.airline))
+                        );
+
+                        const final = [...merged, ...manualFlights];
+                        // Remover duplicatas finais por ID
+                        return Array.from(new Map(final.map(f => [f.id, f])).values());
                       });
                       
                       import('./services/supabaseService').then(({ bulkInsertFlights }) => {

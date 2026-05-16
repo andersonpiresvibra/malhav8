@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Trash2, Database, RefreshCw, Upload, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
@@ -38,13 +39,16 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   const [confirmDeleteAirline, setConfirmDeleteAirline] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
 
+  const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
+  const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
 
   const fetchAircrafts = async () => {
     setIsLoading(true);
     try {
-        const { data, error } = await supabase.from('aircrafts').select('*').order('prefix');
+        const { data, error } = await supabase.from('aeronaves').select('*').order('prefix');
         if (error) {
             console.error('Error fetching aircrafts', error);
         } else if (data) {
@@ -95,7 +99,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     setAircrafts([...aircrafts, newAircraft]);
     
     try {
-        const { data, error } = await supabase.from('aircrafts').insert({
+        const { data, error } = await supabase.from('aeronaves').insert({
             airline: newAircraft.airline,
             model: newAircraft.model,
             prefix: newAircraft.prefix,
@@ -124,7 +128,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
 
   const handleDeleteAirline = async (airlineCode: string) => {
     try {
-        const { error } = await supabase.from('aircrafts').delete().eq('airline', airlineCode);
+        const { error } = await supabase.from('aeronaves').delete().eq('airline', airlineCode);
         
         if (error) {
             console.error('Error deleting airline', error);
@@ -151,7 +155,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   const handleDeleteAircraft = async (id: string) => {
     setAircrafts(prev => prev.filter(a => a.id !== id));
     try {
-        const { error } = await supabase.from('aircrafts').delete().eq('id', id);
+        const { error } = await supabase.from('aeronaves').delete().eq('id', id);
         if (error) {
            console.error(error);
            fetchAircrafts(); // rollback na interface se houver erro
@@ -175,7 +179,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     if (id.startsWith('temp-')) return;
     
     try {
-        const { error } = await supabase.from('aircrafts').update({ [field]: value }).eq('id', id);
+        const { error } = await supabase.from('aeronaves').update({ [field]: value }).eq('id', id);
         if (error) {
             console.error(error);
             setFeedback({ msg: `Erro ao atualizar aeronave: ${error.message}`, isError: true });
@@ -194,6 +198,129 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         fetchAircrafts();
     }
   };
+
+  const handleFinishEdit = () => {
+    setEditingCell(null);
+    setIsKeystrokeEdit(false);
+  };
+
+  const currentAirlineAircrafts = useMemo(() => {
+    return aircrafts.filter(a => a.airline === activeAirline).sort((a,b) => a.prefix.localeCompare(b.prefix));
+  }, [aircrafts, activeAirline]);
+
+  const handleKeyDown = (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
+    const aircraft = currentAirlineAircrafts[rowIndex];
+    if (!aircraft) return;
+    
+    const isEditing = editingCell?.rowId === aircraft.id && editingCell?.col === colIndex;
+
+    switch (e.key) {
+        case 'ArrowDown':
+            if (isEditing) return;
+            e.preventDefault();
+            if (rowIndex < currentAirlineAircrafts.length - 1) {
+                setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex + 1].id, col: colIndex });
+            }
+            break;
+        case 'ArrowUp':
+            if (isEditing) return;
+            e.preventDefault();
+            if (rowIndex > 0) {
+                setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex - 1].id, col: colIndex });
+            }
+            break;
+        case 'ArrowRight':
+            if (!isEditing) {
+                e.preventDefault();
+                setFocusedCell({ rowId: aircraft.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
+            } else {
+                const input = e.target as HTMLInputElement;
+                if (input.selectionStart === input.value.length) {
+                    e.preventDefault();
+                    setFocusedCell({ rowId: aircraft.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
+                    handleFinishEdit();
+                }
+            }
+            break;
+        case 'ArrowLeft':
+            if (!isEditing) {
+                e.preventDefault();
+                setFocusedCell({ rowId: aircraft.id, col: Math.max(0, colIndex - 1) });
+            } else {
+                const input = e.target as HTMLInputElement;
+                if (input.selectionStart === 0) {
+                    e.preventDefault();
+                    setFocusedCell({ rowId: aircraft.id, col: Math.max(0, colIndex - 1) });
+                    handleFinishEdit();
+                }
+            }
+            break;
+        case 'Enter':
+            e.preventDefault();
+            if (isEditing) {
+                handleFinishEdit();
+                setFocusedCell({ rowId: aircraft.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
+            } else {
+               setEditingCell({ rowId: aircraft.id, col: colIndex });
+            }
+            break;
+        case 'Escape':
+            if (isEditing) {
+                e.preventDefault();
+                handleFinishEdit();
+            }
+            break;
+        case 'Tab':
+            e.preventDefault();
+            handleFinishEdit();
+            if (e.shiftKey) {
+                if (colIndex > 0) {
+                    setFocusedCell({ rowId: aircraft.id, col: colIndex - 1 });
+                } else if (rowIndex > 0) {
+                    setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex - 1].id, col: COLUMNS.length - 1 });
+                }
+            } else {
+                if (colIndex < COLUMNS.length - 1) {
+                    setFocusedCell({ rowId: aircraft.id, col: colIndex + 1 });
+                } else if (rowIndex < currentAirlineAircrafts.length - 1) {
+                    setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex + 1].id, col: 0 });
+                }
+            }
+            break;
+        default:
+            // Excel-like direct entry
+            if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+                const isBooleanField = ['missing_cap', 'defective_door', 'defective_panel', 'no_autocut', 'airline', 'actions'].includes(COLUMNS[colIndex].key);
+                if (!isBooleanField) {
+                    e.preventDefault();
+                    setIsKeystrokeEdit(true);
+                    setEditingCell({ rowId: aircraft.id, col: colIndex });
+                    handleUpdateField(aircraft.id, COLUMNS[colIndex].key as keyof AircraftType, e.key);
+                }
+            }
+            break;
+    }
+  };
+
+  useEffect(() => {
+    if (focusedCell) {
+        const rowIndex = currentAirlineAircrafts.findIndex(a => a.id === focusedCell.rowId);
+        if (rowIndex !== -1) {
+            const isEditing = editingCell?.rowId === focusedCell.rowId && editingCell?.col === focusedCell.col;
+            if (isEditing) {
+                const input = tableRef.current?.querySelector(`tr[data-row="${rowIndex}"] td[data-col="${focusedCell.col}"] input`) as HTMLInputElement;
+                if (input && document.activeElement !== input) {
+                    input.focus();
+                }
+            } else {
+                const td = tableRef.current?.querySelector(`tr[data-row="${rowIndex}"] td[data-col="${focusedCell.col}"]`) as HTMLTableCellElement;
+                if (td && document.activeElement !== td) {
+                    td.focus();
+                }
+            }
+        }
+    }
+  }, [focusedCell, editingCell, currentAirlineAircrafts]);
 
     const processImport = async (data: any[]) => {
       setIsImporting(true);
@@ -268,7 +395,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
       try {
           // Salva as aeronaves baseadas no Prefixo (UPSERT substitui se já existe)
           const { error } = await supabase
-              .from('aircrafts')
+              .from('aeronaves')
               .upsert(aircraftsToUpsert, { onConflict: 'prefix', ignoreDuplicates: false });
 
           if (error) {
@@ -349,12 +476,8 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     }
   };
 
-  const currentAirlineAircrafts = useMemo(() => {
-    return aircrafts.filter(a => a.airline === activeAirline).sort((a,b) => a.prefix.localeCompare(b.prefix));
-  }, [aircrafts, activeAirline]);
-
   return (
-    <div className={`flex flex-col h-full ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}>
+  <div className={`flex flex-col h-full ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}>
         {/* HEADER */}
         <div className={`shrink-0 h-16 border-b flex items-center justify-between px-4 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.5)]'} z-20`}>
            <div className="flex flex-col justify-center">
@@ -443,7 +566,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         {/* TABLE WRAPPER - aligned to left with right space */}
         <div className={`w-full flex-1 overflow-auto relative flex justify-start custom-scrollbar items-start ${isDarkMode ? 'bg-slate-950' : 'bg-slate-100'}`}>
             <div className={`w-max border-r border-b text-left ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'}`} style={{ minWidth: '500px' }}>
-                <table className="w-full text-left border-separate border-spacing-0">
+                <table ref={tableRef} className="w-full text-left border-separate border-spacing-0">
                     <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-950 border-slate-700' : 'bg-[#2D8E48] text-white shadow-sm'}`}>
                         <tr>
                             {COLUMNS.map((col, idx) => {
@@ -467,11 +590,14 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                             </tr>
                         ) : (
                             currentAirlineAircrafts.map((aircraft, rowIndex) => (
-                                <tr key={aircraft.id} className={`group transition-colors h-10 border-b ${isDarkMode ? 'hover:bg-slate-800/50 border-slate-800/50' : 'hover:bg-slate-50 border-slate-200'}`}>
+                                <tr key={aircraft.id} data-row={rowIndex} className={`group transition-colors h-10 border-b ${isDarkMode ? 'hover:bg-slate-800/50 border-slate-800/50' : 'hover:bg-slate-50 border-slate-200'}`}>
                                     {COLUMNS.map((col, colIndex) => {
+                                        const isFocused = focusedCell?.rowId === aircraft.id && focusedCell?.col === colIndex;
+                                        const focusClasses = isFocused ? 'ring-2 ring-emerald-500 ring-inset z-10 shadow-[inset_0_0_0_2px_rgba(16,185,129,0.5)]' : '';
+
                                         if (col.key === 'airline' && col.label === 'Logo') {
                                             return (
-                                                <td key={`${aircraft.id}-logo`} className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center relative pointer-events-none align-middle`}>
+                                                <td key={`${aircraft.id}-logo`} className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center relative pointer-events-none align-middle ${focusClasses}`}>
                                                     <div className="w-8 h-8 rounded bg-white overflow-hidden mx-auto flex items-center justify-center p-0.5 shadow-sm border border-slate-200">
                                                         <AirlineLogo airlineCode={aircraft.airline} showName={false} size="md" />
                                                     </div>
@@ -481,7 +607,14 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
 
                                         if (col.key === 'actions') {
                                             return (
-                                                <td key={`${aircraft.id}-actions`} className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center actions-container align-middle`}>
+                                                <td 
+                                                  key={`${aircraft.id}-actions`} 
+                                                  data-col={colIndex}
+                                                  tabIndex={0}
+                                                  onClick={() => setFocusedCell({ rowId: aircraft.id, col: colIndex })}
+                                                  onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
+                                                  className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center actions-container align-middle outline-none ${focusClasses}`}
+                                                >
                                                     <div className="flex justify-center">
                                                         <button onClick={() => handleDeleteAircraft(aircraft.id)} className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${isDarkMode ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-500/10 text-slate-400 hover:text-red-500'}`}>
                                                             <Trash2 size={14} />
@@ -497,7 +630,14 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                         
                                         if (isBooleanField) {
                                             return (
-                                                <td key={`${aircraft.id}-${col.key}-${colIndex}`} className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center align-middle`}>
+                                                <td 
+                                                  key={`${aircraft.id}-${col.key}-${colIndex}`} 
+                                                  data-col={colIndex}
+                                                  tabIndex={0}
+                                                  onClick={() => setFocusedCell({ rowId: aircraft.id, col: colIndex })}
+                                                  onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
+                                                  className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center align-middle outline-none ${focusClasses}`}
+                                                >
                                                     <div className="flex items-center justify-center">
                                                         <input 
                                                             type="checkbox"
@@ -517,21 +657,39 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                         return (
                                             <td 
                                                 key={`${aircraft.id}-${col.key}-${colIndex}`} 
-                                                className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20 text-slate-300' : 'border-slate-200 bg-white group-hover:bg-slate-50 text-slate-700'} ${alignStyle} relative cursor-text align-middle transition-colors`}
-                                                onClick={() => setEditingCell({ rowId: aircraft.id, col: colIndex })}
+                                                data-col={colIndex}
+                                                tabIndex={0}
+                                                onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
+                                                className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20 text-slate-300' : 'border-slate-200 bg-white group-hover:bg-slate-50 text-slate-700'} ${alignStyle} relative cursor-text align-middle transition-colors outline-none ${focusClasses}`}
+                                                onClick={(e) => {
+                                                  setFocusedCell({ rowId: aircraft.id, col: colIndex });
+                                                  setEditingCell({ rowId: aircraft.id, col: colIndex });
+                                                  // Garantir foco (técnica Excel)
+                                                  setTimeout(() => {
+                                                     (e.currentTarget as HTMLElement).focus();
+                                                  }, 0);
+                                                }}
                                             >
                                                 {isEditingObj ? (
                                                     <input 
                                                         autoFocus
                                                         value={value as string || ''}
+                                                        onFocus={(e) => {
+                                                          if (isKeystrokeEdit) {
+                                                            const val = e.target.value;
+                                                            e.target.value = '';
+                                                            e.target.value = val;
+                                                            setIsKeystrokeEdit(false);
+                                                          } else {
+                                                            e.target.select();
+                                                          }
+                                                        }}
                                                         onChange={(e) => {
                                                             const val = col.key === 'observations' ? e.target.value : e.target.value.toUpperCase();
                                                             handleUpdateField(aircraft.id, col.key as keyof AircraftType, val);
                                                         }}
-                                                        onBlur={() => setEditingCell(null)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' || e.key === 'Escape') setEditingCell(null);
-                                                        }}
+                                                        onBlur={() => handleFinishEdit()}
+                                                        onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                                                         className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold ${alignStyle} outline-none focus:ring-1 ${col.key !== 'observations' ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
                                                     />
                                                 ) : (
@@ -551,8 +709,8 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         </div>
 
         {/* IMPORT INSTRUCTIONS MODAL */}
-        {showImportInstructions && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+        {showImportInstructions && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl p-4">
                 <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-full max-w-lg flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
                     <div className="flex items-center gap-3 border-b pb-3 border-slate-200 dark:border-slate-800">
                         <Info className={isDarkMode ? 'text-blue-400' : 'text-blue-600'} />
@@ -591,12 +749,13 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
 
         {/* NEW AIRLINE MODAL */}
-        {showNewAirlineModal && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+        {showNewAirlineModal && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl p-4">
                 <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-80 flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
                     <h2 className={`font-black text-xs uppercase tracking-widest ${isDarkMode ? 'text-emerald-500' : 'text-emerald-600'}`}>Nova Companhia</h2>
                     <div>
@@ -626,12 +785,13 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
 
         {/* CONFIRM DELETE AIRLINE MODAL */}
-        {confirmDeleteAirline && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+        {confirmDeleteAirline && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl p-4">
                 <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-full max-w-sm flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
                     <h2 className={`font-black text-sm uppercase tracking-widest ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
                         Confirmar Exclusão
@@ -654,12 +814,13 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
 
         {/* FEEDBACK MODAL */}
-        {feedback && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl">
+        {feedback && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl p-4">
                 <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-full max-w-sm flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
                     <h2 className={`font-black text-sm uppercase tracking-widest ${feedback.isError ? (isDarkMode ? 'text-red-400' : 'text-red-600') : (isDarkMode ? 'text-emerald-400' : 'text-emerald-600')}`}>
                         {feedback.isError ? 'Aviso' : 'Sucesso'}
@@ -673,7 +834,8 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
     </div>
   );
