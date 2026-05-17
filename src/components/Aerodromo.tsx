@@ -378,20 +378,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                       </button>
                     )}
                     
-                    <div className={`flex items-center gap-4 ${!isDisabled ? 'ml-auto' : 'w-full justify-end opacity-0 group-hover:opacity-100 transition-opacity'}`}>
-                       <div 
-                         className={`${restriction === 'SRV' ? 'text-indigo-400' : restriction === 'CTA' ? 'text-yellow-500' : 'text-slate-500'}`} 
-                         title={restriction === 'HYBRID' ? "Modo Híbrido" : restriction === 'CTA' ? "Fixado como CTA" : "Fixado como SRV"}
-                       >
-                         <BusFront size={12} strokeWidth={2.5} />
-                       </div>
-                       
-                       <div 
-                         className={`${isDisabled ? 'text-red-500' : 'text-slate-500'}`} 
-                       >
-                         <Power size={12} strokeWidth={2.5} />
-                       </div>
-                    </div>
+
                   </div>
                 </div>
               );
@@ -548,14 +535,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                                                     <Ban size={14} strokeWidth={2.5} />
                                                 </button>
                                             )}
-                                            <div className="flex items-center gap-2">
-                                                <div className={`p-1.5 ${restriction !== 'HYBRID' ? (restriction === 'SRV' ? 'text-indigo-400' : 'text-yellow-500') : 'text-slate-500'}`}>
-                                                    <BusFront size={14} strokeWidth={2.5} />
-                                                </div>
-                                                <div className={`p-1.5 ${isDisabled ? 'text-red-500' : 'text-slate-500'}`}>
-                                                    <Power size={14} strokeWidth={2.5} />
-                                                </div>
-                                            </div>
+
                                         </div>
                                     </td>
                                 </tr>
