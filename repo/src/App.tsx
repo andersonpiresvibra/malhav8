@@ -18,8 +18,6 @@ import { ReportsView } from './components/ReportsView';
 import { OperatorsAdmin } from './components/OperatorsAdmin';
 import { FleetsAdmin } from './components/FleetsAdmin';
 import { AircraftsAdmin } from './components/AircraftsAdmin';
-import { AirlinesAdmin } from './components/AirlinesAdmin';
-import { MalhaRaizAdmin } from './components/MalhaRaizAdmin';
 import { Aerodromo } from './components/Aerodromo';
 import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './constants/aerodromoConfig';
 
@@ -190,25 +188,27 @@ const App: React.FC = () => {
               // 2. Para a data sincronizada (hoje), mesclamos em vez de substituir
               const todayLocal = prev.filter(f => f.date === today || !f.date);
               
-              // 3. Smart Merge para evitar sobrescrever ações locais
-              let mergedToday = flights.map(dbF => {
-                 const localF = todayLocal.find(lf => lf.id === dbF.id);
-                 // Se houve uma ação recente, preservamos os dados locais (como pit_id alterado antes de salvar no DB)
-                 if (localF && isRecentAction) {
-                     return { ...dbF, ...localF };
-                 }
-                 return dbF;
-              });
+              // Começamos com a lista do banco como base
+              const mergedToday = [...flights];
               
               // Adicionamos voos locais que ainda NÃO estão no banco
               todayLocal.forEach(localF => {
-                 const existsInDB = mergedToday.some(dbF => dbF.id === localF.id);
+                 const existsInDB = flights.some(dbF => dbF.id === localF.id);
                  if (!existsInDB) {
-                    mergedToday.push(localF); 
+                    // Se for uma ação manual recente, MANTEMOS o voo local mesmo que não esteja no banco ainda
+                    if (isRecentAction) {
+                        mergedToday.push(localF);
+                    } else {
+                        // Se não for recente e não estiver no banco, o voo pode ter sido deletado
+                        // ou nunca persistido. No regime enterprise, vamos ser conservadores 
+                        // e manter por enquanto para evitar "flicker" de sumiço.
+                        mergedToday.push(localF); 
+                    }
                  }
               });
 
-              const finalToday = mergedToday;
+              // Remover duplicatas por ID (caso algum tenha sido adicionado manualmente com o mesmo ID)
+              const finalToday = Array.from(new Map(mergedToday.map(f => [f.id, f])).values());
 
               const updatedGlobal = [...otherDatesFlights, ...finalToday];
               const isDifferent = JSON.stringify(prev) !== JSON.stringify(updatedGlobal);
@@ -819,14 +819,6 @@ const App: React.FC = () => {
                   <AircraftsAdmin 
                     isDarkMode={isDarkMode} 
                    />
-                )}
-                {view === 'AIRLINES_ADMIN' && (
-                  <AirlinesAdmin 
-                    isDarkMode={isDarkMode} 
-                   />
-                )}
-                {view === 'MALHA_RAIZ_ADMIN' && (
-                  <MalhaRaizAdmin isDarkMode={isDarkMode} />
                 )}
                 {view === 'AERODROMO' && (
                   <Aerodromo 

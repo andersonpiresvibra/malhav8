@@ -222,17 +222,7 @@ export interface MeshFlight {
   date?: string; // Add date field for time overrides
 }
 
-export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN' | 'MALHA_RAIZ_ADMIN' | 'AIRLINES_ADMIN';
-
-export interface AirlineType {
-  id: string;
-  logo_url?: string;
-  legal_name: string;
-  airline: string;
-  airline_code: string;
-  category?: 'GERAL' | 'NACIONAL' | 'INTERNACIONAL' | 'EXECUTIVA';
-  is_active: boolean;
-}
+export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN';
 
 export interface AircraftType {
   id: string;

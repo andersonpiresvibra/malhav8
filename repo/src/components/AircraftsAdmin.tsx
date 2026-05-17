@@ -53,10 +53,10 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
             console.error('Error fetching aircrafts', error);
         } else if (data) {
             setAircrafts(data as AircraftType[]);
-            const uniqueAirlines = Array.from(new Set(data.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
+            const uniqueAirlines = Array.from(new Set(data.map(a => a.airline))).filter(Boolean).sort();
             setAirlines(uniqueAirlines);
-            if (!activeAirline) {
-                setActiveAirline('EM GERAL');
+            if (uniqueAirlines.length > 0 && !activeAirline) {
+                setActiveAirline(uniqueAirlines[0]);
             }
         }
     } catch (e) {
@@ -141,7 +141,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         const newAirlines = airlines.filter(a => a !== airlineCode);
         setAirlines(newAirlines);
         if (newAirlines.length > 0) {
-            setActiveAirline('EM GERAL');
+            setActiveAirline(newAirlines[0]);
         } else {
             setActiveAirline('');
         }
@@ -187,9 +187,9 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         
         // Re-calculate airlines if airline changed
         if (field === 'airline') {
-             const uniqueAirlines = Array.from(new Set(updatedAircrafts.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
+             const uniqueAirlines = Array.from(new Set(updatedAircrafts.map(a => a.airline))).filter(Boolean).sort();
              setAirlines(uniqueAirlines);
-             if (activeAirline !== 'EM GERAL' && !uniqueAirlines.includes(activeAirline) && uniqueAirlines.length > 0) {
+             if (!uniqueAirlines.includes(activeAirline) && uniqueAirlines.length > 0) {
                  setActiveAirline(uniqueAirlines[0]);
              }
         }
@@ -205,9 +205,6 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   };
 
   const currentAirlineAircrafts = useMemo(() => {
-    if (activeAirline === 'EM GERAL') {
-      return [...aircrafts].sort((a,b) => a.prefix.localeCompare(b.prefix));
-    }
     return aircrafts.filter(a => a.airline === activeAirline).sort((a,b) => a.prefix.localeCompare(b.prefix));
   }, [aircrafts, activeAirline]);
 
@@ -363,7 +360,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
           }
 
           let airline = airlineRaw?.toString().toUpperCase().trim();
-          if (!airline && activeAirline && activeAirline !== 'EM GERAL') airline = activeAirline.toUpperCase().trim();
+          if (!airline && activeAirline) airline = activeAirline.toUpperCase().trim();
           if (!airline) airline = 'OUTRA'; // Fallback absoluto
 
           const model = modelRaw?.toString().toUpperCase().trim() || '--';
@@ -524,8 +521,8 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                )}
                <button 
                    onClick={handleCreateNewAircraft}
-                   disabled={!activeAirline || activeAirline === 'EM GERAL'}
-                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-[#329858] text-white border-[#29824a] hover:bg-[#29824a]'} ${!activeAirline || activeAirline === 'EM GERAL' ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+                   disabled={!activeAirline}
+                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-[#329858] text-white border-[#29824a] hover:bg-[#29824a]'} ${!activeAirline ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
                >
                    <Plus size={12} /> Novo Registro
                </button>
@@ -535,18 +532,6 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         {/* TABS */}
         <div className={`h-12 shrink-0 flex border-b ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'} z-30 overflow-hidden`}>
            <nav className="flex overflow-x-auto custom-scrollbar flex-1 items-stretch">
-             <button
-                onClick={() => setActiveAirline('EM GERAL')}
-                className={`
-                    group
-                    shrink-0 px-6 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'}
-                    ${activeAirline === 'EM GERAL' 
-                        ? (isDarkMode ? 'bg-slate-950 text-emerald-400 border-b-2 border-emerald-500' : 'bg-[#329858] text-white border-b-0')
-                        : (isDarkMode ? 'text-slate-500 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')}
-                `}
-             >
-                EM GERAL
-             </button>
              {airlines.map((airline) => {
                  const isActive = activeAirline === airline;
                  return (

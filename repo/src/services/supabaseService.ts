@@ -248,7 +248,14 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
   let query = supabase.from('flights').select('*, operadores_geral(war_name), frotas(fleet_number)').eq('date_ref', dateRef);
   let { data, error } = await query;
     
-  
+  // SMART RETRY: Se o cache de esquema estiver sujo e não encontrar a coluna 'logs' (ou outra), tentamos colunas seguras
+  if (error && (error.message.includes('Could not find') || error.message.includes('does not exist') || error.message.includes('logs'))) {
+      console.warn('[Supabase] Stale schema cache detected in getFlights, retrying with explicit safe column list...');
+      const safeColumns = 'id, date_ref, flight_number, departure_flight_number, airline, airline_code, model, registration, origin, destination, eta, etd, actual_arrival_time, position_id, position_type, pit_id, fuel_status, status, operator_id, vehicle_id, vehicle_type, volume, is_on_ground, delay_justification, designation_time, start_time, end_time, assignment_time, assigned_by_lt, report, operadores_geral(war_name), frotas(fleet_number)';
+      const retry = await supabase.from('flights').select(safeColumns).eq('date_ref', dateRef);
+      data = retry.data;
+      error = retry.error;
+  }
   
   if (error) {
     console.error('[Supabase] Error fetching flights:', error.message);
@@ -362,7 +369,20 @@ export const upsertFlight = async (flight: FlightData): Promise<void> => {
 
   let { data, error } = await supabase.from('flights').upsert([payload]).select('id');
   
-
+  // SMART RETRY: Se faltar alguma coluna no banco, removemos e tentamos de novo
+  if (error && (error.message.includes('Could not find') || error.message.includes('does not exist'))) {
+      const missingMatch = error.message.match(/column "(.*?)"/);
+      const missingCol = missingMatch ? missingMatch[1] : null;
+      
+      if (missingCol) {
+          console.warn(`[Supabase] Coluna '${missingCol}' ausente em 'flights', tentando salvar sem ela...`);
+          const cleanedPayload = { ...payload };
+          delete cleanedPayload[missingCol];
+          const retry = await supabase.from('flights').upsert([cleanedPayload]).select('id');
+          data = retry.data;
+          error = retry.error;
+      }
+  }
 
   if (!error && data && data.length === 0) {
       console.warn("[Supabase] Upsert returned empty data. RLS might be silently blocking.");
@@ -398,7 +418,7 @@ export const getRootMesh = async (): Promise<MeshFlight[]> => {
     
   if (error) {
     if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, voo text UNIQUE, cia text, icao text, eta text, etd text, created_at timestamp default now(), updated_at timestamp default now() );\n\nErro original: ${error.message}`);
+        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date text, airline text, cia text, airline_code text, flight_number text, departure_flight_number text, destination text, destination_icao text, etd text, registration text, eta text, position_id text, actual_arrival_time text, model text, is_disabled boolean, updated_at timestamp );\n\nErro original: ${error.message}`);
     }
     console.error('[Supabase] Error fetching root mesh:', error.message);
     throw error;
@@ -406,19 +426,18 @@ export const getRootMesh = async (): Promise<MeshFlight[]> => {
   
   return (data || []).map((f: any) => ({
     id: f.id,
-    airline: f.cia || (f.voo ? (f.voo as string).match(/^[A-Z]{2,3}/)?.[0] || 'OUTRA' : 'OUTRA'),
-    airlineCode: f.cia || (f.voo ? (f.voo as string).match(/^[A-Z]{2,3}/)?.[0] || 'OUTRA' : 'OUTRA'),
-    flightNumber: f.voo,
-    departureFlightNumber: f.voo,
-    destination: f.icao,
+    airline: f.airline,
+    airlineCode: f.airline_code,
+    flightNumber: f.flight_number,
+    departureFlightNumber: f.departure_flight_number,
+    destination: f.destination,
     etd: f.etd,
-    registration: '',
+    registration: f.registration,
     eta: f.eta,
-    positionId: '',
-    actualArrivalTime: '',
-    model: '',
-    disabled: false,
-    cia: f.cia
+    positionId: f.position_id,
+    actualArrivalTime: f.actual_arrival_time,
+    model: f.model,
+    disabled: f.is_disabled
   })) as MeshFlight[];
 };
 
@@ -427,11 +446,20 @@ export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
   
   let payload = flights.map(f => {
     const obj: any = {
-      voo: f.flightNumber || f.departureFlightNumber,
-      cia: (f as any).cia || f.airline || f.airlineCode || '',
-      icao: f.destination,
+      airline: f.airline,
+      cia: f.airline,
+      airline_code: f.airlineCode,
+      flight_number: f.flightNumber,
+      departure_flight_number: f.departureFlightNumber,
+      destination: f.destination,
+      destination_icao: f.destination,
       etd: cleanTime(f.etd),
+      registration: f.registration,
       eta: cleanTime(f.eta),
+      position_id: f.positionId,
+      actual_arrival_time: cleanTime(f.actualArrivalTime),
+      model: f.model,
+      is_disabled: f.disabled || false,
       updated_at: new Date().toISOString()
     };
     if (f.id) {
@@ -470,9 +498,9 @@ export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
 
     console.error('[Supabase] Error upserting root mesh:', error.message);
     if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, voo text UNIQUE, cia text, icao text, eta time, etd time, created_at timestamp default now(), updated_at timestamp default now() );\n\nErro original: ${error.message}`);
+        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date text, airline text, cia text, airline_code text, flight_number text, departure_flight_number text, destination text, destination_icao text, etd text, registration text, eta text, position_id text, actual_arrival_time text, model text, is_disabled boolean, updated_at timestamp );\n\nErro original: ${error.message}`);
     } else if (error.message.includes('Could not find') || error.message.includes('does not exist')) {
-       throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_raiz)!\nVá ao SQL Editor no Supabase e rode: ALTER TABLE malha_raiz ADD COLUMN IF NOT EXISTS voo text UNIQUE, ADD COLUMN IF NOT EXISTS cia text, ADD COLUMN IF NOT EXISTS icao text, ADD COLUMN IF NOT EXISTS eta time, ADD COLUMN IF NOT EXISTS etd time, ADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
+       throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_raiz)!\nVá ao SQL Editor no Supabase e rode: ALTER TABLE malha_raiz ADD COLUMN IF NOT EXISTS airline text, ADD COLUMN IF NOT EXISTS airline_code text, ADD COLUMN IF NOT EXISTS flight_number text, ADD COLUMN IF NOT EXISTS departure_flight_number text, ADD COLUMN IF NOT EXISTS destination text, ADD COLUMN IF NOT EXISTS etd text, ADD COLUMN IF NOT EXISTS registration text, ADD COLUMN IF NOT EXISTS eta text, ADD COLUMN IF NOT EXISTS position_id text, ADD COLUMN IF NOT EXISTS actual_arrival_time text, ADD COLUMN IF NOT EXISTS model text, ADD COLUMN IF NOT EXISTS is_disabled boolean, ADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
     }
     throw error;
   }
@@ -692,7 +720,23 @@ export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> =>
     const chunk = payload.slice(i, i + chunkSize);
     let { data, error } = await supabase.from('flights').upsert(chunk).select('id');
     
-
+    // SMART RETRY: Se faltar alguma coluna no banco, removemos e tentamos de novo
+    if (error && (error.message.includes('Could not find') || error.message.includes('does not exist'))) {
+        const missingMatch = error.message.match(/column "(.*?)"/);
+        const missingCol = missingMatch ? missingMatch[1] : null;
+        
+        if (missingCol) {
+            console.warn(`[Supabase] Coluna '${missingCol}' ausente em 'flights', tentando salvar sem ela...`);
+            const cleanedChunk = chunk.map(item => {
+                const newItem = { ...item };
+                delete (newItem as any)[missingCol];
+                return newItem;
+            });
+            const retry = await supabase.from('flights').upsert(cleanedChunk).select('id');
+            data = retry.data;
+            error = retry.error;
+        }
+    }
 
     if (!error) {
        if (data && data.length === 0 && chunk.length > 0) {

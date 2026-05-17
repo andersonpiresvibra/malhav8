@@ -30,7 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
 
-  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'MALHA_RAIZ_ADMIN' || activeView === 'AERODROMO_ADMIN';
+  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AERODROMO_ADMIN';
 
   return (
     <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] ${
@@ -133,19 +133,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
              </button>
              <button
                 onClick={() => {
-                   onViewChange('AIRLINES_ADMIN');
-                   setIsMenuOpen(false);
-                }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                   activeView === 'AIRLINES_ADMIN' 
-                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
-                }`}
-             >
-                <Plane size={16} /> Companhias Aéreas
-             </button>
-             <button
-                onClick={() => {
                    onViewChange('AIRCRAFTS_ADMIN');
                    setIsMenuOpen(false);
                 }}
@@ -156,16 +143,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                 }`}
              >
                 <Plane size={16} /> Aeronaves_BD
-             </button>
-             <button
-               onClick={() => { onViewChange('MALHA_RAIZ_ADMIN'); setIsMenuOpen(false); }}
-               className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 text-xs font-medium transition-colors ${
-                   activeView === 'MALHA_RAIZ_ADMIN' 
-                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
-                }`}
-             >
-                <Database size={16} /> malharaiz_DB
              </button>
 
              {process.env.NODE_ENV !== 'production' && onSimulateEndOfDay && (

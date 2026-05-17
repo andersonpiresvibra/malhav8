@@ -4,32 +4,27 @@ import { Plus, Trash2, Database, RefreshCw, Upload, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { AirlineLogo } from './AirlineLogo';
-import { AircraftType } from '../types';
+import { MeshFlight } from '../types';
 
-interface AircraftsAdminProps {
+interface MalhaRaizAdminProps {
   isDarkMode: boolean;
 }
 
-type AircraftField = 'airline' | 'model' | 'prefix' | 'missing_cap' | 'defective_door' | 'defective_panel' | 'no_autocut' | 'observations' | 'actions';
+type FlightField = 'flightNumber' | 'destination' | 'etd' | 'eta' | 'actions';
 
-const COLUMNS: { key: AircraftField; label: string; width: string; isVariable: boolean }[] = [
-  { key: 'airline', label: 'Logo', width: 'w-16', isVariable: false },
-  { key: 'airline', label: 'Comp.', width: 'w-24', isVariable: true },
-  { key: 'model', label: 'Modelo', width: 'w-32', isVariable: true },
-  { key: 'prefix', label: 'Prefixo', width: 'w-32', isVariable: true },
-  { key: 'missing_cap', label: 'S/ Tampa', width: 'w-24', isVariable: true },
-  { key: 'defective_door', label: 'Portinhola Defeito', width: 'w-32', isVariable: true },
-  { key: 'defective_panel', label: 'Painel Defeito', width: 'w-28', isVariable: true },
-  { key: 'no_autocut', label: 'Falha Corte', width: 'w-28', isVariable: true },
-  { key: 'observations', label: 'Observações', width: 'w-48', isVariable: true },
+const COLUMNS: { key: FlightField; label: string; width: string; isVariable: boolean }[] = [
+  { key: 'flightNumber', label: 'VÔO', width: 'w-32', isVariable: true },
+  { key: 'destination', label: 'DESTINO (ICAO)', width: 'w-32', isVariable: true },
+  { key: 'eta', label: 'ESTIMADO (ETA)', width: 'w-24', isVariable: true },
+  { key: 'etd', label: 'SAÍDA (ETD)', width: 'w-24', isVariable: true },
   { key: 'actions', label: 'Ações', width: 'w-20', isVariable: false },
 ];
 
-export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) => {
-  const [aircrafts, setAircrafts] = useState<AircraftType[]>([]);
+export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) => {
+  const [flights, setFlights] = useState<MeshFlight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [airlines, setAirlines] = useState<string[]>([]);
+  const [airlines, setAirlines] = useState<string[]>(['EM GERAL']);
   const [activeAirline, setActiveAirline] = useState<string>('');
   const [showNewAirlineModal, setShowNewAirlineModal] = useState(false);
   const [showImportInstructions, setShowImportInstructions] = useState(false);
@@ -45,15 +40,25 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
   const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
 
-  const fetchAircrafts = async () => {
+  const fetchFlights = async () => {
     setIsLoading(true);
     try {
-        const { data, error } = await supabase.from('aeronaves').select('*').order('prefix');
+        const { data, error } = await supabase.from('malha_raiz').select('*').order('etd');
         if (error) {
-            console.error('Error fetching aircrafts', error);
+            console.error('Error fetching flights', error);
         } else if (data) {
-            setAircrafts(data as AircraftType[]);
-            const uniqueAirlines = Array.from(new Set(data.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
+            // Mapeia os dados do banco (que usa 'cia') para o objeto MeshFlight (que usa 'airline')
+            const mappedFlights = (data as any[]).map(f => ({
+                ...f,
+                airline: f.cia || '',
+                flightNumber: f.voo || '',
+                destination: f.icao || '',
+                eta: f.eta || '',
+                etd: f.etd || ''
+            })) as MeshFlight[];
+
+            setFlights(mappedFlights);
+            const uniqueAirlines = Array.from(new Set(mappedFlights.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
             setAirlines(uniqueAirlines);
             if (!activeAirline) {
                 setActiveAirline('EM GERAL');
@@ -66,7 +71,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
   };
 
   useEffect(() => {
-    fetchAircrafts();
+    fetchFlights();
   }, []);
 
   const handleCreateNewAirline = () => {
@@ -80,55 +85,54 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     setNewAirlineName('');
   };
 
-  const handleCreateNewAircraft = async () => {
+  const handleCreateNewFlight = async () => {
     if (!activeAirline) return;
-    // Create optimistic record
     const tempId = `temp-${Date.now()}`;
-    const newAircraft: AircraftType = {
+    const newFlight: any = {
         id: tempId,
         airline: activeAirline,
-        model: '--',
-        prefix: 'NEW-PX',
-        missing_cap: false,
-        defective_door: false,
-        defective_panel: false,
-        no_autocut: false,
-        observations: ''
+        airline_code: '',
+        flightNumber: 'NEW',
+        departureFlightNumber: 'NEW',
+        destination: '',
+        etd: '00:00',
+        eta: '00:00',
+        registration: '',
+        model: '',
+        is_disabled: false,
+        isNew: true
     };
     
-    setAircrafts([...aircrafts, newAircraft]);
+    setFlights([...flights, newFlight]);
     
     try {
-        const { data, error } = await supabase.from('aeronaves').insert({
-            airline: newAircraft.airline,
-            model: newAircraft.model,
-            prefix: newAircraft.prefix,
-            missing_cap: newAircraft.missing_cap,
-            defective_door: newAircraft.defective_door,
-            defective_panel: newAircraft.defective_panel,
-            no_autocut: newAircraft.no_autocut,
-            observations: newAircraft.observations
-        }).select().single();
-        
+        const { data, error } = await supabase.from('malha_raiz').insert({
+            voo: 'NEW',
+            cia: activeAirline,
+            icao: '',
+            etd: '00:00',
+            eta: '00:00',
+            updated_at: new Date().toISOString()
+        }).select('id').single();
+
         if (error) {
-            setFeedback({ msg: `Erro ao criar aeronave: ${error.message}`, isError: true });
-            setAircrafts(prev => prev.filter(a => a.id !== tempId));
+            setFeedback({ msg: `Erro: ${error.message}`, isError: true });
+            setFlights(prev => prev.filter(a => a.id !== tempId));
             return;
         }
 
         if (data) {
-            setAircrafts(prev => prev.map(a => a.id === tempId ? data as AircraftType : a));
-            setEditingCell({ rowId: data.id, col: 1 });
+            setFlights(prev => prev.map(a => a.id === tempId ? { ...a, id: data.id } : a));
         }
-    } catch (e: any) {
-        setFeedback({ msg: `Exceção ao criar aeronave: ${e.message}`, isError: true });
-        setAircrafts(prev => prev.filter(a => a.id !== tempId));
+    } catch (err: any) {
+        setFeedback({ msg: `Erro de conexão: ${err.message}`, isError: true });
+        setFlights(prev => prev.filter(a => a.id !== tempId));
     }
   };
 
   const handleDeleteAirline = async (airlineCode: string) => {
     try {
-        const { error } = await supabase.from('aeronaves').delete().eq('airline', airlineCode);
+        const { error } = await supabase.from('malha_raiz').delete().like('voo', `${airlineCode}%`);
         
         if (error) {
             console.error('Error deleting airline', error);
@@ -137,7 +141,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         }
 
         // update local state
-        setAircrafts(prev => prev.filter(a => a.airline !== airlineCode));
+        setFlights(prev => prev.filter(a => a.airline !== airlineCode));
         const newAirlines = airlines.filter(a => a !== airlineCode);
         setAirlines(newAirlines);
         if (newAirlines.length > 0) {
@@ -148,46 +152,51 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     } catch(e: any) {
         console.error(e);
         setFeedback({ msg: `Ocorreu um erro inesperado ao excluir. ${e?.message || ''}`, isError: true });
-        fetchAircrafts();
+        fetchFlights();
     }
   };
 
-  const handleDeleteAircraft = async (id: string) => {
-    setAircrafts(prev => prev.filter(a => a.id !== id));
+  const handleDeleteFlight = async (id: string) => {
+    setFlights(prev => prev.filter(a => a.id !== id));
     try {
-        const { error } = await supabase.from('aeronaves').delete().eq('id', id);
+        const { error } = await supabase.from('malha_raiz').delete().eq('id', id);
         if (error) {
            console.error(error);
-           fetchAircrafts(); // rollback na interface se houver erro
+           fetchFlights(); // rollback na interface se houver erro
         }
     } catch(e) {
         console.error(e);
-        fetchAircrafts();
+        fetchFlights();
     }
   };
 
-  const handleUpdateField = async (id: string, field: keyof AircraftType, value: any) => {
-    const updatedAircrafts = aircrafts.map(a => {
+  const handleUpdateField = async (id: string, field: keyof MeshFlight, value: any) => {
+    const updatedFlights = flights.map(a => {
         if (a.id === id) {
             return { ...a, [field]: value };
         }
         return a;
     });
-    setAircrafts(updatedAircrafts);
+    setFlights(updatedFlights);
     
     // Check if temp id
     if (id.startsWith('temp-')) return;
     
     try {
-        const { error } = await supabase.from('aeronaves').update({ [field]: value }).eq('id', id);
+        let mappedField = field;
+        if (field === 'flightNumber' || field === 'departureFlightNumber') mappedField = 'voo' as any;
+        if (field === 'destination') mappedField = 'icao' as any;
+        if (field === 'airline') mappedField = 'cia' as any;
+        
+        const { error } = await supabase.from('malha_raiz').update({ [mappedField]: value }).eq('id', id);
         if (error) {
             console.error(error);
-            setFeedback({ msg: `Erro ao atualizar aeronave: ${error.message}`, isError: true });
+            setFeedback({ msg: `Erro ao atualizar voo: ${error.message}`, isError: true });
         }
         
         // Re-calculate airlines if airline changed
         if (field === 'airline') {
-             const uniqueAirlines = Array.from(new Set(updatedAircrafts.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
+             const uniqueAirlines = Array.from(new Set(updatedFlights.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
              setAirlines(uniqueAirlines);
              if (activeAirline !== 'EM GERAL' && !uniqueAirlines.includes(activeAirline) && uniqueAirlines.length > 0) {
                  setActiveAirline(uniqueAirlines[0]);
@@ -195,7 +204,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         }
     } catch (e) {
         console.error(e);
-        fetchAircrafts();
+        fetchFlights();
     }
   };
 
@@ -204,15 +213,15 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
     setIsKeystrokeEdit(false);
   };
 
-  const currentAirlineAircrafts = useMemo(() => {
+  const currentAirlineFlights = useMemo(() => {
     if (activeAirline === 'EM GERAL') {
-      return [...aircrafts].sort((a,b) => a.prefix.localeCompare(b.prefix));
+      return [...flights].sort((a,b) => (a.etd || '').localeCompare(b.etd || ''));
     }
-    return aircrafts.filter(a => a.airline === activeAirline).sort((a,b) => a.prefix.localeCompare(b.prefix));
-  }, [aircrafts, activeAirline]);
+    return flights.filter(a => a.airline === activeAirline).sort((a,b) => (a.registration || '').localeCompare(b.registration || ''));
+  }, [flights, activeAirline]);
 
   const handleKeyDown = (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
-    const aircraft = currentAirlineAircrafts[rowIndex];
+    const aircraft = currentAirlineFlights[rowIndex];
     if (!aircraft) return;
     
     const isEditing = editingCell?.rowId === aircraft.id && editingCell?.col === colIndex;
@@ -221,15 +230,15 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
         case 'ArrowDown':
             if (isEditing) return;
             e.preventDefault();
-            if (rowIndex < currentAirlineAircrafts.length - 1) {
-                setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex + 1].id, col: colIndex });
+            if (rowIndex < currentAirlineFlights.length - 1) {
+                setFocusedCell({ rowId: currentAirlineFlights[rowIndex + 1].id, col: colIndex });
             }
             break;
         case 'ArrowUp':
             if (isEditing) return;
             e.preventDefault();
             if (rowIndex > 0) {
-                setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex - 1].id, col: colIndex });
+                setFocusedCell({ rowId: currentAirlineFlights[rowIndex - 1].id, col: colIndex });
             }
             break;
         case 'ArrowRight':
@@ -280,13 +289,13 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                 if (colIndex > 0) {
                     setFocusedCell({ rowId: aircraft.id, col: colIndex - 1 });
                 } else if (rowIndex > 0) {
-                    setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex - 1].id, col: COLUMNS.length - 1 });
+                    setFocusedCell({ rowId: currentAirlineFlights[rowIndex - 1].id, col: COLUMNS.length - 1 });
                 }
             } else {
                 if (colIndex < COLUMNS.length - 1) {
                     setFocusedCell({ rowId: aircraft.id, col: colIndex + 1 });
-                } else if (rowIndex < currentAirlineAircrafts.length - 1) {
-                    setFocusedCell({ rowId: currentAirlineAircrafts[rowIndex + 1].id, col: 0 });
+                } else if (rowIndex < currentAirlineFlights.length - 1) {
+                    setFocusedCell({ rowId: currentAirlineFlights[rowIndex + 1].id, col: 0 });
                 }
             }
             break;
@@ -298,7 +307,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                     e.preventDefault();
                     setIsKeystrokeEdit(true);
                     setEditingCell({ rowId: aircraft.id, col: colIndex });
-                    handleUpdateField(aircraft.id, COLUMNS[colIndex].key as keyof AircraftType, e.key);
+                    handleUpdateField(aircraft.id, COLUMNS[colIndex].key as keyof MeshFlight, e.key);
                 }
             }
             break;
@@ -307,7 +316,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
 
   useEffect(() => {
     if (focusedCell) {
-        const rowIndex = currentAirlineAircrafts.findIndex(a => a.id === focusedCell.rowId);
+        const rowIndex = currentAirlineFlights.findIndex(a => a.id === focusedCell.rowId);
         if (rowIndex !== -1) {
             const isEditing = editingCell?.rowId === focusedCell.rowId && editingCell?.col === focusedCell.col;
             if (isEditing) {
@@ -323,21 +332,30 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
             }
         }
     }
-  }, [focusedCell, editingCell, currentAirlineAircrafts]);
+  }, [focusedCell, editingCell, currentAirlineFlights]);
 
     const processImport = async (data: any[]) => {
       setIsImporting(true);
       
-      const aircraftsMap = new Map<string, any>();
-      let missingPrefixCount = 0;
+      const flightsMap = new Map<string, any>();
+      let missingCodeCount = 0;
+
+      // Função para converter o tempo do Excel (decimal) em HH:MM
+      const formatExcelTime = (val: any): string => {
+          if (typeof val === 'number') {
+              const totalMinutes = Math.round(val * 24 * 60);
+              const hours = Math.floor(totalMinutes / 60) % 24;
+              const minutes = totalMinutes % 60;
+              return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          }
+          if (typeof val === 'string' && val.includes(':')) return val.trim();
+          if (typeof val === 'string' && /^\d{4}$/.test(val)) return `${val.slice(0, 2)}:${val.slice(2, 4)}`;
+          return val?.toString() || '';
+      };
 
       for (const row of data) {
-          // Helper OBRIGATÓRIO (Extremamente robusto):
-          // Ignora acentos, espaços de entrelinhas, underscores (_) ou hifens (-).
-          // Tudo é reduzido a apenas letras (A-Z) para não haver MAIS ERROS.
           const getVal = (possibleKeys: string[]) => {
               for (const key of Object.keys(row)) {
-                  // Limpa: 'S_TAMPA' -> 'STAMPA', 'PORTINHOLA_DEFEITO' -> 'PORTINHOLADEFEITO'
                   const cleanKey = key.toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z]/g, '');
                   if (possibleKeys.includes(cleanKey)) {
                       return row[key];
@@ -346,78 +364,81 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
               return undefined;
           };
 
-          const prefixRaw = getVal(['PREFIXO', 'PREFRES', 'MATRICULA']);
-          const airlineRaw = getVal(['COMPANHIA', 'EMPRESA', 'CIA']);
-          const modelRaw = getVal(['MODELO', 'EQUIPAMENTO']);
-          const missingCapRaw = getVal(['STAMPA', 'SEMTAMPA', 'TAMPA']);
-          const defDoorRaw = getVal(['PORTINHOLADEFEITO', 'PORTINHOLA', 'DEFEITOPORTINHOLA']);
-          const defPanelRaw = getVal(['PAINELDEFEITO', 'PAINEL', 'DEFEITOPAINEL']);
-          const noAutocutRaw = getVal(['FALHACORTE', 'CORTE', 'NAOCORTA']);
-          const obsRaw = getVal(['OBSERVACOES', 'OBSERVACAO', 'OBS']);
+          const vooRaw = getVal(['VOO', 'FLIGHT', 'NVOO', 'PREFIXO', 'FLIGHTNUMBER']);
+          const isVooKey = row['VÔO'] || row['VOO'] || row['Voo'] || row['vôo'];
+          const destinoRaw = getVal(['DESTINO', 'ICAO', 'DESTINATION']);
+          const etaRaw = getVal(['ESTIMADO', 'ETA']);
+          const etdRaw = getVal(['SAIDA', 'ETD']);
+          const ciaRaw = getVal(['COMPANHIA', 'CIA', 'EMPRESA', 'AIRLINE']);
 
-          const prefix = prefixRaw?.toString().toUpperCase().trim();
+          const voo = vooRaw?.toString().toUpperCase().trim() || isVooKey?.toString().toUpperCase().trim();
           
-          if (!prefix) {
-              missingPrefixCount++;
+          if (!voo) {
+              missingCodeCount++;
               continue;
           }
 
-          let airline = airlineRaw?.toString().toUpperCase().trim();
-          if (!airline && activeAirline && activeAirline !== 'EM GERAL') airline = activeAirline.toUpperCase().trim();
-          if (!airline) airline = 'OUTRA'; // Fallback absoluto
+          // Extract airline from flight number (e.g. LA3396 -> LA, RG1644 -> RG)
+          let cia = ciaRaw?.toString().toUpperCase().trim() || '';
+          if (!cia) {
+             const ciaMatch = voo.match(/^[A-Z]{2,3}/);
+             cia = ciaMatch ? ciaMatch[0] : 'OUTRA';
+          }
 
-          const model = modelRaw?.toString().toUpperCase().trim() || '--';
-          
-          // Função helper para tratar valores Booleanos/Checkbox (Aceita SIM, S, TRUE, 1, X)
-          const checkBoolean = (val: any) => {
-              if (val === true || val === 1) return true;
-              const str = val?.toString().toUpperCase().trim();
-              return str === 'SIM' || str === 'S' || str === 'TRUE' || str === '1' || str === 'X';
-          };
-
-          aircraftsMap.set(prefix, {
-              prefix,
-              airline,
-              model,
-              missing_cap: checkBoolean(missingCapRaw),
-              defective_door: checkBoolean(defDoorRaw),
-              defective_panel: checkBoolean(defPanelRaw),
-              no_autocut: checkBoolean(noAutocutRaw),
-              observations: obsRaw?.toString().trim() || ''
+          flightsMap.set(voo, {
+              voo: voo,
+              cia: cia,
+              icao: destinoRaw?.toString().toUpperCase().trim() || '',
+              eta: formatExcelTime(etaRaw),
+              etd: formatExcelTime(etdRaw)
           });
       }
 
-      const aircraftsToUpsert = Array.from(aircraftsMap.values());
+      const flightsToUpsert = Array.from(flightsMap.values());
 
-      if (aircraftsToUpsert.length === 0) {
-          setFeedback({ msg: `ERRO: Nenhuma linha válida encontrada para importar.\n\nLinhas ignoradas por falta de PREFIXO: ${missingPrefixCount}\n\nDICA: Verifique se o título da coluna de prefixo na primeira linha é "PREFIXO".`, isError: true });
+      if (flightsToUpsert.length === 0) {
+          setFeedback({ msg: `ERRO: Nenhuma linha válida encontrada para importar.\n\nLinhas ignoradas por falta de VÔO: ${missingCodeCount}\n\nDICA: Verifique se o título da coluna de voo na primeira linha é "VÔO".`, isError: true });
           setIsImporting(false);
           return;
       }
 
       try {
-          // Salva as aeronaves baseadas no Prefixo (UPSERT substitui se já existe)
+          // Salva as malha_raiz baseadas no voo
+          // Busca os registros para descobrir os IDs, já que não temos a constraint UNIQUE forçada
+          const { data: existingData, error: fetchErr } = await supabase.from('malha_raiz').select('id, voo');
+          if (fetchErr) throw fetchErr;
+
+          const existingMap = new Map((existingData || []).map((r: any) => [r.voo, r.id]));
+
+          const finalPayload = flightsToUpsert.map((f: any) => {
+              const existingId = existingMap.get(f.voo);
+              if (existingId) {
+                  return { ...f, id: existingId };
+              }
+              return f;
+          });
+
           const { error } = await supabase
-              .from('aeronaves')
-              .upsert(aircraftsToUpsert, { onConflict: 'prefix', ignoreDuplicates: false });
+              .from('malha_raiz')
+              .upsert(finalPayload);
 
           if (error) {
             console.error("Supabase upsert error:", error);
             throw error;
           }
           
-          let msg = `SUCESSO! Importação concluída.\n\nAeronaves importadas/atualizadas: ${aircraftsToUpsert.length}`;
-          if (missingPrefixCount > 0) {
-              msg += `\n\n(Aviso: ${missingPrefixCount} linhas foram ignoradas por estarem vazias ou não terem a coluna PREFIXO preenchida corretamente)`;
+          let msg = `SUCESSO! Importação concluída.\n\nVoos importados/atualizados: ${flightsToUpsert.length}`;
+          if (missingCodeCount > 0) {
+              msg += `\n\n(Aviso: ${missingCodeCount} linhas foram ignoradas por estarem vazias ou não terem a coluna VÔO preenchida corretamente)`;
           }
           setFeedback({ msg, isError: false });
       } catch (err: any) {
-          console.error("Erro no upsert de aeronaves:", err);
-          setFeedback({ msg: `ERRO CRÍTICO ao salvar as aeronaves no Banco de Dados.\n\nMensagem técnica: ${err?.message || 'Falha de comunicação.'}`, isError: true });
+          console.error("Erro no upsert de malha_raiz:", err);
+          setFeedback({ msg: `ERRO CRÍTICO ao salvar a malha_raiz no Banco de Dados.\n\nMensagem técnica: ${err?.message || 'Falha de comunicação.'}`, isError: true });
       }
 
       setIsImporting(false);
-      fetchAircrafts(); // Recarrega todas as abas e dados localmente exibindo o resultado fresco
+      fetchFlights(); // Recarrega todas as abas e dados localmente exibindo o resultado fresco
     };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -486,10 +507,10 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
            <div className="flex flex-col justify-center">
                <div className="flex items-center gap-2">
                     <Database size={16} className={isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} />
-                    <h1 className="text-sm font-black uppercase tracking-widest">Aeronaves</h1>
+                    <h1 className="text-sm font-black uppercase tracking-widest">Malha Raiz</h1>
                     {isLoading && <RefreshCw size={12} className="animate-spin ml-2 text-slate-500" />}
                </div>
-               <span className={`text-[10px] font-medium tracking-wide ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Gerencie o banco de dados de aeronaves por companhia</span>
+               <span className={`text-[10px] font-medium tracking-wide ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Gerencie o banco de dados de malha_raiz por companhia</span>
            </div>
            
            <div className="flex items-center gap-3">
@@ -501,34 +522,26 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                    onChange={handleFileUpload}
                />
                <button 
-                   onClick={() => setShowImportInstructions(true)}
-                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' : 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300'} active:scale-95`}
-               >
-                   <Info size={12} /> Instruções XLSX
-               </button>
-               <button 
-                   onClick={() => fileInputRef.current?.click()}
-                   disabled={isImporting}
-                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'} ${isImporting ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
-               >
-                   {isImporting ? <RefreshCw size={12} className="animate-spin" /> : <Upload size={12} />} 
-                   {isImporting ? 'Importando...' : 'Importar XLSX'}
-               </button>
-               {activeAirline && airlines.includes(activeAirline) && (
-                 <button 
-                     onClick={() => setConfirmDeleteAirline(activeAirline)}
-                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'} active:scale-95`}
-                 >
-                     <Trash2 size={12} /> Excluir Companhia
-                 </button>
-               )}
-               <button 
-                   onClick={handleCreateNewAircraft}
-                   disabled={!activeAirline || activeAirline === 'EM GERAL'}
-                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-[#329858] text-white border-[#29824a] hover:bg-[#29824a]'} ${!activeAirline || activeAirline === 'EM GERAL' ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
-               >
-                   <Plus size={12} /> Novo Registro
-               </button>
+                    onClick={() => setShowImportInstructions(true)}
+                    className={`p-1.5 rounded-md border transition-all ${isDarkMode ? 'border-slate-700 text-slate-400 hover:text-blue-400 hover:border-blue-500/50' : 'border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300'}`}
+                    title="Instruções de Importação"
+                >
+                    <Info size={14} />
+                </button>
+                <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isImporting}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'} disabled:opacity-50`}
+                >
+                    {isImporting ? <RefreshCw size={12} className="animate-spin" /> : <Upload size={12} />}
+                    {isImporting ? 'Importando...' : 'Importar XLS'}
+                </button>
+                <button 
+                     onClick={handleCreateNewFlight}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-[#329858] text-white border-[#29824a] hover:bg-[#29824a]'} active:scale-95`}
+                >
+                    <Plus size={12} /> Novo Registro
+                </button>
            </div>
         </div>
 
@@ -547,27 +560,25 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
              >
                 EM GERAL
              </button>
-             {airlines.map((airline) => {
-                 const isActive = activeAirline === airline;
-                 return (
+             {airlines.map((airlineCode, i) => (
+                 <div key={i} className={`flex items-center border-r shrink-0 ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'}`}>
                      <button
-                        key={airline}
-                        onClick={() => setActiveAirline(airline)}
+                        onClick={() => setActiveAirline(airlineCode)}
                         className={`
-                            group
-                            shrink-0 px-6 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'} last:border-r-0
-                            ${isActive 
-                                ? (isDarkMode ? 'bg-slate-950 text-emerald-400 border-b-2 border-emerald-500' : 'bg-[#329858] text-white border-b-0')
-                                : (isDarkMode ? 'text-slate-500 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')}
+                            h-full px-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all
+                            ${activeAirline === airlineCode
+                                ? (isDarkMode ? 'bg-slate-950 text-white border-b-2 border-emerald-500' : 'bg-slate-100 text-[#329858] border-b-2 border-[#1E6038]')
+                                : (isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800')}
                         `}
                      >
-                        <div className="w-5 h-5 flex items-center justify-center bg-white rounded-sm overflow-hidden shrink-0 shadow-sm border border-slate-200">
-                            <AirlineLogo airlineCode={airline} showName={false} size="md" />
-                        </div>
-                        {airline}
+                        {airlineCode && <AirlineLogo airlineCode={airlineCode} className="w-5 h-5 rounded-full ring-2 ring-white/10" />}
+                        {airlineCode || 'OUTRA'}
                      </button>
-                 )
-             })}
+                     <button onClick={() => setConfirmDeleteAirline(airlineCode)} className={`w-10 h-full flex items-center justify-center transition-colors border-l ${isDarkMode ? 'border-l-slate-800 text-slate-500 hover:text-red-400 hover:bg-slate-800' : 'border-l-slate-200 text-slate-400 hover:text-red-500 hover:bg-slate-200/50'}`}>
+                         <Trash2 size={12} />
+                     </button>
+                 </div>
+             ))}
              <button 
                 onClick={() => setShowNewAirlineModal(true)}
                 className={`w-12 flex items-center justify-center shrink-0 border-r ${isDarkMode ? 'bg-slate-800 text-emerald-400 hover:bg-slate-700 border-slate-950/20' : 'bg-slate-100 text-[#329858] hover:bg-slate-200 border-slate-200'} transition-colors group`}
@@ -585,9 +596,6 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                     <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-950 border-slate-700' : 'bg-[#2D8E48] text-white shadow-sm'}`}>
                         <tr>
                             {COLUMNS.map((col, idx) => {
-                                if (col.key === 'airline' && col.label === 'Logo') {
-                                    return <th key={idx} className={`px-2 py-3 text-[10px] font-black uppercase tracking-widest border-b border-r ${isDarkMode ? 'border-slate-800' : 'border-[#29824a]'} text-center ${col.width}`}>{col.label}</th>
-                                }
                                 return (
                                     <th key={idx} className={`px-2 py-3 text-[10px] font-black uppercase tracking-widest border-b border-r ${isDarkMode ? 'border-slate-800' : 'border-[#29824a]'} text-center ${col.width}`}>
                                         {col.label}
@@ -597,28 +605,18 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         </tr>
                     </thead>
                     <tbody>
-                        {currentAirlineAircrafts.length === 0 ? (
+                        {currentAirlineFlights.length === 0 ? (
                             <tr>
                                 <td colSpan={COLUMNS.length} className={`px-4 py-8 text-center text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'bg-slate-900 text-slate-500' : 'bg-white text-slate-400'}`}>
-                                    Nenhuma aeronave cadastrada para esta companhia
+                                    Nenhum voo cadastrado para esta companhia
                                 </td>
                             </tr>
                         ) : (
-                            currentAirlineAircrafts.map((aircraft, rowIndex) => (
+                            currentAirlineFlights.map((aircraft, rowIndex) => (
                                 <tr key={aircraft.id} data-row={rowIndex} className={`group transition-colors h-10 border-b ${isDarkMode ? 'hover:bg-slate-800/50 border-slate-800/50' : 'hover:bg-slate-50 border-slate-200'}`}>
                                     {COLUMNS.map((col, colIndex) => {
                                         const isFocused = focusedCell?.rowId === aircraft.id && focusedCell?.col === colIndex;
                                         const focusClasses = isFocused ? 'ring-2 ring-emerald-500 ring-inset z-10 shadow-[inset_0_0_0_2px_rgba(16,185,129,0.5)]' : '';
-
-                                        if (col.key === 'airline' && col.label === 'Logo') {
-                                            return (
-                                                <td key={`${aircraft.id}-logo`} className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center relative pointer-events-none align-middle ${focusClasses}`}>
-                                                    <div className="w-8 h-8 rounded bg-white overflow-hidden mx-auto flex items-center justify-center p-0.5 shadow-sm border border-slate-200">
-                                                        <AirlineLogo airlineCode={aircraft.airline} showName={false} size="md" />
-                                                    </div>
-                                                </td>
-                                            )
-                                        }
 
                                         if (col.key === 'actions') {
                                             return (
@@ -631,7 +629,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                                   className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center actions-container align-middle outline-none ${focusClasses}`}
                                                 >
                                                     <div className="flex justify-center">
-                                                        <button onClick={() => handleDeleteAircraft(aircraft.id)} className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${isDarkMode ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-500/10 text-slate-400 hover:text-red-500'}`}>
+                                                        <button onClick={() => handleDeleteFlight(aircraft.id)} className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${isDarkMode ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-500/10 text-slate-400 hover:text-red-500'}`}>
                                                             <Trash2 size={14} />
                                                         </button>
                                                     </div>
@@ -639,9 +637,9 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                             );
                                         }
 
-                                        const value = aircraft[col.key as keyof AircraftType];
+                                        const value = aircraft[col.key as keyof MeshFlight];
                                         const isEditingObj = editingCell?.rowId === aircraft.id && editingCell?.col === colIndex;
-                                        const isBooleanField = ['missing_cap', 'defective_door', 'defective_panel', 'no_autocut'].includes(col.key);
+                                        const isBooleanField = col.key === 'is_disabled';
                                         
                                         if (isBooleanField) {
                                             return (
@@ -657,7 +655,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                                         <input 
                                                             type="checkbox"
                                                             checked={!!value}
-                                                            onChange={(e) => handleUpdateField(aircraft.id, col.key as keyof AircraftType, e.target.checked)}
+                                                            onChange={(e) => handleUpdateField(aircraft.id, col.key as keyof MeshFlight, e.target.checked)}
                                                             className={`w-4 h-4 rounded cursor-pointer ${isDarkMode ? 'accent-emerald-500 bg-slate-900 border-slate-700' : 'accent-[#329858] bg-white border-slate-300'}`}
                                                         />
                                                     </div>
@@ -666,8 +664,8 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                         }
 
                                         // Conditional styles based on column
-                                        const extraStyle = col.key === 'prefix' ? (isDarkMode ? 'text-emerald-500 tracking-tighter' : 'text-emerald-600 tracking-tighter') : '';
-                                        const alignStyle = col.key === 'observations' ? 'text-left px-2' : 'text-center';
+                                        const extraStyle = col.key === 'registration' ? (isDarkMode ? 'text-emerald-500 tracking-tighter' : 'text-emerald-600 tracking-tighter') : '';
+                                        const alignStyle = false ? 'text-left px-2' : 'text-center';
 
                                         return (
                                             <td 
@@ -701,16 +699,30 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                                                           }
                                                         }}
                                                         onChange={(e) => {
-                                                            const val = col.key === 'observations' ? e.target.value : e.target.value.toUpperCase();
-                                                            handleUpdateField(aircraft.id, col.key as keyof AircraftType, val);
+                                                            let val = e.target.value.toUpperCase();
+                                                            if (col.key === 'destination') {
+                                                                val = val.replace(/[^A-Z]/g, '').slice(0, 4);
+                                                            } else if (col.key === 'eta' || col.key === 'etd') {
+                                                                val = val.replace(/\D/g, '').replace(/^(\d{2})(\d)/, '$1:$2').slice(0, 5);
+                                                            }
+                                                            handleUpdateField(aircraft.id, col.key as keyof MeshFlight, val);
                                                         }}
                                                         onBlur={() => handleFinishEdit()}
                                                         onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                        className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold ${alignStyle} outline-none focus:ring-1 ${col.key !== 'observations' ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
+                                                        className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold ${alignStyle} outline-none focus:ring-1 ${true ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
                                                     />
                                                 ) : (
-                                                    <div className={`font-mono text-[11px] font-bold w-full ${col.key !== 'observations' ? 'uppercase justify-center' : 'justify-start'} flex items-center min-h-[24px] ${extraStyle}`}>
-                                                        {value || '--'}
+                                                    <div className={`font-mono text-[11px] font-bold w-full ${true ? 'uppercase justify-center' : 'justify-start'} flex items-center min-h-[24px] ${extraStyle}`}>
+                                                        {col.key === 'airline' ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-6 h-6 rounded bg-white overflow-hidden flex items-center justify-center p-[1px] shadow-sm border border-slate-200 shrink-0">
+                                                                    <AirlineLogo airlineCode={value as string} showName={false} size="sm" />
+                                                                </div>
+                                                                <span>{value || '--'}</span>
+                                                            </div>
+                                                        ) : (
+                                                            value || '--'
+                                                        )}
                                                     </div>
                                                 )}
                                             </td>
@@ -735,24 +747,19 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                     
                     <div className="text-sm space-y-3">
                         <p className={isDarkMode ? 'text-slate-300' : 'text-slate-600'}>
-                            Para importar dados em lote, sua planilha Excel (<span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">.xlsx</span>) 
-                            deve conter na primeira linha (cabeçalho) as seguintes colunas exatas (em maiúsculo):
+                            Para importar dados em lote para a Malha Raiz, sua planilha Excel (<span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">.xlsx</span>) 
+                            deve conter na primeira linha (cabeçalho) as seguintes colunas exatas:
                         </p>
                         
                         <ul className="list-disc pl-5 space-y-1 font-mono text-[11px] mb-2">
-                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>PREFIXO</strong> (Obrigatório) - Prefixo da aeronave (ex: PR-XMB). Também aceitamos <span className="text-gray-500">PREF.RES, MATRICULA ou PREFIX.</span></li>
-                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>COMPANHIA</strong> (Opcional) - Se não informada, a importação usará a Cia selecionada na aba.</li>
-                            <li><strong>MODELO</strong> (Opcional) - Ex: B738, A320</li>
-                            <li><strong>S_TAMPA</strong> (Opcional) - Use "SIM", "S" ou "TRUE" se não tiver tampa.</li>
-                            <li><strong>PORTINHOLA_DEFEITO</strong> (Opcional) - Mesmo padrão acima.</li>
-                            <li><strong>PAINEL_DEFEITO</strong> (Opcional) - Mesmo padrão acima.</li>
-                            <li><strong>FALHA_CORTE</strong> (Opcional) - Mesmo padrão acima.</li>
-                            <li><strong>OBSERVACOES</strong> (Opcional) - Texto livre.</li>
+                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>VÔO</strong> (Obrigatório) - Número do Voo (ex: LA3396)</li>
+                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>DESTINO</strong> (Opcional) - ICAO de destino (ex: SBPS)</li>
+                            <li><strong>ESTIMADO</strong> (Opcional) - ETA (ex: 22:50)</li>
+                            <li><strong>SAÍDA</strong> (Opcional) - ETD (ex: 00:00)</li>
                         </ul>
                         
                         <div className={`p-3 rounded text-xs border ${isDarkMode ? 'bg-amber-900/20 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-                            <strong>Nota Importante:</strong> O sistema tentará encontrar a aeronave pelo <strong>PREFIXO</strong>. 
-                            Se ela já existir, seus dados serão atualizados. Caso contrário, uma nova aeronave será inserida.
+                            <strong>Nota Importante:</strong> O sistema tentará encontrar e atualizar o voo pelo <strong>VÔO</strong>. 
                         </div>
                     </div>
 
@@ -813,7 +820,7 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         Confirmar Exclusão
                     </h2>
                     <div className={`text-sm whitespace-pre-wrap font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                        Deseja realmente excluir a companhia <strong className="uppercase">{confirmDeleteAirline}</strong> e todas as suas aeronaves cadastradas?
+                        Deseja realmente excluir a companhia <strong className="uppercase">{confirmDeleteAirline}</strong> e todas as suas malha_raiz cadastradas?
                         <br/><br/>
                         Esta ação não pode ser desfeita.
                     </div>
