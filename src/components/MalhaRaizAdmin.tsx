@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Plus, Trash2, Database, RefreshCw, Upload, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { getRootMesh, deleteRootMeshFlight, upsertRootMesh, clearRootMesh } from '../services/supabaseService';
 import { AirlineLogo } from './AirlineLogo';
 import { MeshFlight } from '../types';
 
@@ -10,7 +11,7 @@ interface MalhaRaizAdminProps {
   isDarkMode: boolean;
 }
 
-type FlightField = 'flightNumber' | 'destination' | 'etd' | 'eta' | 'actions';
+type FlightField = 'flightNumber' | 'destination' | 'etd' | 'eta' | 'registration' | 'airline' | 'is_disabled' | 'actions';
 
 const COLUMNS: { key: FlightField; label: string; width: string; isVariable: boolean }[] = [
   { key: 'flightNumber', label: 'VÔO', width: 'w-32', isVariable: true },
@@ -43,23 +44,11 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
   const fetchFlights = async () => {
     setIsLoading(true);
     try {
-        const { data, error } = await supabase.from('malha_raiz').select('*').order('etd');
-        if (error) {
-            console.error('Error fetching flights', error);
-        } else if (data) {
-            // Mapeia os dados do banco (que usa 'cia') para o objeto MeshFlight (que usa 'airline')
-            const mappedFlights = (data as any[]).map(f => ({
-                ...f,
-                airline: f.cia || '',
-                flightNumber: f.voo || '',
-                destination: f.icao || '',
-                eta: f.eta || '',
-                etd: f.etd || ''
-            })) as MeshFlight[];
-
-            setFlights(mappedFlights);
-            const uniqueAirlines = Array.from(new Set(mappedFlights.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
-            setAirlines(uniqueAirlines);
+        const data = await getRootMesh();
+        if (data) {
+            setFlights(data);
+            const uniqueAirlines = Array.from(new Set(data.map(a => a.airlineCode))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
+            setAirlines(['EM GERAL', ...uniqueAirlines]);
             if (!activeAirline) {
                 setActiveAirline('EM GERAL');
             }
@@ -106,42 +95,42 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
     setFlights([...flights, newFlight]);
     
     try {
-        const { data, error } = await supabase.from('malha_raiz').insert({
-            voo: 'NEW',
-            cia: activeAirline,
-            icao: '',
+        const { id: _, ...flightToSave } = newFlight;
+        const meshFlight: MeshFlight = {
+            id: '',
+            airline: activeAirline === 'EM GERAL' ? '' : activeAirline,
+            airlineCode: activeAirline === 'EM GERAL' ? '' : activeAirline,
+            flightNumber: 'NEW',
+            departureFlightNumber: 'NEW',
+            destination: '',
             etd: '00:00',
             eta: '00:00',
-            updated_at: new Date().toISOString()
-        }).select('id').single();
+            registration: '',
+            model: '',
+            positionId: '',
+            actualArrivalTime: '',
+            isNew: true
+        };
 
-        if (error) {
-            setFeedback({ msg: `Erro: ${error.message}`, isError: true });
-            setFlights(prev => prev.filter(a => a.id !== tempId));
-            return;
-        }
-
-        if (data) {
-            setFlights(prev => prev.map(a => a.id === tempId ? { ...a, id: data.id } : a));
-        }
+        await upsertRootMesh([meshFlight]);
+        await fetchFlights();
     } catch (err: any) {
-        setFeedback({ msg: `Erro de conexão: ${err.message}`, isError: true });
+        setFeedback({ msg: `Erro ao adicionar: ${err.message}`, isError: true });
         setFlights(prev => prev.filter(a => a.id !== tempId));
     }
   };
 
   const handleDeleteAirline = async (airlineCode: string) => {
     try {
-        const { error } = await supabase.from('malha_raiz').delete().like('voo', `${airlineCode}%`);
-        
-        if (error) {
-            console.error('Error deleting airline', error);
-            setFeedback({ msg: `Erro ao excluir a companhia: ${error.message}`, isError: true });
-            return;
+        // Encontra os voos desta companhia para excluir um por um ou via clear?
+        // Como o serviço não tem delete por companhia, vamos filtrar localmente e avisar o serviço
+        const toDelete = flights.filter(f => f.airlineCode === airlineCode);
+        for (const flight of toDelete) {
+            await deleteRootMeshFlight(flight.id);
         }
-
+        
         // update local state
-        setFlights(prev => prev.filter(a => a.airline !== airlineCode));
+        setFlights(prev => prev.filter(a => a.airlineCode !== airlineCode));
         const newAirlines = airlines.filter(a => a !== airlineCode);
         setAirlines(newAirlines);
         if (newAirlines.length > 0) {
@@ -149,21 +138,19 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
         } else {
             setActiveAirline('');
         }
+        setFeedback({ msg: `Companhia ${airlineCode} excluída com sucesso.`, isError: false });
     } catch(e: any) {
         console.error(e);
-        setFeedback({ msg: `Ocorreu um erro inesperado ao excluir. ${e?.message || ''}`, isError: true });
+        setFeedback({ msg: `Erro ao excluir companhia: ${e.message}`, isError: true });
         fetchFlights();
     }
   };
 
   const handleDeleteFlight = async (id: string) => {
+    const flight = flights.find(f => f.id === id);
     setFlights(prev => prev.filter(a => a.id !== id));
     try {
-        const { error } = await supabase.from('malha_raiz').delete().eq('id', id);
-        if (error) {
-           console.error(error);
-           fetchFlights(); // rollback na interface se houver erro
-        }
+        await deleteRootMeshFlight(id);
     } catch(e) {
         console.error(e);
         fetchFlights();
@@ -173,7 +160,12 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
   const handleUpdateField = async (id: string, field: keyof MeshFlight, value: any) => {
     const updatedFlights = flights.map(a => {
         if (a.id === id) {
-            return { ...a, [field]: value };
+            const updated = { ...a, [field]: value };
+            // Sincroniza airline com airlineCode se necessário
+            if (field === 'airlineCode') {
+                updated.airline = value;
+            }
+            return updated;
         }
         return a;
     });
@@ -183,24 +175,15 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
     if (id.startsWith('temp-')) return;
     
     try {
-        let mappedField = field;
-        if (field === 'flightNumber' || field === 'departureFlightNumber') mappedField = 'voo' as any;
-        if (field === 'destination') mappedField = 'icao' as any;
-        if (field === 'airline') mappedField = 'cia' as any;
-        
-        const { error } = await supabase.from('malha_raiz').update({ [mappedField]: value }).eq('id', id);
-        if (error) {
-            console.error(error);
-            setFeedback({ msg: `Erro ao atualizar voo: ${error.message}`, isError: true });
+        const flightToUpdate = updatedFlights.find(f => f.id === id);
+        if (flightToUpdate) {
+            await upsertRootMesh([flightToUpdate]);
         }
         
         // Re-calculate airlines if airline changed
-        if (field === 'airline') {
-             const uniqueAirlines = Array.from(new Set(updatedFlights.map(a => a.airline))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
-             setAirlines(uniqueAirlines);
-             if (activeAirline !== 'EM GERAL' && !uniqueAirlines.includes(activeAirline) && uniqueAirlines.length > 0) {
-                 setActiveAirline(uniqueAirlines[0]);
-             }
+        if (field === 'airline' || field === 'airlineCode') {
+             const uniqueAirlines = Array.from(new Set(updatedFlights.map(a => a.airlineCode))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
+             setAirlines(['EM GERAL', ...uniqueAirlines]);
         }
     } catch (e) {
         console.error(e);
@@ -386,9 +369,9 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
           }
 
           flightsMap.set(voo, {
-              voo: voo,
-              cia: cia,
-              icao: destinoRaw?.toString().toUpperCase().trim() || '',
+              flight_number: voo,
+              airline_code: cia,
+              destination: destinoRaw?.toString().toUpperCase().trim() || '',
               eta: formatExcelTime(etaRaw),
               etd: formatExcelTime(etdRaw)
           });
@@ -403,29 +386,28 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
       }
 
       try {
-          // Salva as malha_raiz baseadas no voo
-          // Busca os registros para descobrir os IDs, já que não temos a constraint UNIQUE forçada
-          const { data: existingData, error: fetchErr } = await supabase.from('malha_raiz').select('id, voo');
-          if (fetchErr) throw fetchErr;
+          const existingData = await getRootMesh();
+          const existingMap = new Map((existingData || []).map((r: MeshFlight) => [r.flightNumber, r.id]));
 
-          const existingMap = new Map((existingData || []).map((r: any) => [r.voo, r.id]));
-
-          const finalPayload = flightsToUpsert.map((f: any) => {
-              const existingId = existingMap.get(f.voo);
-              if (existingId) {
-                  return { ...f, id: existingId };
-              }
-              return f;
+          const finalPayload: MeshFlight[] = flightsToUpsert.map((f: any) => {
+              const existingId = existingMap.get(f.flight_number);
+              return {
+                  id: existingId || '',
+                  airline: f.airline_code,
+                  airlineCode: f.airline_code,
+                  flightNumber: f.flight_number,
+                  departureFlightNumber: f.flight_number,
+                  destination: f.destination,
+                  eta: f.eta,
+                  etd: f.etd,
+                  registration: '',
+                  model: '',
+                  positionId: '',
+                  actualArrivalTime: ''
+              };
           });
 
-          const { error } = await supabase
-              .from('malha_raiz')
-              .upsert(finalPayload);
-
-          if (error) {
-            console.error("Supabase upsert error:", error);
-            throw error;
-          }
+          await upsertRootMesh(finalPayload);
           
           let msg = `SUCESSO! Importação concluída.\n\nVoos importados/atualizados: ${flightsToUpsert.length}`;
           if (missingCodeCount > 0) {

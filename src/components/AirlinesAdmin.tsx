@@ -57,7 +57,7 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
 
         // Fetch counts from aeronaves and malha_raiz
         const { data: aeronaves } = await supabase.from('aeronaves').select('airline');
-        const { data: malha } = await supabase.from('malha_raiz').select('voo, cia');
+        const { data: malha } = await supabase.from('malha_raiz').select('flight_number, airline_code');
 
         const equipCounts: Record<string, number> = {};
         const flightCounts: Record<string, number> = {};
@@ -72,7 +72,7 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
 
         if (malha) {
             malha.forEach(m => {
-                const cia = m.cia || (m.voo ? m.voo.match(/^[A-Z]{2,3}/)?.[0] : null);
+                const cia = m.airline_code || (m.flight_number ? m.flight_number.match(/^[A-Z]{2,3}/)?.[0] : null);
                 if (cia) {
                     flightCounts[cia] = (flightCounts[cia] || 0) + 1;
                 }

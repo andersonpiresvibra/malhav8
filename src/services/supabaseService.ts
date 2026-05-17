@@ -398,7 +398,7 @@ export const getRootMesh = async (): Promise<MeshFlight[]> => {
     
   if (error) {
     if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, voo text UNIQUE, cia text, icao text, eta text, etd text, created_at timestamp default now(), updated_at timestamp default now() );\n\nErro original: ${error.message}`);
+        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode:\n\nCREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, flight_number text UNIQUE, airline_code text, destination text, eta varchar(10), etd varchar(10), registration text, model text, position_id text, actual_arrival_time varchar(10), is_disabled boolean DEFAULT false, updated_at timestamp with time zone default now() );\n\nALTER TABLE malha_raiz ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all access" ON malha_raiz FOR ALL TO public USING (true) WITH CHECK (true);\n\nErro original: ${error.message}`);
     }
     console.error('[Supabase] Error fetching root mesh:', error.message);
     throw error;
@@ -406,19 +406,19 @@ export const getRootMesh = async (): Promise<MeshFlight[]> => {
   
   return (data || []).map((f: any) => ({
     id: f.id,
-    airline: f.cia || (f.voo ? (f.voo as string).match(/^[A-Z]{2,3}/)?.[0] || 'OUTRA' : 'OUTRA'),
-    airlineCode: f.cia || (f.voo ? (f.voo as string).match(/^[A-Z]{2,3}/)?.[0] || 'OUTRA' : 'OUTRA'),
-    flightNumber: f.voo,
-    departureFlightNumber: f.voo,
-    destination: f.icao,
+    airline: f.airline_code || 'OUTRA',
+    airlineCode: f.airline_code || 'OUTRA',
+    flightNumber: f.flight_number,
+    departureFlightNumber: f.departure_flight_number || f.flight_number,
+    destination: f.destination,
     etd: f.etd,
-    registration: '',
+    registration: f.registration || '',
     eta: f.eta,
-    positionId: '',
-    actualArrivalTime: '',
-    model: '',
-    disabled: false,
-    cia: f.cia
+    positionId: f.position_id || '',
+    actualArrivalTime: f.actual_arrival_time || '',
+    model: f.model || '',
+    disabled: f.is_disabled || false,
+    cia: f.airline_code
   })) as MeshFlight[];
 };
 
@@ -427,9 +427,9 @@ export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
   
   let payload = flights.map(f => {
     const obj: any = {
-      voo: f.flightNumber || f.departureFlightNumber,
-      cia: (f as any).cia || f.airline || f.airlineCode || '',
-      icao: f.destination,
+      flight_number: f.flightNumber || f.departureFlightNumber,
+      airline_code: (f as any).cia || f.airline || f.airlineCode || '',
+      destination: f.destination,
       etd: cleanTime(f.etd),
       eta: cleanTime(f.eta),
       updated_at: new Date().toISOString()
@@ -468,11 +468,15 @@ export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
        continue;
     }
 
+    if (error.message.includes("new row violates row-level security policy")) {
+        throw new Error(`ERRO DE PERMISSÃO (RLS)!\nVá ao SQL Editor no Supabase e rode:\n\nALTER TABLE malha_raiz ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS "Allow all access" ON malha_raiz;\nCREATE POLICY "Allow all access" ON malha_raiz FOR ALL TO public USING (true) WITH CHECK (true);`);
+    }
+
     console.error('[Supabase] Error upserting root mesh:', error.message);
     if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, voo text UNIQUE, cia text, icao text, eta time, etd time, created_at timestamp default now(), updated_at timestamp default now() );\n\nErro original: ${error.message}`);
+        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode:\n\nCREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, flight_number text UNIQUE, airline_code text, destination text, eta varchar(10), etd varchar(10), registration text, model text, position_id text, actual_arrival_time varchar(10), is_disabled boolean DEFAULT false, updated_at timestamp with time zone default now() );\n\nALTER TABLE malha_raiz ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all access" ON malha_raiz FOR ALL TO public USING (true) WITH CHECK (true);\n\nErro original: ${error.message}`);
     } else if (error.message.includes('Could not find') || error.message.includes('does not exist')) {
-       throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_raiz)!\nVá ao SQL Editor no Supabase e rode: ALTER TABLE malha_raiz ADD COLUMN IF NOT EXISTS voo text UNIQUE, ADD COLUMN IF NOT EXISTS cia text, ADD COLUMN IF NOT EXISTS icao text, ADD COLUMN IF NOT EXISTS eta time, ADD COLUMN IF NOT EXISTS etd time, ADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
+       throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_raiz)!\nVá ao SQL Editor no Supabase e rode: ALTER TABLE malha_raiz ADD COLUMN IF NOT EXISTS flight_number text UNIQUE, ADD COLUMN IF NOT EXISTS airline_code text, ADD COLUMN IF NOT EXISTS destination text, ADD COLUMN IF NOT EXISTS eta varchar(10), ADD COLUMN IF NOT EXISTS etd varchar(10), ADD COLUMN IF NOT EXISTS registration text, ADD COLUMN IF NOT EXISTS model text, ADD COLUMN IF NOT EXISTS position_id text, ADD COLUMN IF NOT EXISTS is_disabled boolean, ADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
     }
     throw error;
   }
