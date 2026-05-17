@@ -59,8 +59,13 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
         }
 
         if (data) {
-            setFlights(data);
-            const uniqueAirlines = Array.from(new Set(data.map(a => a.airlineCode))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
+            const validData = data.filter(f => {
+                const flightNum = (f.flightNumber || '').toUpperCase();
+                const cia = (f.airlineCode || '').toUpperCase();
+                return !flightNum.includes('ENCH') && !flightNum.includes('ENCHIMENTO') && cia !== 'ENCH';
+            });
+            setFlights(validData);
+            const uniqueAirlines = Array.from(new Set(validData.map(a => a.airlineCode))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
             setAirlines(uniqueAirlines);
             if (!activeAirline) {
                 setActiveAirline('EM GERAL');
@@ -366,6 +371,7 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
           const ciaRaw = getVal(['COMPANHIA', 'CIA', 'EMPRESA', 'AIRLINE']);
 
           const voo = vooRaw?.toString().toUpperCase().trim() || isVooKey?.toString().toUpperCase().trim();
+          let cia = ciaRaw?.toString().toUpperCase().trim() || '';
           
           if (!voo) {
               missingCodeCount++;
@@ -373,10 +379,13 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
           }
 
           // Extract airline from flight number (e.g. LA3396 -> LA, RG1644 -> RG)
-          let cia = ciaRaw?.toString().toUpperCase().trim() || '';
           if (!cia) {
              const ciaMatch = voo.match(/^[A-Z]{2,3}/);
              cia = ciaMatch ? ciaMatch[0] : 'OUTRA';
+          }
+
+          if (voo.includes('ENCH') || voo.includes('ENCHIMENTO') || cia === 'ENCH') {
+              continue;
           }
 
           flightsMap.set(voo, {
@@ -705,7 +714,12 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                                                                         const fallbackNames: Record<string, string> = {
                                                                             'LA': 'LATAM', 'JJ': 'LATAM', 'DL': 'DELTA', 'AA': 'AMERICAN', 
                                                                             'G3': 'GOL', 'AD': 'AZUL', 'AF': 'AIR FRANCE', 'KL': 'KLM',
-                                                                            'LH': 'LUFTHANSA', 'TP': 'TAP', 'CM': 'COPA', 'UA': 'UNITED'
+                                                                            'LH': 'LUFTHANSA', 'TP': 'TAP', 'CM': 'COPA', 'UA': 'UNITED',
+                                                                            'RG': 'GOL', 'LX': 'SWISS', 'TT': 'TOTAL', 'B0': 'BOA',
+                                                                            'AR': 'AEROLINEAS', 'UC': 'LADECO', 'BA': 'BRITISH AIRWAYS',
+                                                                            'AV': 'AVIANCA', 'IB': 'IBERIA', 'EK': 'EMIRATES', 'QR': 'QATAR',
+                                                                            'TK': 'TURKISH', 'AM': 'AEROMEXICO', 'AC': 'AIR CANADA',
+                                                                            'UX': 'AIR EUROPA', 'AT': 'ROYAL AIR MAROC', 'DT': 'TAAG'
                                                                         };
                                                                         return companyNames[code] || fallbackNames[code] || value || '--';
                                                                     })()}
@@ -733,11 +747,17 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                      <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{airlines.filter(a => a && a !== 'EM GERAL').length} companhias cadastradas</p>
                  </div>
                  <div className={`flex flex-wrap gap-3 justify-start content-start overflow-auto p-3 w-full flex-1 border-0 rounded-[3px] ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
-                     {airlines.filter(a => a && a !== 'EM GERAL').map(airline => (
-                         <div key={airline} className="cursor-pointer flex-shrink-0 hover:scale-110 hover:-translate-y-1 transition-all duration-200 flex items-center justify-center" onClick={() => setActiveAirline(airline)} title={airline}>
+                     {airlines.filter(a => a && a !== 'EM GERAL').map(airline => {
+                         const flightCount = flights.filter(f => f.airlineCode === airline).length;
+                         return (
+                         <div key={airline} className="cursor-pointer flex-shrink-0 hover:scale-110 hover:-translate-y-1 transition-all duration-200 flex flex-col items-center justify-center relative" onClick={() => setActiveAirline(airline)} title={`${airline} - ${flightCount} voos`}>
                              <AirlineLogo airlineCode={airline} className="w-[50px] h-[50px] rounded overflow-hidden shadow-sm ring-1 ring-black/5 flex items-center justify-center [&_img]:!w-[40px] [&_img]:!h-[40px]" showName={false} size="full" />
+                             <div className="absolute -top-1.5 -right-1.5 flex items-center justify-center bg-white dark:bg-slate-800 text-[#2D8E48] dark:text-green-500 text-[8px] font-black rounded-full min-w-[16px] h-[16px] px-1 text-center shadow-sm border border-slate-300 dark:border-slate-600">
+                                 {flightCount}
+                             </div>
                          </div>
-                     ))}
+                         );
+                     })}
                  </div>
             </div>
         </div>
