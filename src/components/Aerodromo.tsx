@@ -92,7 +92,10 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
       const map = new Map<string, FlightData>();
       localFlights.forEach(f => {
           if (f.positionId) {
-             if (f.status === FlightStatus.FINALIZADO && f.operator) {
+             if (f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO) {
+                if (!f.operator) {
+                   return;
+                }
                 if (busyOperators.has(f.operator)) {
                    return;
                 }
@@ -302,7 +305,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
               const isConflict = flight && externalFlight && isThirdParty;
               
               const isOccupied = !!flight || !!externalFlight;
-              const isFinished = flight?.status === FlightStatus.FINALIZADO;
+              const isFinished = flight?.status === FlightStatus.FINALIZADO || flight?.status === FlightStatus.CANCELADO;
               
               const isDisabled = disabledPositions.has(posId);
               const restriction = positionRestrictions[posId] || 'HYBRID';
@@ -322,7 +325,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                 if (isDisabled) return isDarkMode ? 'border-red-900/50 bg-red-950/20' : 'border-red-200';
                 if (restriction === 'CTA') return isDarkMode ? 'border-yellow-900/50 bg-yellow-900/10' : 'border-yellow-200 bg-yellow-50/30';
                 if (restriction === 'SRV') return isDarkMode ? 'border-indigo-900/50 bg-indigo-900/10' : 'border-indigo-200 bg-indigo-50/30';
-                if (isOccupied) return flight?.status === FlightStatus.FINALIZADO ? (isDarkMode ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50/50') : (isDarkMode ? 'border-blue-500/20 bg-blue-500/5' : 'border-blue-200 bg-blue-50/50');
+                if (isOccupied) return (flight?.status === FlightStatus.FINALIZADO || flight?.status === FlightStatus.CANCELADO) ? (isDarkMode ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50/50') : (isDarkMode ? 'border-blue-500/20 bg-blue-500/5' : 'border-blue-200 bg-blue-50/50');
                 return (isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-white');
               };
 
@@ -493,7 +496,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                             const isThirdParty = externalFlight && (!flight || (flight.registration !== externalFlight.registration && flight.flightNumber !== externalFlight.flightNumber));
                             const isConflict = flight && externalFlight && isThirdParty;
 
-                            const isFinished = flight?.status === FlightStatus.FINALIZADO;
+                            const isFinished = flight?.status === FlightStatus.FINALIZADO || flight?.status === FlightStatus.CANCELADO;
                             const isLivre = isFinished && flight?.operator && !busyOperators.has(flight.operator);
                             const isOccupied = !!flight || !!externalFlight;
                             const isVisuallyOccupied = isThirdParty ? isOccupied : (isOccupied && !isFinished);
