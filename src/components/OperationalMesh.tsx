@@ -11,7 +11,7 @@ import { TimeConflictModal } from './TimeConflictModal';
 import { BulkNextDayModal } from './BulkNextDayModal';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { supabase } from '../lib/supabase';
-import { upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos } from '../services/supabaseService';
+import { upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos, getRootMesh } from '../services/supabaseService';
 import { formatAirlineName } from '../utils/airlineUtils';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
@@ -651,7 +651,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
 
   const executeSync = (flightsToSync: MeshFlight[]) => {
     const newFlights: FlightData[] = flightsToSync.map(mesh => {
-      const isPre = mesh.etd === 'PRÉ';
+      const isPre = String(mesh.etd).trim().toUpperCase() === 'PRÉ' || String(mesh.etd).trim().toUpperCase() === 'PRE';
       let derivedCode = mesh.airlineCode || mesh.airline.substring(0, 3) || 'G3';
       if (mesh.airline.toUpperCase().includes('GOL') && !mesh.airlineCode) {
           derivedCode = 'RG';
@@ -1099,102 +1099,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                   Adicionar Voo
                 </button>
 
-                <button 
-                  onClick={() => {
-                    const d = new Date(currentMeshDate + 'T12:00:00');
-                    d.setDate(d.getDate() - 1);
-                    const prevDateStr = getLocalDateStr(d);
-                    
-                    let prevFlights: MeshFlight[] = [];
-                    const saved = localStorage.getItem('meshFlightsByDate');
-                    if (saved) {
-                        try {
-                            const parsed = JSON.parse(saved);
-                            if (parsed[prevDateStr] && parsed[prevDateStr].length > 0) {
-                                prevFlights = parsed[prevDateStr];
-                            }
-                        } catch(e) {
-                            console.error(e);
-                        }
-                    }
-                    
-                    if (prevFlights.length === 0) {
-                        prevFlights = [];
-                    }
-
-                    if (prevFlights && prevFlights.length > 0) {
-                        // Ask if they want to replace or merge
-                        if (window.confirm(`Foram encontrados ${prevFlights.length} voos no dia anterior (${prevDateStr}).\n\nDeseja SUBSTITUIR COMPLETAMENTE a malha atual? (Cancele se quiser apenas Mesclar/Atualizar)`)) {
-                             // REPLACE
-                             const updatedFlights = prevFlights.map((f: any, i: number) => ({
-                                 ...f, 
-                                 id: `mesh-${currentMeshDate}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                                 date: currentMeshDate
-                             }));
-                             
-                             setMeshFlights(updatedFlights);
-                             setTimeout(() => {
-                                 alert(`Malha substituída com sucesso! ${updatedFlights.length} voos carregados.`);
-                             }, 100);
-                        } else {
-                             // MERGE / UPSERT
-                             if (window.confirm(`Deseja Mesclar e Atualizar a malha atual com os dados do dia anterior?\n(Isso adicionará novos voos e atualizará os dados [Prefixo, Posição, etc] dos voos existentes).`)) {
-                                 const updatedFlights = prevFlights.map((f: any, i: number) => ({
-                                     ...f, 
-                                     id: generateUUID(),
-                                     date: currentMeshDate
-                                 }));
-                                 
-                                 setMeshFlights(prev => {
-                                     const nextMesh = [...prev];
-                                     let updatedCount = 0;
-                                     let addedCount = 0;
-
-                                     updatedFlights.forEach(nf => {
-                                         const existingIdx = nextMesh.findIndex(pf => 
-                                             pf.departureFlightNumber === nf.departureFlightNumber && 
-                                             pf.etd === nf.etd
-                                         );
-                                         if (existingIdx >= 0) {
-                                             // Update existing
-                                             nextMesh[existingIdx] = {
-                                                 ...nextMesh[existingIdx],
-                                                 registration: nf.registration || nextMesh[existingIdx].registration,
-                                                 eta: nf.eta || nextMesh[existingIdx].eta,
-                                                 actualArrivalTime: nf.actualArrivalTime || nextMesh[existingIdx].actualArrivalTime,
-                                                 positionId: nf.positionId || nextMesh[existingIdx].positionId,
-                                                 model: nf.model || nextMesh[existingIdx].model
-                                             };
-                                             updatedCount++;
-                                         } else {
-                                             // Add new
-                                             nextMesh.push(nf);
-                                             addedCount++;
-                                         }
-                                     });
-                                     
-                                     setTimeout(() => {
-                                         alert(`${addedCount} novos voos adicionados e ${updatedCount} voos atualizados (dados copiados) com sucesso.`);
-                                     }, 100);
-                                     
-                                     return nextMesh;
-                                 });
-                             }
-                        }
-                    } else {
-                        alert(`Erro inesperado: Não foi possível carregar a malha base do dia anterior.`);
-                    }
-                    setShowOptionsDropdown(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400' : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'}`}
-                >
-                  <History size={14} />
-                  Imp. dia anterior
-                </button>
-
                 <label className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${isDarkMode ? 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-400' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'}`}>
                   <Upload size={14} />
-                  Import. voos
+                  Imp. Excel
                   <input 
                     type="file" 
                     accept=".csv, .xlsx, .xls"
@@ -1403,25 +1310,40 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                   onClick={async () => {
                     setShowOptionsDropdown(false);
                     try {
-                        const flightsWithDate = meshFlights.map(f => ({...f, date: f.date || currentMeshDate}));
-                        await upsertBaseMeshFlights(flightsWithDate);
-                        setAlertState({
-                             isOpen: true, 
-                             title: 'Sucesso', 
-                             message: 'A malha base foi enviada para o banco de dados com sucesso.'
-                        });
-                    } catch (err: any) {
-                        setAlertState({
-                             isOpen: true, 
-                             title: 'Erro', 
-                             message: `Falha ao salvar no banco de dados: ${err.message}`
-                        });
+                        const rootFlights = await getRootMesh();
+                        if(!rootFlights || rootFlights.length === 0) {
+                             setAlertState({isOpen: true, title: 'Malha Vazia', message: 'Nenhum voo encontrado na Malha Raiz.'});
+                             return;
+                        }
+
+                        const newFlights = rootFlights.map(f => ({
+                             ...f,
+                             id: generateUUID(),
+                             date: currentMeshDate,
+                             isNew: true
+                        }));
+                        
+                        setMeshFlights(prev => [...newFlights, ...prev]);
+                        setAlertState({isOpen: true, title: 'Importação Concluída', message: `${newFlights.length} voos importados da Malha Raiz.`});
+                    } catch (e: any) {
+                        setAlertState({isOpen: true, title: 'Erro', message: `Erro ao importar Malha Raiz: ${e.message}`});
                     }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400' : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                >
+                  <History size={14} />
+                  Imp. Malha Raiz
+                </button>
+
+                <button 
+                  onClick={() => {
+                    setShowOptionsDropdown(false);
+                    handleActivate();
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-[#FEDC00]/20 hover:text-[#FEDC00]' : 'text-slate-600 hover:bg-[#FEDC00]/20 hover:text-slate-900'}`}
                 >
                   <RefreshCw size={14} />
-                  Sinc. BD
+                  Sincronizar
                 </button>
 
                 <button 
@@ -1528,7 +1450,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                         const isCellFocused = focusedCell?.rowId === flight.id && focusedCell?.col === cIdx;
                         const isCellEditing = editingCell?.rowId === flight.id && editingCell?.col === cIdx;
                         const cellValue = flight[col.key as keyof MeshFlight] || '';
-                        const isPre = flight.etd === 'PRÉ' || flight.etd === 'PRE';
+                        const isPre = String(flight.etd).trim().toUpperCase() === 'PRÉ' || String(flight.etd).trim().toUpperCase() === 'PRE';
                         const checkField = (val: any) => !val || String(val).trim() === '' || String(val).trim() === '?';
                         const hasCalco = !checkField(flight.actualArrivalTime);
                         const hasEta = !checkField(flight.eta);

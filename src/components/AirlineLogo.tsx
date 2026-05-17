@@ -48,12 +48,9 @@ const AIRLINE_INFO: Record<string, { iata: string, name: string }> = {
   'TOTAL': { iata: 'TT', name: 'TOTAL' },
 };
 
-export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className = "", showName = true, size = 'md' }) => {
-  const [imgError, setImgError] = useState(false);
-  const { isDarkMode } = useTheme();
-  
-  const getNormalizedInfo = (code: string) => {
-    const upperCode = code.toUpperCase();
+export const getNormalizedAirlineInfo = (code: string) => {
+    const upperCode = code?.toUpperCase() || '';
+    if (!upperCode) return { iata: '', name: 'N/A' };
     if (upperCode.includes('LA') && upperCode.includes('TAM') || upperCode.includes('LATAM')) return { iata: 'LA', name: 'LATAM' };
     if (upperCode.includes('GOL') || upperCode.includes('G3') || upperCode.includes('GLO')) return { iata: 'G3', name: 'GOL' };
     if (upperCode.includes('AZUL') || upperCode.includes('AD') || upperCode.includes('AZU')) return { iata: 'AD', name: 'AZUL' };
@@ -88,8 +85,11 @@ export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className
     return { iata: upperCode.substring(0,2), name: upperCode.split(' ')[0] };
   };
 
-  const normalizedCode = airlineCode?.toUpperCase() || '';
-  const info = getNormalizedInfo(normalizedCode);
+export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className = "", showName = true, size = 'md' }) => {
+  const [imgError, setImgError] = useState(false);
+  const { isDarkMode } = useTheme();
+  
+  const info = getNormalizedAirlineInfo(airlineCode);
   
   const iconUrl = `https://images.kiwi.com/airlines/64/${info.iata}.png`;
 

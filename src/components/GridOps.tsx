@@ -97,6 +97,7 @@ interface GridOpsProps {
     ltName: string;
     currentMeshDate?: string;
     positionRestrictions: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
+    positionsMetadata?: Record<string, any>;
 }
 
 const parseTime = (timeStr: string) => {
@@ -231,7 +232,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
     onEditingStateChange,
     ltName,
     currentMeshDate,
-    positionRestrictions
+    positionRestrictions,
+    positionsMetadata = {}
 }) => {
   const { isDarkMode } = useTheme();
   const { user, warName } = useAuth();
@@ -753,67 +755,67 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-        onUpdateFlights(prevFlights => {
-            let hasChanges = false;
-            const changedFlights: FlightData[] = [];
+        let hasChangesLocal = false;
+        const changedFlightsLocal: FlightData[] = [];
+        
+        flights.forEach(f => {
+            const minutesToETD = getMinutesDiff(f.etd, f.date);
+            let updatedF = { ...f };
+            let isModified = false;
             
-            const updated = prevFlights.map(f => {
-                const minutesToETD = getMinutesDiff(f.etd, f.date);
-                let updatedF = { ...f };
-                let isModified = false;
-                
-                // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
-                if (f.status === FlightStatus.CHEGADA && minutesToETD < 60 && minutesToETD >= -120 && !f.operator && !f.isExcludedFromQueue) {
-                    isModified = true;
-                    const newLog = createNewLog('SISTEMA', 'Voo movido para FILA automaticamente (ETD < 60min).', 'SISTEMA');
-                    updatedF = { 
-                        ...updatedF, 
-                        status: FlightStatus.FILA,
-                        logs: [...(f.logs || []), newLog]
-                    };
-                }
-                
-                // NOVA LÓGICA: Início de abastecimento automático
-                const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
-                if ((f.status === FlightStatus.DESIGNADO || f.status === FlightStatus.PRÉ) && f.operator && hasPosition) {
-                    const designationTime = f.designationTime ? new Date(f.designationTime).getTime() : 0;
-                    if (designationTime > 0) {
-                        const minsSinceDesig = (Date.now() - designationTime) / 60000;
-                        if (minsSinceDesig >= 10) {
-                            if (minutesToETD <= 25 || minutesToETD < 30) {
-                                isModified = true;
-                                const newLog = createNewLog('SISTEMA', 'Início aut. de abastecimento (10m deslocamento/acoplamento respeitados).', 'SISTEMA');
-                                updatedF = {
-                                    ...updatedF,
-                                    status: FlightStatus.ABASTECENDO,
-                                    startTime: new Date(),
-                                    logs: [...(f.logs || []), newLog]
-                                };
-                            }
+            // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
+            if (f.status === FlightStatus.CHEGADA && minutesToETD < 60 && !f.operator && !f.isExcludedFromQueue) {
+                isModified = true;
+                const newLog = createNewLog('SISTEMA', 'Voo movido para FILA automaticamente (ETD < 60min).', 'SISTEMA');
+                updatedF = { 
+                    ...updatedF, 
+                    status: FlightStatus.FILA,
+                    logs: [...(f.logs || []), newLog]
+                };
+            }
+            
+            // NOVA LÓGICA: Início de abastecimento automático
+            const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
+            if ((f.status === FlightStatus.DESIGNADO || f.status === FlightStatus.PRÉ) && f.operator && hasPosition) {
+                const designationTime = f.designationTime ? new Date(f.designationTime).getTime() : 0;
+                if (designationTime > 0) {
+                    const minsSinceDesig = (Date.now() - designationTime) / 60000;
+                    if (minsSinceDesig >= 10) {
+                        if (minutesToETD <= 25 || minutesToETD < 30) {
+                            isModified = true;
+                            const newLog = createNewLog('SISTEMA', 'Início aut. de abastecimento (10m deslocamento/acoplamento respeitados).', 'SISTEMA');
+                            updatedF = {
+                                ...updatedF,
+                                status: FlightStatus.ABASTECENDO,
+                                startTime: new Date(),
+                                logs: [...(f.logs || []), newLog]
+                            };
                         }
                     }
                 }
-                
-                if (isModified) {
-                    hasChanges = true;
-                    changedFlights.push(updatedF);
-                    return updatedF;
-                }
-                return f;
-            });
-
-            if (hasChanges) {
-                // Persistir no banco
-                changedFlights.forEach(f => {
-                    upsertFlight(f).catch(err => console.error("Erro na persistência automática:", err));
-                });
-                return updated;
             }
-            return prevFlights;
+            
+            if (isModified) {
+                hasChangesLocal = true;
+                changedFlightsLocal.push(updatedF);
+            }
         });
+
+        if (hasChangesLocal) {
+            onUpdateFlights(prevFlights => {
+                return prevFlights.map(f => {
+                    const found = changedFlightsLocal.find(cf => cf.id === f.id);
+                    return found || f;
+                });
+            });
+            // Persistir no banco
+            changedFlightsLocal.forEach(f => {
+                upsertFlight(f).catch(err => console.error("Erro na persistência automática:", err));
+            });
+        }
     }, 5000);
     return () => clearInterval(interval);
-  }, [onUpdateFlights]);
+  }, [flights, onUpdateFlights]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -992,9 +994,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isFocused = focusedCell?.rowId === row.id && focusedCell?.col === colKey;
     const isEditing = editable && editingCell?.rowId === row.id && editingCell?.col === colKey;
     
-    // Custom styling for CTA positions
-    const isCTA = colKey === 'positionId' && (row.positionType === 'CTA' || positionRestrictions[row.positionId as string] === 'CTA');
-    const ctaClasses = isCTA ? 'bg-yellow-400 text-slate-900 border-yellow-500' : '';
+    // Custom styling for REMOTA positions (based on user request)
+    const isRemota = colKey === 'positionId' && (
+      (positionsMetadata && positionsMetadata[row.positionId as string]?.type === 'REMOTA') || 
+      (!positionsMetadata && positionRestrictions[row.positionId as string] === 'SRV')
+    );
 
     let cellStyle = className;
     let extraLabel = null;
@@ -1064,7 +1068,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         data-editable={editable}
         className={`
           p-0 border-y border-l transition-all relative h-10 outline-none
-          ${isCTA ? 'bg-yellow-400 border-yellow-500' : (isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50')}
+          ${isRemota ? 'bg-[#fff700] border-[#ccc600]' : (isDarkMode ? 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-slate-700 group-hover:to-slate-800' : 'border-slate-200 bg-white group-hover:bg-slate-50')}
         `}
       >
         {isEditing ? (
@@ -1082,7 +1086,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 e.target.select();
               }
             }}
-            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${cellStyle} ${isDarkMode ? (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-slate-900 shadow-inner') : (isCTA ? 'bg-yellow-400 text-slate-900' : 'bg-white font-black text-slate-900')}`}
+            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${cellStyle} ${isDarkMode ? (isRemota ? 'bg-[#fff700] text-[#524f4f]' : 'bg-slate-900 shadow-inner') : (isRemota ? 'bg-[#fff700] text-[#524f4f]' : 'bg-white font-black text-slate-900')}`}
             value={value}
             onChange={(e) => handleFieldChange(row.id, colKey, e.target.value)}
             onBlur={() => handleFinishEdit(row.id, colKey as string)}
@@ -1107,7 +1111,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
               }
             }}
             onKeyDown={(e) => handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)}
-            className={`w-full h-full px-1 flex items-center relative ${colKey === 'airlineCode' ? 'justify-start ml-2' : 'justify-center'} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? 'ring-2 ring-indigo-500 ring-inset z-20 shadow-xl ' + (editable ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-500/10') : ''} ${cellStyle} ${ctaClasses}`}
+            className={`w-full h-full px-1 flex items-center relative ${colKey === 'airlineCode' ? 'justify-start ml-2' : 'justify-center'} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? 'ring-2 ring-indigo-500 ring-inset z-20 shadow-xl ' + (editable ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-500/10') : ''} ${cellStyle} ${isRemota && !isFocused ? 'bg-[#fff700] text-[#524f4f]' : ''}`}
           >
             {extraLabel}
             {colKey === 'airlineCode' ? (
@@ -1702,6 +1706,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
             rowClass: isDarkMode ? '[&>td]:!bg-slate-900/40 [&>td]:!border-slate-800/50 [&>td]:opacity-60' : '[&>td]:!bg-slate-100 [&>td]:!border-slate-200 [&>td]:opacity-60'
         };
 
+        if (minutesToETD < 0) return {
+            label: 'ATRASADO',
+            subtitle: displayTime,
+            color: 'text-white bg-red-600 border-red-700',
+            rowClass: isDarkMode ? '[&>td]:!bg-red-950/60 [&>td]:!border-red-900/60' : '[&>td]:!bg-red-100 [&>td]:!border-red-400'
+        };
+
         if (minutesToETD < 20) return { 
             label: 'PENALTY', 
             subtitle: displayTime,
@@ -1772,7 +1783,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         const delayedColor = isDarkMode ? 'text-red-500 bg-red-900/40 border-red-500/50' : 'text-red-700 bg-red-100 border-red-400';
         const delayedRowClass = isDarkMode ? '[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40' : '[&>td]:!bg-red-50 [&>td]:!border-red-200';
         
-        let targetLabel = 'A CAMINHO';
+        let targetLabel = minutesToETD < 0 ? 'A CAM. (ATRASO)' : 'A CAMINHO';
         let targetColor = isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-400' : 'text-indigo-600 bg-indigo-50 border-indigo-200';
         
         const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
@@ -1817,11 +1828,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
         // Finalizando se: faltam menos de 10 min OU se já passou de 90% do volume
         const isFinalizando = (minutesToETD < 10 && minutesToETD > 0) || (f.fuelStatus > 90);
         
-        let label = 'ABASTECENDO';
+        let label = isDelayed ? 'ABASTECENDO (ATRASO)' : 'ABASTECENDO';
         let color = isDarkMode ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200';
         
         if (isFinalizando) {
-            label = 'FINALIZANDO';
+            label = isDelayed ? 'FINALIZANDO (ATRASO)' : 'FINALIZANDO';
             color = isDarkMode ? 'text-blue-300 bg-blue-500/20 border-blue-300' : 'text-blue-700 bg-blue-50 border-blue-300';
         }
         

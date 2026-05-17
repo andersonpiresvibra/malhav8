@@ -12,6 +12,8 @@ import { useTheme } from '../contexts/ThemeContext';
 
 import { POSITIONS_BY_PATIO, PATIO_LABELS, PositionMetadata } from '../constants/aerodromoConfig';
 
+import { getNormalizedAirlineInfo } from './AirlineLogo';
+
 interface AerodromoProps {
     operators?: OperatorProfile[];
     flights?: FlightData[];
@@ -58,13 +60,51 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
 
   const currentPositions = useMemo(() => POSITIONS_BY_PATIO[activePatioId] || [], [activePatioId]);
 
+  const busyOperators = useMemo(() => {
+    const busy = new Set<string>();
+    localFlights.forEach(f => {
+      if (f.operator && f.status !== FlightStatus.FINALIZADO && f.status !== FlightStatus.CANCELADO) {
+        busy.add(f.operator);
+      }
+    });
+    return busy;
+  }, [localFlights]);
+
+  const latestFlightIdByOperator = useMemo(() => {
+    const latest = new Map<string, string>(); // operator -> flightId
+    const latestTime = new Map<string, string>(); // operator -> ETD string
+    
+    localFlights.forEach(f => {
+      if (f.operator) {
+        const currentEtd = f.etd || f.eta || '00:00';
+        const existingLatest = latestTime.get(f.operator) || '00:00';
+        
+        if (currentEtd >= existingLatest) {
+          latest.set(f.operator, f.id);
+          latestTime.set(f.operator, currentEtd);
+        }
+      }
+    });
+    return latest;
+  }, [localFlights]);
+
   const positionData = useMemo(() => {
       const map = new Map<string, FlightData>();
       localFlights.forEach(f => {
-          if (f.positionId) map.set(f.positionId, f);
+          if (f.positionId) {
+             if (f.status === FlightStatus.FINALIZADO && f.operator) {
+                if (busyOperators.has(f.operator)) {
+                   return;
+                }
+                if (latestFlightIdByOperator.get(f.operator) !== f.id) {
+                   return;
+                }
+             }
+             map.set(f.positionId, f);
+          }
       });
       return map;
-  }, [localFlights]);
+  }, [localFlights, busyOperators, latestFlightIdByOperator]);
 
   const displayedPositions = useMemo(() => {
     const listToFilter = searchTerm ? allPositions : currentPositions;
@@ -260,14 +300,23 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
               
               // Conflito: Esperávamos um voo nosso lá, mas a GRU botou outro
               const isConflict = flight && externalFlight && isThirdParty;
-
+              
               const isOccupied = !!flight || !!externalFlight;
+              const isFinished = flight?.status === FlightStatus.FINALIZADO;
+              
               const isDisabled = disabledPositions.has(posId);
               const restriction = positionRestrictions[posId] || 'HYBRID';
               const metadata = positionsMetadata[posId];
               
-              const displayAirline = isThirdParty ? externalFlight.airline : (flight?.airline || null);
+              const rawAirline = isThirdParty ? externalFlight.airline : (flight?.airline || null);
+              const displayAirline = rawAirline ? getNormalizedAirlineInfo(rawAirline).name : null;
+              
               const displayFlightNum = isThirdParty ? externalFlight.flightNumber : ((flight?.flightNumber && flight.flightNumber !== '--') ? flight.flightNumber : (flight?.departureFlightNumber || '--'));
+              
+              const isLivre = isFinished && flight?.operator && !busyOperators.has(flight.operator);
+              
+              // We consider it visually occupied by a flight if there's an external flight or our flight is NOT finished
+              const isVisuallyOccupied = isThirdParty ? isOccupied : (isOccupied && !isFinished);
               
               const getRestrictionColor = () => {
                 if (isDisabled) return isDarkMode ? 'border-red-900/50 bg-red-950/20' : 'border-red-200';
@@ -293,7 +342,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                     </div>
                     {isDisabled ? (
                       <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border shadow-sm ${isDarkMode ? 'bg-red-900/30 text-red-500 border-red-900/50' : 'bg-red-100 text-red-600 border-red-200'}`}>OFF</span>
-                    ) : isOccupied ? (
+                    ) : (isVisuallyOccupied && displayAirline) ? (
                       <div className="flex items-center gap-1.5">
                         <span className={`text-[10px] font-black uppercase border px-2 py-0.5 rounded shadow-sm ${isThirdParty ? (isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200') : (isDarkMode ? 'bg-blue-900/30 text-blue-400 border-blue-900/50' : 'bg-blue-50 text-blue-700 border-blue-200')}`}>{displayAirline}</span>
                         {flight && onRemoveFlight && (
@@ -324,7 +373,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                            <span className={`text-[10px] font-black tracking-widest ${isDarkMode ? 'text-slate-600' : 'text-slate-400'} uppercase`}>OCUPADO POR TERCEIROS</span>
                            <div className={`mt-1 text-[9px] font-mono ${isDarkMode ? 'text-slate-700' : 'text-slate-300'}`}>UPDATE: {externalFlight.updatedAt}</div>
                         </div>
-                    ) : isOccupied ? (
+                    ) : isVisuallyOccupied ? (
                        <div className="flex flex-col gap-1.5">
                         <div className={`flex justify-between items-baseline font-black`}>
                           <span className={`truncate mr-2 font-mono font-bold text-[14px] leading-5 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{displayFlightNum}</span>
@@ -340,9 +389,15 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                         
                         <div className={`h-px w-full ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
                         
-                        <div className="flex justify-between items-center mt-1">
-                          <OperatorCell operatorName={flight.operator} operators={operators} size="md" />
-                          <span className={`text-[12px] leading-[18px] font-black bg-clip-text text-transparent truncate ml-2 text-center mt-0 px-[5px] ${isDarkMode ? 'bg-gradient-to-br from-slate-200 to-slate-400' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>{flight.fleet || flight.vehicleType || ''}</span>
+                        <div className="flex justify-between items-center mt-1 h-10">
+                          {flight.operator && (
+                             <OperatorCell 
+                               operatorName={flight.operator} 
+                               operators={operators} 
+                               size="md" 
+                             />
+                          )}
+                          <span className={`text-[12px] leading-[18px] font-black bg-clip-text text-transparent truncate ml-auto text-right mt-0 px-[5px] ${isDarkMode ? 'bg-gradient-to-br from-slate-200 to-slate-400' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>{flight.fleet || flight.vehicleType || ''}</span>
                         </div>
                         
                         <div className="flex flex-col gap-1 mt-1 pb-1">
@@ -356,6 +411,16 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                              />
                            </div>
                         </div>
+                      </div>
+                    ) : isLivre && flight?.operator ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-2 relative">
+                         <span className={`text-[#383d47] font-sans font-bold text-[10px] text-center uppercase opacity-0 transition-opacity duration-300 group-hover:opacity-100 absolute top-0 w-full`}>POSIÇÃO LIVRE</span>
+                         <OperatorCell 
+                           operatorName={flight.operator} 
+                           operators={operators} 
+                           size="lg" 
+                           isLivre={true} 
+                         />
                       </div>
                     ) : (
                       <div className="text-center flex flex-col items-center justify-center h-full gap-1">
@@ -428,12 +493,17 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                             const isThirdParty = externalFlight && (!flight || (flight.registration !== externalFlight.registration && flight.flightNumber !== externalFlight.flightNumber));
                             const isConflict = flight && externalFlight && isThirdParty;
 
+                            const isFinished = flight?.status === FlightStatus.FINALIZADO;
+                            const isLivre = isFinished && flight?.operator && !busyOperators.has(flight.operator);
                             const isOccupied = !!flight || !!externalFlight;
+                            const isVisuallyOccupied = isThirdParty ? isOccupied : (isOccupied && !isFinished);
+
                             const isDisabled = disabledPositions.has(posId);
                             const restriction = positionRestrictions[posId] || 'HYBRID';
                             const isCtaOnly = restriction === 'CTA';
 
-                            const displayAirline = isThirdParty ? externalFlight.airline : (flight?.airline || null);
+                            const rawAirline = isThirdParty ? externalFlight.airline : (flight?.airline || null);
+                            const displayAirline = rawAirline ? getNormalizedAirlineInfo(rawAirline).name : null;
                             const displayFlightNum = isThirdParty ? externalFlight.flightNumber : (flight?.flightNumber || '--');
 
                             return (
@@ -447,7 +517,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                                     <td className="px-4 py-3 text-center">
                                         {isThirdParty ? (
                                             <div className={`text-[10px] font-black py-1 px-2 rounded ${isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400'}`}>EXT</div>
-                                        ) : flight ? (
+                                        ) : isVisuallyOccupied ? (
                                             <div className="flex justify-center">
                                                 <AirlineLogo airlineCode={flight.airlineCode || flight.airline || 'GEN'} size="xl" showName={false} />
                                             </div>
@@ -455,25 +525,25 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                                     </td>
                                     <td className="px-4 py-3">
                                          {isThirdParty ? (
-                                             <span className={`text-[10px] font-black uppercase tracking-tight leading-5 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{externalFlight.airline}</span>
-                                         ) : flight ? (
+                                             <span className={`text-[10px] font-black uppercase tracking-tight leading-5 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{displayAirline || '--'}</span>
+                                         ) : isVisuallyOccupied ? (
                                              <div className="flex flex-col">
-                                                 <span className={`text-xs font-black uppercase tracking-tight leading-5 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{flight.airline}</span>
+                                                 <span className={`text-xs font-black uppercase tracking-tight leading-5 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{displayAirline || '--'}</span>
                                              </div>
                                          ) : '--'}
                                      </td>
                                     <td className="px-4 py-3 text-center">
-                                        {isOccupied ? (
+                                        {isVisuallyOccupied ? (
                                             <span className={`text-xs font-mono font-bold ${isThirdParty ? (isDarkMode ? 'text-slate-500' : 'text-slate-400') : (isDarkMode ? 'text-slate-300' : 'text-slate-700')}`}>{displayFlightNum}</span>
                                         ) : '--'}
                                     </td>
                                      <td className="px-4 py-3 text-center">
-                                         {isOccupied ? (
+                                         {isVisuallyOccupied ? (
                                              <span className={`text-xs leading-5 font-sans font-bold uppercase ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{isThirdParty ? externalFlight.registration : (flight?.registration || 'N/A')}</span>
                                          ) : '--'}
                                      </td>
                                      <td className="px-4 py-3 text-xs">
-                                         {flight ? (
+                                         {isVisuallyOccupied && !isThirdParty && flight ? (
                                              <span className={`text-xs font-sans font-bold ${isDarkMode ? 'text-slate-400' : 'text-[#50545c]'}`}>{flight.destination || flight.origin || 'SBMO'}</span>
                                          ) : isThirdParty ? (
                                              <span className="text-[10px] font-black text-slate-400">DESCONHECIDO</span>
@@ -495,6 +565,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                                            operators={operators} 
                                            size="xl" 
                                            className="text-[13px] leading-5"
+                                           isLivre={isLivre}
                                          />
                                      </td>
                                      <td className="px-4 py-3">

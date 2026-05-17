@@ -10,6 +10,7 @@ interface OperatorCellProps {
   showName?: boolean;
   operators?: OperatorProfile[];
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  isLivre?: boolean;
 }
 
 export const OperatorCell: React.FC<OperatorCellProps> = ({ 
@@ -17,7 +18,8 @@ export const OperatorCell: React.FC<OperatorCellProps> = ({
   className = "",
   showName = true,
   operators = [],
-  size = 'sm'
+  size = 'sm',
+  isLivre = false
 }) => {
   const [imageError, setImageError] = useState(false);
   const { isDarkMode } = useTheme();
@@ -47,23 +49,28 @@ export const OperatorCell: React.FC<OperatorCellProps> = ({
   
   return (
     <div className={`flex items-center justify-start gap-2 ${className}`}>
-      <div className={`${containerSizes[size]} ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'} border rounded overflow-hidden shrink-0 flex items-center justify-center`}>
+      <div className={`${containerSizes[size]} ${isLivre ? (isDarkMode ? 'bg-emerald-500/20 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-emerald-500 border-emerald-400') : (isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200')} border ${isLivre ? 'border-2' : ''} rounded overflow-hidden shrink-0 flex items-center justify-center`}>
         {profile?.photoUrl && !imageError ? (
           <img 
             src={profile.photoUrl} 
             alt={operatorName} 
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover ${isLivre ? 'opacity-90' : ''}`}
             referrerPolicy="no-referrer"
             onError={() => setImageError(true)}
           />
         ) : (
-          <User size={iconSizes[size]} className={isDarkMode ? "text-slate-600" : "text-slate-400/50"} />
+          <User size={iconSizes[size]} className={isLivre ? (isDarkMode ? 'text-emerald-400' : 'text-white') : (isDarkMode ? "text-slate-600" : "text-slate-400/50")} />
         )}
       </div>
       {showName && operatorName && (
-        <span className={`${isDarkMode ? 'text-slate-300' : 'text-slate-700'} uppercase tracking-tight truncate font-bold ${textStyles[size]} mt-0.5`}>
-          {operatorName}
-        </span>
+        <div className="flex flex-col">
+          {isLivre && (
+            <span className={`text-[10px] sm:text-xs font-black ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} uppercase animate-pulse leading-none mb-0.5`}>LIVRE</span>
+          )}
+          <span className={`${isLivre ? (isDarkMode ? 'text-slate-400 text-[9px]' : 'text-slate-500 text-[9px]') : (isDarkMode ? 'text-slate-300' : 'text-slate-700')} uppercase tracking-tight truncate font-bold ${isLivre ? '' : textStyles[size]} ${isLivre ? 'max-w-[70px]' : ''}`}>
+            {operatorName}
+          </span>
+        </div>
       )}
       {showName && !operatorName && (
         <span className={`${isDarkMode ? 'text-slate-600' : 'text-slate-400'} uppercase tracking-tight truncate font-bold ${textStyles[size]} mt-0.5`}>

@@ -693,6 +693,7 @@ const App: React.FC = () => {
                     setMeshFlights={setMeshFlights}
                     onOpenShiftOperators={() => handleViewChange('SHIFT_OPERATORS')}
                     positionRestrictions={positionRestrictions}
+                    positionsMetadata={positionsMetadata}
                     onOpenReport={(flight) => {
                         setTargetReportFlight(flight);
                         handleViewChange('REPORTS');
