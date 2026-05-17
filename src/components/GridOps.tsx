@@ -1905,7 +1905,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 onUpdateFlights(prev => {
                                     // Manter voos existentes que já foram processados
                                     const existingIds = new Set(prev.map(f => f.id));
-                                    const newFlights = meshFlights.map(m => {
+                                    const newFlights = meshFlights
+                                        .filter(m => !m.disabled) // Pular voos desativados
+                                        .map(m => {
                                         if (existingIds.has(m.id)) return prev.find(f => f.id === m.id)!;
                                         return {
                                             id: m.id,

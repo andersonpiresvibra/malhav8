@@ -25,7 +25,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
-    { id: 'AERODROMO' as ViewState, icon: Earth, label: 'Aeródromo' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
@@ -91,19 +90,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                 }`}
              >
                 <Database size={16} /> MalhaBase_BD
-             </button>
-             <button
-                onClick={() => {
-                   onViewChange('AERODROMO_ADMIN');
-                   setIsMenuOpen(false);
-                }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                   activeView === 'AERODROMO_ADMIN' 
-                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
-                }`}
-             >
-                <Earth size={16} /> AERÓDROMO_BD
              </button>
              <button
                 onClick={() => {

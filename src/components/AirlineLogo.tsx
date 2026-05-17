@@ -5,7 +5,7 @@ interface AirlineLogoProps {
   airlineCode: string;
   className?: string;
   showName?: boolean;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
 
 const AIRLINE_INFO: Record<string, { iata: string, name: string }> = {
@@ -97,11 +97,12 @@ export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className
     sm: 'w-5 h-5',
     md: 'w-6 h-6',
     lg: 'w-8 h-8',
-    xl: 'w-10 h-10'
+    xl: 'w-10 h-10',
+    full: 'w-full h-full'
   };
 
   return (
-    <div className={`flex items-center gap-2 pl-1 ${className}`}>
+    <div className={`flex items-center justify-center ${showName ? 'gap-2 pl-1' : ''} ${className}`}>
       <div className={`${sizeClasses[size]} flex items-center justify-center shrink-0 rounded-sm ${isDarkMode ? 'bg-white/10' : 'bg-transparent'}`}>
         {!imgError ? (
           <img 

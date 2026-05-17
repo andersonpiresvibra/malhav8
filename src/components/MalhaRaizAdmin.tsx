@@ -11,21 +11,24 @@ interface MalhaRaizAdminProps {
   isDarkMode: boolean;
 }
 
-type FlightField = 'flightNumber' | 'destination' | 'etd' | 'eta' | 'registration' | 'airline' | 'is_disabled' | 'actions';
+type FlightField = 'flightNumber' | 'destination' | 'etd' | 'eta' | 'airline' | 'disabled' | 'actions';
 
 const COLUMNS: { key: FlightField; label: string; width: string; isVariable: boolean }[] = [
-  { key: 'flightNumber', label: 'VÔO', width: 'w-32', isVariable: true },
-  { key: 'destination', label: 'DESTINO (ICAO)', width: 'w-32', isVariable: true },
-  { key: 'eta', label: 'ESTIMADO (ETA)', width: 'w-24', isVariable: true },
-  { key: 'etd', label: 'SAÍDA (ETD)', width: 'w-24', isVariable: true },
-  { key: 'actions', label: 'Ações', width: 'w-20', isVariable: false },
+  { key: 'airline', label: 'COMPANHIA', width: 'w-px whitespace-nowrap px-4', isVariable: false },
+  { key: 'flightNumber', label: 'VÔO', width: 'w-px px-2', isVariable: true },
+  { key: 'destination', label: 'ICAO', width: 'w-px px-2', isVariable: true },
+  { key: 'eta', label: 'ETA', width: 'w-px px-2', isVariable: true },
+  { key: 'etd', label: 'ETD', width: 'w-px px-2', isVariable: true },
+  { key: 'disabled', label: 'DES.', width: 'w-px px-2', isVariable: false },
+  { key: 'actions', label: 'Ações', width: 'w-px px-2', isVariable: false },
 ];
 
 export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) => {
   const [flights, setFlights] = useState<MeshFlight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [airlines, setAirlines] = useState<string[]>(['EM GERAL']);
+  const [airlines, setAirlines] = useState<string[]>([]);
+  const [companyNames, setCompanyNames] = useState<Record<string, string>>({});
   const [activeAirline, setActiveAirline] = useState<string>('');
   const [showNewAirlineModal, setShowNewAirlineModal] = useState(false);
   const [showImportInstructions, setShowImportInstructions] = useState(false);
@@ -45,10 +48,20 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
     setIsLoading(true);
     try {
         const data = await getRootMesh();
+        const { data: companies } = await supabase.from('companhias').select('airline, airline_code');
+        
+        if (companies) {
+            const mapping: Record<string, string> = {};
+            companies.forEach(c => {
+                if (c.airline_code) mapping[c.airline_code.toUpperCase()] = c.airline.toUpperCase();
+            });
+            setCompanyNames(mapping);
+        }
+
         if (data) {
             setFlights(data);
             const uniqueAirlines = Array.from(new Set(data.map(a => a.airlineCode))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
-            setAirlines(['EM GERAL', ...uniqueAirlines]);
+            setAirlines(uniqueAirlines);
             if (!activeAirline) {
                 setActiveAirline('EM GERAL');
             }
@@ -67,7 +80,8 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
     if (!newAirlineName.trim()) return;
     const name = newAirlineName.trim().toUpperCase();
     if (!airlines.includes(name)) {
-        setAirlines([...airlines, name].sort());
+        const uniqueAirlines = Array.from(new Set([...airlines, name])).filter(a => a !== 'EM GERAL').sort();
+        setAirlines(uniqueAirlines);
     }
     setActiveAirline(name);
     setShowNewAirlineModal(false);
@@ -86,8 +100,6 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
         destination: '',
         etd: '00:00',
         eta: '00:00',
-        registration: '',
-        model: '',
         is_disabled: false,
         isNew: true
     };
@@ -183,7 +195,7 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
         // Re-calculate airlines if airline changed
         if (field === 'airline' || field === 'airlineCode') {
              const uniqueAirlines = Array.from(new Set(updatedFlights.map(a => a.airlineCode))).filter(a => Boolean(a) && a !== 'EM GERAL').sort();
-             setAirlines(['EM GERAL', ...uniqueAirlines]);
+             setAirlines(uniqueAirlines);
         }
     } catch (e) {
         console.error(e);
@@ -200,13 +212,14 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
     if (activeAirline === 'EM GERAL') {
       return [...flights].sort((a,b) => (a.etd || '').localeCompare(b.etd || ''));
     }
-    return flights.filter(a => a.airline === activeAirline).sort((a,b) => (a.registration || '').localeCompare(b.registration || ''));
+    return flights.filter(a => a.airline === activeAirline).sort((a,b) => (a.etd || '').localeCompare(b.etd || ''));
   }, [flights, activeAirline]);
 
   const handleKeyDown = (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
     const aircraft = currentAirlineFlights[rowIndex];
     if (!aircraft) return;
     
+    const input = e.target as HTMLInputElement;
     const isEditing = editingCell?.rowId === aircraft.id && editingCell?.col === colIndex;
 
     switch (e.key) {
@@ -229,7 +242,6 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                 e.preventDefault();
                 setFocusedCell({ rowId: aircraft.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
             } else {
-                const input = e.target as HTMLInputElement;
                 if (input.selectionStart === input.value.length) {
                     e.preventDefault();
                     setFocusedCell({ rowId: aircraft.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
@@ -242,7 +254,6 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                 e.preventDefault();
                 setFocusedCell({ rowId: aircraft.id, col: Math.max(0, colIndex - 1) });
             } else {
-                const input = e.target as HTMLInputElement;
                 if (input.selectionStart === 0) {
                     e.preventDefault();
                     setFocusedCell({ rowId: aircraft.id, col: Math.max(0, colIndex - 1) });
@@ -285,7 +296,7 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
         default:
             // Excel-like direct entry
             if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
-                const isBooleanField = ['missing_cap', 'defective_door', 'defective_panel', 'no_autocut', 'airline', 'actions'].includes(COLUMNS[colIndex].key);
+                const isBooleanField = ['missing_cap', 'defective_door', 'defective_panel', 'no_autocut', 'airline', 'actions', 'disabled'].includes(COLUMNS[colIndex].key);
                 if (!isBooleanField) {
                     e.preventDefault();
                     setIsKeystrokeEdit(true);
@@ -347,11 +358,11 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
               return undefined;
           };
 
-          const vooRaw = getVal(['VOO', 'FLIGHT', 'NVOO', 'PREFIXO', 'FLIGHTNUMBER']);
+          const vooRaw = getVal(['VOO', 'FLIGHT', 'NVOO', 'FLIGHTNUMBER', 'NUMEROVOO']);
           const isVooKey = row['VÔO'] || row['VOO'] || row['Voo'] || row['vôo'];
           const destinoRaw = getVal(['DESTINO', 'ICAO', 'DESTINATION']);
-          const etaRaw = getVal(['ESTIMADO', 'ETA']);
-          const etdRaw = getVal(['SAIDA', 'ETD']);
+          const etaRaw = getVal(['ESTIMADO', 'ETA', 'CHEGADA']);
+          const etdRaw = getVal(['SAIDA', 'ETD', 'PARTIDA']);
           const ciaRaw = getVal(['COMPANHIA', 'CIA', 'EMPRESA', 'AIRLINE']);
 
           const voo = vooRaw?.toString().toUpperCase().trim() || isVooKey?.toString().toUpperCase().trim();
@@ -400,9 +411,9 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                   destination: f.destination,
                   eta: f.eta,
                   etd: f.etd,
-                  registration: '',
-                  model: '',
-                  positionId: '',
+                  registration: f.registration || '',
+                  model: f.model || '',
+                  positionId: f.positionId || '',
                   actualArrivalTime: ''
               };
           });
@@ -482,6 +493,26 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
     }
   };
 
+  const handleDeleteAction = async () => {
+    if (activeAirline === 'EM GERAL') {
+        if (!window.confirm("Deseja realmente limpar TODA a malha raiz? Esta ação não pode ser desfeita.")) return;
+        setIsLoading(true);
+        try {
+            await clearRootMesh();
+            setFlights([]);
+            setAirlines([]);
+            setActiveAirline('EM GERAL');
+            setFeedback({ msg: "Malha raiz limpa com sucesso.", isError: false });
+        } catch (e: any) {
+            setFeedback({ msg: `Erro ao limpar malha: ${e.message}`, isError: true });
+        } finally {
+            setIsLoading(false);
+        }
+    } else {
+        setConfirmDeleteAirline(activeAirline);
+    }
+  };
+
   return (
   <div className={`flex flex-col h-full ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}>
         {/* HEADER */}
@@ -511,6 +542,14 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                     <Info size={14} />
                 </button>
                 <button 
+                    onClick={handleDeleteAction}
+                    disabled={isLoading}
+                    className={`p-1.5 rounded-md border transition-all ${isDarkMode ? 'border-red-900/30 text-red-400/60 hover:text-red-400 hover:bg-red-500/10' : 'border-red-100 text-red-300 hover:text-red-600 hover:bg-red-50'}`}
+                    title={activeAirline === 'EM GERAL' ? "Limpar toda a Malha Raiz" : `Excluir companhia ${activeAirline}`}
+                >
+                    <Trash2 size={14} />
+                </button>
+                <button 
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isImporting}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'} disabled:opacity-50`}
@@ -527,59 +566,18 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
            </div>
         </div>
 
-        {/* TABS */}
-        <div className={`h-12 shrink-0 flex border-b ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'} z-30 overflow-hidden`}>
-           <nav className="flex overflow-x-auto custom-scrollbar flex-1 items-stretch">
-             <button
-                onClick={() => setActiveAirline('EM GERAL')}
-                className={`
-                    group
-                    shrink-0 px-6 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'}
-                    ${activeAirline === 'EM GERAL' 
-                        ? (isDarkMode ? 'bg-slate-950 text-emerald-400 border-b-2 border-emerald-500' : 'bg-[#329858] text-white border-b-0')
-                        : (isDarkMode ? 'text-slate-500 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')}
-                `}
-             >
-                EM GERAL
-             </button>
-             {airlines.map((airlineCode, i) => (
-                 <div key={i} className={`flex items-center border-r shrink-0 ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'}`}>
-                     <button
-                        onClick={() => setActiveAirline(airlineCode)}
-                        className={`
-                            h-full px-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all
-                            ${activeAirline === airlineCode
-                                ? (isDarkMode ? 'bg-slate-950 text-white border-b-2 border-emerald-500' : 'bg-slate-100 text-[#329858] border-b-2 border-[#1E6038]')
-                                : (isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800')}
-                        `}
-                     >
-                        {airlineCode && <AirlineLogo airlineCode={airlineCode} className="w-5 h-5 rounded-full ring-2 ring-white/10" />}
-                        {airlineCode || 'OUTRA'}
-                     </button>
-                     <button onClick={() => setConfirmDeleteAirline(airlineCode)} className={`w-10 h-full flex items-center justify-center transition-colors border-l ${isDarkMode ? 'border-l-slate-800 text-slate-500 hover:text-red-400 hover:bg-slate-800' : 'border-l-slate-200 text-slate-400 hover:text-red-500 hover:bg-slate-200/50'}`}>
-                         <Trash2 size={12} />
-                     </button>
-                 </div>
-             ))}
-             <button 
-                onClick={() => setShowNewAirlineModal(true)}
-                className={`w-12 flex items-center justify-center shrink-0 border-r ${isDarkMode ? 'bg-slate-800 text-emerald-400 hover:bg-slate-700 border-slate-950/20' : 'bg-slate-100 text-[#329858] hover:bg-slate-200 border-slate-200'} transition-colors group`}
-                title="Adicionar nova companhia"
-             >
-                <Plus size={16} className="group-hover:scale-110 transition-transform" />
-             </button>
-           </nav>
-        </div>
+
+
 
         {/* TABLE WRAPPER - aligned to left with right space */}
         <div className={`w-full flex-1 overflow-auto relative flex justify-start custom-scrollbar items-start ${isDarkMode ? 'bg-slate-950' : 'bg-slate-100'}`}>
-            <div className={`w-max border-r border-b text-left ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'}`} style={{ minWidth: '500px' }}>
+            <div className={`w-1/2 border-r border-b text-left ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'}`}>
                 <table ref={tableRef} className="w-full text-left border-separate border-spacing-0">
                     <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-950 border-slate-700' : 'bg-[#2D8E48] text-white shadow-sm'}`}>
                         <tr>
                             {COLUMNS.map((col, idx) => {
                                 return (
-                                    <th key={idx} className={`px-2 py-3 text-[10px] font-black uppercase tracking-widest border-b border-r ${isDarkMode ? 'border-slate-800' : 'border-[#29824a]'} text-center ${col.width}`}>
+                                    <th key={idx} className={`whitespace-nowrap px-2 py-3 text-[10px] font-black uppercase tracking-widest border-b border-r ${isDarkMode ? 'border-slate-800' : 'border-[#29824a]'} text-center ${col.width}`}>
                                         {col.label}
                                     </th>
                                 )
@@ -621,7 +619,7 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
 
                                         const value = aircraft[col.key as keyof MeshFlight];
                                         const isEditingObj = editingCell?.rowId === aircraft.id && editingCell?.col === colIndex;
-                                        const isBooleanField = col.key === 'is_disabled';
+                                        const isBooleanField = col.key === 'disabled';
                                         
                                         if (isBooleanField) {
                                             return (
@@ -646,7 +644,7 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                                         }
 
                                         // Conditional styles based on column
-                                        const extraStyle = col.key === 'registration' ? (isDarkMode ? 'text-emerald-500 tracking-tighter' : 'text-emerald-600 tracking-tighter') : '';
+                                        const extraStyle = '';
                                         const alignStyle = false ? 'text-left px-2' : 'text-center';
 
                                         return (
@@ -691,16 +689,27 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                                                         }}
                                                         onBlur={() => handleFinishEdit()}
                                                         onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                        className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold ${alignStyle} outline-none focus:ring-1 ${true ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
+                                                        className={`w-full min-w-[50px] px-1 py-1 rounded text-[11px] font-mono font-bold ${alignStyle} outline-none focus:ring-1 ${true ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
                                                     />
                                                 ) : (
                                                     <div className={`font-mono text-[11px] font-bold w-full ${true ? 'uppercase justify-center' : 'justify-start'} flex items-center min-h-[24px] ${extraStyle}`}>
+
                                                         {col.key === 'airline' ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-6 h-6 rounded bg-white overflow-hidden flex items-center justify-center p-[1px] shadow-sm border border-slate-200 shrink-0">
-                                                                    <AirlineLogo airlineCode={value as string} showName={false} size="sm" />
+                                                            <div className="flex items-center gap-2 justify-start w-full px-2">
+                                                                <div className="flex items-center justify-center w-6 h-6 shrink-0 bg-white rounded shadow-sm border border-slate-200">
+                                                                    <AirlineLogo airlineCode={value as string} showName={false} size="sm" className="pl-0 gap-0" />
                                                                 </div>
-                                                                <span>{value || '--'}</span>
+                                                                <span className="whitespace-nowrap font-bold text-[11px] uppercase">
+                                                                    {(() => {
+                                                                        const code = (value as string || '').toUpperCase();
+                                                                        const fallbackNames: Record<string, string> = {
+                                                                            'LA': 'LATAM', 'JJ': 'LATAM', 'DL': 'DELTA', 'AA': 'AMERICAN', 
+                                                                            'G3': 'GOL', 'AD': 'AZUL', 'AF': 'AIR FRANCE', 'KL': 'KLM',
+                                                                            'LH': 'LUFTHANSA', 'TP': 'TAP', 'CM': 'COPA', 'UA': 'UNITED'
+                                                                        };
+                                                                        return companyNames[code] || fallbackNames[code] || value || '--';
+                                                                    })()}
+                                                                </span>
                                                             </div>
                                                         ) : (
                                                             value || '--'
@@ -715,6 +724,21 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* LOGOS DIV */}
+            <div className="w-1/2 p-1 flex flex-col items-center justify-start min-h-[500px] gap-1">
+                 <div className={`flex flex-col items-start justify-center p-3 w-full rounded-[3px] shadow-sm border shrink-0 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                     <h3 className={`text-base font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Companhias Aéreas</h3>
+                     <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{airlines.filter(a => a && a !== 'EM GERAL').length} companhias cadastradas</p>
+                 </div>
+                 <div className={`flex flex-wrap gap-3 justify-start content-start overflow-auto p-3 w-full flex-1 border-0 rounded-[3px] ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
+                     {airlines.filter(a => a && a !== 'EM GERAL').map(airline => (
+                         <div key={airline} className="cursor-pointer flex-shrink-0 hover:scale-110 hover:-translate-y-1 transition-all duration-200 flex items-center justify-center" onClick={() => setActiveAirline(airline)} title={airline}>
+                             <AirlineLogo airlineCode={airline} className="w-[50px] h-[50px] rounded overflow-hidden shadow-sm ring-1 ring-black/5 flex items-center justify-center [&_img]:!w-[40px] [&_img]:!h-[40px]" showName={false} size="full" />
+                         </div>
+                     ))}
+                 </div>
             </div>
         </div>
 
@@ -735,9 +759,9 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                         
                         <ul className="list-disc pl-5 space-y-1 font-mono text-[11px] mb-2">
                             <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>VÔO</strong> (Obrigatório) - Número do Voo (ex: LA3396)</li>
-                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>DESTINO</strong> (Opcional) - ICAO de destino (ex: SBPS)</li>
-                            <li><strong>ESTIMADO</strong> (Opcional) - ETA (ex: 22:50)</li>
-                            <li><strong>SAÍDA</strong> (Opcional) - ETD (ex: 00:00)</li>
+                            <li><strong className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}>ICAO</strong> (Opcional) - ICAO de destino (ex: SBPS)</li>
+                            <li><strong>ETA</strong> (Opcional) - Horário Estimado (ex: 22:50)</li>
+                            <li><strong>ETD</strong> (Opcional) - Horário de Saída (ex: 00:00)</li>
                         </ul>
                         
                         <div className={`p-3 rounded text-xs border ${isDarkMode ? 'bg-amber-900/20 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>

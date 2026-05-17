@@ -432,6 +432,7 @@ export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
       destination: f.destination,
       etd: cleanTime(f.etd),
       eta: cleanTime(f.eta),
+      is_disabled: f.disabled || false,
       updated_at: new Date().toISOString()
     };
     if (f.id) {

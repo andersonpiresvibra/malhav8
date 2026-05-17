@@ -1193,13 +1193,13 @@ export const RootMesh: React.FC<RootMeshProps> = ({
       <div className={`flex-1 overflow-hidden flex flex-row ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
         
         {/* Left Side: Table & Controls */}
-        <div className="w-auto flex flex-col overflow-hidden shrink-0 border-r border-slate-700/20">
+        <div className="w-1/2 flex flex-col overflow-hidden shrink-0 border-r border-slate-700/20">
           {/* Header */}
           {portalTarget ? createPortal(headerContent, portalTarget) : headerContent}
 
           {/* Spreadsheet Area */}
           <div className={`flex-1 min-w-0 overflow-auto ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
-          <table ref={tableRef} className="w-max border-collapse table-fixed select-none">
+          <table ref={tableRef} className="w-full border-collapse table-fixed select-none">
             <thead className="sticky top-0 z-[40]">
                 <tr className={`${isDarkMode ? 'bg-slate-800/95 text-slate-400' : 'bg-slate-800 text-slate-200'} backdrop-blur-sm shadow-md`}>
                 {COLUMNS.map((col, idx) => (
