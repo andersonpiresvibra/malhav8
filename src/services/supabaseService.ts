@@ -193,7 +193,6 @@ function generateUUID() {
 
 export const updateOperatorWorkDays = async (operatorId: string, workDays: Array<{ date: string; type: string }>): Promise<void> => {
   checkConfig();
-  console.log('[updateOperatorWorkDays] Iniciando salvamento...', { operatorId, workDaysCount: workDays.length });
   
   const timeoutPromise = new Promise<never>((_, reject) => 
     setTimeout(() => reject(new Error('Timeout de comunicação com o Supabase.')), 10000)
@@ -205,7 +204,6 @@ export const updateOperatorWorkDays = async (operatorId: string, workDays: Array
       .delete()
       .eq('operator_id', operatorId);
       
-    console.log('[updateOperatorWorkDays] Delete result:', deleteError);
     if (deleteError) throw deleteError;
     
     if (workDays.length === 0) return;
@@ -216,14 +214,12 @@ export const updateOperatorWorkDays = async (operatorId: string, workDays: Array
       day_type: wd.type
     }));
     
-    console.log('[updateOperatorWorkDays] Insert payload preview:', insertPayload.slice(0, 2));
 
     const { error: insertError, data: insertData } = await supabase
       .from('oper_do_dia')
       .insert(insertPayload)
       .select();
       
-    console.log('[updateOperatorWorkDays] Insert result:', { error: insertError, dataCount: insertData?.length });
     if (insertError) throw insertError;
   };
 
@@ -526,16 +522,11 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
   
   if (!data) return [];
 
-  console.log(`[getBaseMeshFlights] Fetched ${data.length} flights from flights. Filtering for date: ${dateRef}`);
-  console.log(`[getBaseMeshFlights] Sample row:`, data[0]);
-  
   // Try to find the date column dynamically if it's named something else
   const filteredData = data.filter((row: any) => {
     const rowDate = row.date || row.date_ref || row.data || row.voo_data || row.flight_date;
     return rowDate === dateRef;
   });
-
-  console.log(`[getBaseMeshFlights] After filtering: ${filteredData.length} flights match ${dateRef}`);
   
   const finalData = filteredData.length > 0 ? filteredData : data; // Fallback to all if date filter fails or if user just wants to see them
 

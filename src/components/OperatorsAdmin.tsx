@@ -1146,23 +1146,19 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           onClose={() => setSchedulingOperator(null)}
           onSave={async (days) => {
             let currentId = schedulingOperator.id;
-            console.log('Tentando salvar escala para:', schedulingOperator.warName, 'ID:', currentId);
             
             // Se o ID ainda for temporário "new-", buscar o ID real que o Supabase retornou no salvamento automático
             if (currentId.startsWith('new-')) {
               const latestOp = operators.find(o => o.warName === schedulingOperator.warName && !o.id.startsWith('new-'));
               if (latestOp) {
                 currentId = latestOp.id;
-                console.log('ID real encontrado:', currentId);
               } else {
-                console.warn('ID real ainda não disponível para:', schedulingOperator.warName);
                 alert('Aguarde: o perfil do operador está sendo criado. Tente novamente em 3 segundos.');
                 return;
               }
             }
 
             try {
-              console.log('Enviando dados para o Supabase (ID:', currentId + '):', days);
               await updateOperatorWorkDays(currentId, days);
               setOperators(prev => prev.map(o => o.id === currentId ? { ...o, workDays: days } : o));
               setSchedulingOperator(null);

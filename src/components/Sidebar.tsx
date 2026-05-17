@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table } from 'lucide-react';
+import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
@@ -83,75 +83,75 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                    onViewChange('OPERATIONAL_MESH');
                    setIsMenuOpen(false);
                 }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
                    activeView === 'OPERATIONAL_MESH' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} /> MalhaBase_BD
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">MALHABASE_BD</span>
              </button>
              <button
                 onClick={() => {
                    onViewChange('OPERATORS_ADMIN');
                    setIsMenuOpen(false);
                 }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
                    activeView === 'OPERATORS_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Users size={16} /> Operadores_BD
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">OPERADORES_BD</span>
              </button>
              <button
                 onClick={() => {
                    onViewChange('FLEETS_ADMIN');
                    setIsMenuOpen(false);
                 }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
                    activeView === 'FLEETS_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <BusFront size={16} /> Frotas_BD
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">FROTAS_BD</span>
              </button>
              <button
                 onClick={() => {
                    onViewChange('AIRLINES_ADMIN');
                    setIsMenuOpen(false);
                 }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
                    activeView === 'AIRLINES_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Plane size={16} /> Companhias Aéreas
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">COMPANHIAS_DB</span>
              </button>
              <button
                 onClick={() => {
                    onViewChange('AIRCRAFTS_ADMIN');
                    setIsMenuOpen(false);
                 }}
-                className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
                    activeView === 'AIRCRAFTS_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Plane size={16} /> Aeronaves_BD
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">AERONAVES_BD</span>
              </button>
              <button
                onClick={() => { onViewChange('MALHA_RAIZ_ADMIN'); setIsMenuOpen(false); }}
-               className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 text-xs font-medium transition-colors ${
+               className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
                    activeView === 'MALHA_RAIZ_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
                      : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} /> malharaiz_DB
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">MALHARAIZ_DB</span>
              </button>
 
              {process.env.NODE_ENV !== 'production' && onSimulateEndOfDay && (

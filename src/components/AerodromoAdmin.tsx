@@ -117,7 +117,6 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
     });
     
     // Log de Auditoria para rastreabilidade em SBGR
-    console.log(`[Admin] Posição ${posId} alterada por ${user?.email || 'Admin'}`);
   };
 
   const handleClearAllAssignments = async () => {

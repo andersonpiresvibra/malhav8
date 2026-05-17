@@ -361,8 +361,6 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
     if (field === 'flightNumber' || field === 'departureFlightNumber') {
         const normalizedInput = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
         
-        console.log(`[Auto-Map] Searching for Voo: ${normalizedInput} in ${destinosDB.length} destinos...`);
-
         const match = destinosDB.find(d => {
             const f1 = String(d.flightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
             const f2 = String(d.departureFlightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
@@ -391,11 +389,10 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
         });
         
         if (match) {
-            console.log(`[Auto-Map] Found Match!`, match);
             autoDestination = match.destination;
             autoAirline = match.airline;
         } else {
-            console.log(`[Auto-Map] No match found for ${normalizedInput}`);
+            // Keep empty or any default behavior
         }
     }
     

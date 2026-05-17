@@ -61,7 +61,6 @@ const App: React.FC = () => {
   const handleManualFlightsUpdate = useCallback((action: React.SetStateAction<FlightData[]>) => {
     setGlobalFlights(action);
     lastManualActionRef.current = Date.now();
-    console.log("[Sync] Ação manual detectada. Cooldown de 15s iniciado.");
   }, []);
 
   useEffect(() => {
@@ -77,13 +76,6 @@ const App: React.FC = () => {
           getAerodromoConfig()
         ]);
         
-        console.log("Supabase Vehicles returned:", vehicles);
-        console.log("Supabase Operators returned:", operators);
-        console.log("Supabase Flights returned:", flights);
-        console.log("Supabase Root Mesh returned:", rootMesh);
-        console.log("Supabase Base Mesh returned:", baseMesh);
-        console.log("Supabase Aerodromo Config returned:", aerodromoConfig);
-        
         if (vehicles && vehicles.length > 0) {
           setGlobalVehicles(vehicles);
         }
@@ -97,17 +89,14 @@ const App: React.FC = () => {
         }
 
         if (flights && flights.length > 0) {
-          console.log(`Povoando ${flights.length} voos do Supabase para a data ${today}`);
           setGlobalFlights(flights);
         }
 
         if (rootMesh && rootMesh.length > 0) {
-          console.log(`Povoando ${rootMesh.length} registros de Malha Raiz do Supabase`);
           setRootMeshFlights(rootMesh);
         }
         
         if (baseMesh && baseMesh.length > 0) {
-          console.log(`Povoando ${baseMesh.length} registros de Malha Base do Supabase para a data ${today}`);
           setMeshFlightsByDate(prev => ({ ...prev, [today]: baseMesh }));
         }
 
@@ -214,7 +203,6 @@ const App: React.FC = () => {
               const isDifferent = JSON.stringify(prev) !== JSON.stringify(updatedGlobal);
               
               if (isDifferent) {
-                console.log(`[Sync] Malha sincronizada com sucesso. Total: ${updatedGlobal.length} voos.`);
                 return updatedGlobal;
               }
               return prev;
@@ -554,8 +542,6 @@ const App: React.FC = () => {
     try {
       const { clearAllFlightAssignments } = await import('./services/supabaseService');
       
-      console.log(`[Database] Iniciando limpeza profunda de TODAS as posições`);
-      
       // 1. Update local state IMEDIATAMENTE (Otimista)
       setGlobalFlights(prev => prev.map(f => ({ ...f, positionId: '', pitId: undefined, positionType: undefined })));
       
@@ -757,7 +743,6 @@ const App: React.FC = () => {
 
                           // Se o voo já existe e TEM operador ou está em status avançado, preservamos o operacional
                           if (existing && (existing.operator || existing.status !== 'CHEGADA')) {
-                            console.log(`[SmartMerge] Preservando estado operacional do voo ${existing.airline}${existing.flightNumber}`);
                             return {
                               ...newF,
                               ...existing, // O operacional "vivo" tem prioridade
