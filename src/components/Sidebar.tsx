@@ -26,6 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
+    { id: 'AERODROMO' as ViewState, icon: Earth, label: 'Aeródromo' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
 
@@ -142,6 +143,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                 }`}
              >
                 <Database size={16} className="shrink-0" /> <span className="text-left w-full">AERONAVES_BD</span>
+             </button>
+             <button
+                onClick={() => {
+                   onViewChange('AERODROMO_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                   activeView === 'AERODROMO_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">AERÓDROMO_DB</span>
              </button>
              <button
                onClick={() => { onViewChange('MALHA_RAIZ_ADMIN'); setIsMenuOpen(false); }}
