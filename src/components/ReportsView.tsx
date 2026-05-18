@@ -42,7 +42,7 @@ const isDelayed = (flight: FlightData) => {
     const [h, m] = flight.etd.split(':').map(Number); 
     const etdDate = new Date(flight.endTime); 
     etdDate.setHours(h, m, 0, 0);
-    return flight.endTime.getTime() > etdDate.getTime();
+    return new Date(flight.endTime).getTime() > etdDate.getTime();
 };
 
 // Helper para ordenação
@@ -623,7 +623,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                         
                         <div className="border-l-2 border-slate-200 ml-2 space-y-3 py-1">
                             {selectedFlight.logs && selectedFlight.logs.length > 0 ? (
-                                selectedFlight.logs.sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()).map((log, idx) => (
+                                selectedFlight.logs.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((log, idx) => (
                                     <div key={idx} className="relative pl-6">
                                         <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
                                             log.type === 'SISTEMA' ? 'bg-slate-400' : 
@@ -633,7 +633,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                         }`}></div>
                                         <div className="flex flex-col">
                                             <div className="flex items-baseline gap-2 text-[10px] uppercase font-bold text-slate-500">
-                                                <span className="font-mono text-slate-800">{log.timestamp.toLocaleTimeString()}</span>
+                                                <span className="font-mono text-slate-800">{new Date(log.timestamp).toLocaleTimeString()}</span>
                                                 <span>•</span>
                                                 <span>{log.type}</span>
                                                 <span>•</span>
@@ -786,7 +786,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                     sortedData.map(flight => {
                                         const badge = getStatusBadge(flight);
                                         const tabMinutes = flight.startTime && flight.endTime 
-                                            ? Math.floor((flight.endTime.getTime() - flight.startTime.getTime()) / 60000)
+                                            ? Math.floor((new Date(flight.endTime).getTime() - new Date(flight.startTime).getTime()) / 60000)
                                             : null;
                                         
                                         const flightShift = getShift(flight.endTime || flight.startTime);
