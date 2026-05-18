@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass } from 'lucide-react';
+import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass, CalendarDays, Building, Layers, HardHat, MapPin } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
@@ -30,7 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
   ];
 
-  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'MALHA_RAIZ_ADMIN' || activeView === 'AERODROMO_ADMIN';
+  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'ROOT_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AIRLINES_ADMIN' || activeView === 'MALHA_RAIZ_ADMIN' || activeView === 'AERODROMO_ADMIN';
 
   return (
     <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] ${
@@ -76,101 +76,137 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
         <div className={`w-full h-px mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-white/20'}`}></div>
         
         {isMenuOpen && (
-          <div className={`absolute bottom-0 left-full ml-2 p-2 rounded-xl shadow-xl w-48 border z-[100] flex flex-col gap-1 ${
-            isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+          <div className={`absolute bottom-0 left-full ml-2 p-2 rounded-xl shadow-xl w-56 border z-[100] flex flex-col gap-1 ${
+            isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
           }`}>
+             {/* GRUPO: MALHA */}
+             <div className={`mt-1 mb-1 px-2 pb-1 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Voos / Malha
+                </span>
+             </div>
+             
              <button
                 onClick={() => {
                    onViewChange('OPERATIONAL_MESH');
                    setIsMenuOpen(false);
                 }}
-                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
                    activeView === 'OPERATIONAL_MESH' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} className="shrink-0" /> <span className="text-left w-full">MALHABASE_BD</span>
+                <Table size={16} className="shrink-0" /> <span className="text-left w-full">Malha Operacional</span>
              </button>
              <button
                 onClick={() => {
-                   onViewChange('OPERATORS_ADMIN');
+                   onViewChange('ROOT_MESH');
                    setIsMenuOpen(false);
                 }}
-                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                   activeView === 'OPERATORS_ADMIN' 
+                className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                   activeView === 'ROOT_MESH' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} className="shrink-0" /> <span className="text-left w-full">OPERADORES_BD</span>
+                <Database size={16} className="shrink-0" /> <span className="text-left w-full">Vinc. Malha Raiz</span>
              </button>
              <button
-                onClick={() => {
-                   onViewChange('FLEETS_ADMIN');
-                   setIsMenuOpen(false);
-                }}
-                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                   activeView === 'FLEETS_ADMIN' 
+               onClick={() => { onViewChange('MALHA_RAIZ_ADMIN'); setIsMenuOpen(false); }}
+               className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                   activeView === 'MALHA_RAIZ_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} className="shrink-0" /> <span className="text-left w-full">FROTAS_BD</span>
+                <CalendarDays size={16} className="shrink-0" /> <span className="text-left w-full">Base Malha Raiz</span>
              </button>
+
+             {/* GRUPO: FROTA & CIA */}
+             <div className={`mt-3 mb-1 px-2 pb-1 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Companhias & Frota
+                </span>
+             </div>
+
              <button
                 onClick={() => {
                    onViewChange('AIRLINES_ADMIN');
                    setIsMenuOpen(false);
                 }}
-                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
                    activeView === 'AIRLINES_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} className="shrink-0" /> <span className="text-left w-full">COMPANHIAS_DB</span>
+                <Building size={16} className="shrink-0" /> <span className="text-left w-full">Companhias Aéreas</span>
              </button>
              <button
                 onClick={() => {
                    onViewChange('AIRCRAFTS_ADMIN');
                    setIsMenuOpen(false);
                 }}
-                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
                    activeView === 'AIRCRAFTS_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} className="shrink-0" /> <span className="text-left w-full">AERONAVES_BD</span>
+                <Plane size={16} className="shrink-0" /> <span className="text-left w-full">Aeronaves</span>
+             </button>
+             <button
+                onClick={() => {
+                   onViewChange('FLEETS_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                   activeView === 'FLEETS_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <Layers size={16} className="shrink-0" /> <span className="text-left w-full">Frotas</span>
+             </button>
+
+             {/* GRUPO: OPERADORES & INFRA */}
+             <div className={`mt-3 mb-1 px-2 pb-1 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Infra & Operação
+                </span>
+             </div>
+
+             <button
+                onClick={() => {
+                   onViewChange('OPERATORS_ADMIN');
+                   setIsMenuOpen(false);
+                }}
+                className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                   activeView === 'OPERATORS_ADMIN' 
+                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                }`}
+             >
+                <HardHat size={16} className="shrink-0" /> <span className="text-left w-full">Equipe / Operadores</span>
              </button>
              <button
                 onClick={() => {
                    onViewChange('AERODROMO_ADMIN');
                    setIsMenuOpen(false);
                 }}
-                className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                className={`w-full justify-start flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
                    activeView === 'AERODROMO_ADMIN' 
                      ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
+                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
                 }`}
              >
-                <Database size={16} className="shrink-0" /> <span className="text-left w-full">AERÓDROMO_DB</span>
-             </button>
-             <button
-               onClick={() => { onViewChange('MALHA_RAIZ_ADMIN'); setIsMenuOpen(false); }}
-               className={`w-full justify-start flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                   activeView === 'MALHA_RAIZ_ADMIN' 
-                     ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                     : (isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100')
-                }`}
-             >
-                <Database size={16} className="shrink-0" /> <span className="text-left w-full">MALHARAIZ_DB</span>
+                <MapPin size={16} className="shrink-0" /> <span className="text-left w-full">Aeródromo (Pátios)</span>
              </button>
 
              {process.env.NODE_ENV !== 'production' && onSimulateEndOfDay && (
                <>
-                 <div className={`mt-2 pt-2 border-t px-2 pb-1 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+                 <div className={`mt-3 pt-2 border-t px-2 pb-1 ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
                    <span className={`text-[8px] font-black uppercase tracking-tighter ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
                      Simuladores
                    </span>
@@ -180,8 +216,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                        onSimulateEndOfDay();
                        setIsMenuOpen(false);
                     }}
-                    className={`flex items-center gap-3 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                       isDarkMode ? 'text-orange-400 hover:bg-slate-700' : 'text-orange-600 hover:bg-slate-100'
+                    className={`flex items-center gap-3 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                       isDarkMode ? 'text-orange-400 hover:bg-slate-800' : 'text-orange-600 hover:bg-slate-100'
                     }`}
                  >
                     <Clock size={16} /> Transf. Data

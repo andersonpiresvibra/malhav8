@@ -383,9 +383,8 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
         )}
 
         {/* GRID VIEW */}
-        <div className={`flex-1 overflow-auto custom-scrollbar p-6 ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
-            {/* Make Full Width here - remove w-max and minWidth: 500px, use w-full */}
-            <div className={`w-full border border-b-0 text-left ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'}`}>
+        <div className={`w-full flex-1 overflow-auto relative flex justify-start custom-scrollbar items-start ${isDarkMode ? 'bg-slate-950' : 'bg-slate-100'}`}>
+            <div className={`w-[65%] border-r border-b text-left ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'}`}>
                 <table ref={tableRef} className="w-full text-left border-separate border-spacing-0">
                     <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-950 border-slate-700' : 'bg-[#2D8E48] text-white shadow-sm'}`}>
                         <tr>
@@ -415,7 +414,7 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                                                 <td 
                                                     key={`${airline.id}-logo`} 
                                                     onClick={() => handlePhotoClick(airline.id)}
-                                                    className={`px-2 border-b border-r cursor-pointer ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center align-middle ${focusClasses}`}
+                                                    className={`px-2 border-y border-l cursor-pointer ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center align-middle ${focusClasses}`}
                                                 >
                                                     <div className="w-8 h-8 rounded bg-white overflow-hidden mx-auto flex items-center justify-center p-0.5 shadow-sm border border-slate-200 group/logo relative">
                                                         {airline.logo_url ? (
@@ -453,7 +452,7 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                                                   tabIndex={0}
                                                   onClick={() => setFocusedCell({ rowId: airline.id, col: colIndex })}
                                                   onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                  className={`px-2 border-b ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center actions-container align-middle outline-none ${focusClasses}`}
+                                                  className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center actions-container align-middle outline-none ${focusClasses}`}
                                                 >
                                                     <div className="flex justify-center">
                                                         <button onClick={() => setConfirmDeleteAirline(airline.id)} className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${isDarkMode ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-500/10 text-slate-400 hover:text-red-500'}`}>
@@ -476,7 +475,7 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                                                   tabIndex={0}
                                                   onClick={() => setFocusedCell({ rowId: airline.id, col: colIndex })}
                                                   onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                  className={`px-2 border-b border-r ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center align-middle outline-none ${focusClasses}`}
+                                                  className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20' : 'border-slate-200 bg-white group-hover:bg-slate-50'} text-center align-middle outline-none ${focusClasses}`}
                                                 >
                                                     <div className="flex items-center justify-center">
                                                         <input 
@@ -496,7 +495,7 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                                                 data-col={colIndex}
                                                 tabIndex={0}
                                                 onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                className={`px-2 border-b border-r ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20 text-slate-300' : 'border-slate-200 bg-white group-hover:bg-slate-50 text-slate-700'} text-center relative ${col.isVariable ? 'cursor-text' : 'opacity-70'} align-middle transition-colors outline-none ${focusClasses}`}
+                                                className={`px-2 border-y border-l ${isDarkMode ? 'border-slate-700/50 bg-slate-800/20 text-slate-300' : 'border-slate-200 bg-white group-hover:bg-slate-50 text-slate-700'} ${col.key === 'legal_name' ? 'text-left px-3' : 'text-center'} relative ${col.isVariable ? 'cursor-text' : 'opacity-70'} align-middle transition-colors outline-none ${focusClasses}`}
                                                 onClick={(e) => {
                                                   setFocusedCell({ rowId: airline.id, col: colIndex });
                                                   if (col.isVariable) {
@@ -519,10 +518,10 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                                                         }}
                                                         onBlur={() => handleFinishEdit()}
                                                         onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                        className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold text-center outline-none focus:ring-1 ${col.key !== 'legal_name' ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
+                                                        className={`w-full px-1 py-1 rounded text-[11px] font-mono font-bold ${col.key === 'legal_name' ? 'text-left' : 'text-center'} outline-none focus:ring-1 ${col.key !== 'legal_name' ? 'uppercase' : ''} ${isDarkMode ? 'bg-slate-950 text-emerald-400 border border-emerald-500/50 focus:ring-emerald-500' : 'bg-slate-100 text-emerald-700 border border-emerald-500/30 focus:ring-emerald-600'}`}
                                                     />
                                                 ) : (
-                                                    <div className={`font-mono text-[11px] font-bold w-full ${col.key !== 'legal_name' ? 'uppercase' : ''} flex items-center justify-center min-h-[24px]`}>
+                                                    <div className={`font-mono text-[11px] font-bold w-full ${col.key !== 'legal_name' ? 'uppercase justify-center' : 'justify-start'} flex items-center min-h-[24px]`}>
                                                         {value !== undefined ? value : '--'}
                                                     </div>
                                                 )}
@@ -534,6 +533,52 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* LOGOS DIV */}
+            <div className="w-[35%] p-1 flex flex-col items-center justify-start min-h-[500px] gap-1">
+                 <div className={`flex flex-col items-start justify-center p-3 w-full rounded-[3px] shadow-sm border shrink-0 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                     <h3 className={`text-base font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Galeria de Logos</h3>
+                     <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{filteredAirlines.length} empresas listadas nesta aba</p>
+                 </div>
+                 <div className={`flex flex-wrap gap-3 justify-start content-start overflow-auto p-3 w-full flex-1 border-0 rounded-[3px] ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
+                     {filteredAirlines.map(airline => (
+                         <div 
+                             key={airline.id} 
+                             className="cursor-pointer flex-shrink-0 hover:scale-110 hover:-translate-y-1 transition-all duration-200 flex flex-col items-center justify-center relative"
+                             title={`${airline.legal_name || airline.airline} - ${airline.equipment_count || 0} Eqps / ${airline.flight_count || 0} Voos`}
+                             onClick={() => {
+                                 setFocusedCell({ rowId: airline.id, col: 0 });
+                                 // scroll table to row
+                                 const rowIndex = filteredAirlines.findIndex(a => a.id === airline.id);
+                                 if (rowIndex >= 0 && tableRef.current) {
+                                     const rowHtml = tableRef.current.querySelector(`tr[data-row="${rowIndex}"]`);
+                                     rowHtml?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                 }
+                             }}
+                         >
+                             <div className="w-[50px] h-[50px] rounded overflow-hidden shadow-sm ring-1 ring-black/5 flex items-center justify-center bg-white relative">
+                                 {airline.logo_url ? (
+                                    <img src={airline.logo_url} className="w-full h-full object-contain" />
+                                 ) : airline.airline_code ? (
+                                    <>
+                                      <img src={`https://images.kiwi.com/airlines/64/${airline.airline_code}.png`} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} />
+                                      <div className="hidden w-full h-full flex items-center justify-center">
+                                         <ImageIcon size={20} className="text-slate-300" />
+                                      </div>
+                                    </>
+                                 ) : (
+                                    <ImageIcon size={20} className="text-slate-300" />
+                                 )}
+                             </div>
+                             {(airline.equipment_count || 0) > 0 && (
+                                 <div className="absolute -top-1.5 -right-1.5 flex items-center justify-center bg-white dark:bg-slate-800 text-[#2D8E48] dark:text-green-500 text-[8px] font-black rounded-full min-w-[16px] h-[16px] px-1 text-center shadow-sm border border-slate-300 dark:border-slate-600">
+                                     {airline.equipment_count}
+                                 </div>
+                             )}
+                         </div>
+                     ))}
+                 </div>
             </div>
         </div>
 

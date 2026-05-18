@@ -72,35 +72,30 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, selectedOperatorId, handleConfirm]);
 
-    const availableOperators = useMemo(() => {
-        // Mostra todos, mas ordena por disponibilidade (DISPONÍVEL primeiro)
-        return [...operators].sort((a, b) => {
+    const categorizedOperators = useMemo(() => {
+        const available = operators.filter(op => {
+            if (!op.assignedVehicle) return false;
+            if (['OCUPADO', 'DESIGNADO', 'ABASTECENDO', 'INTERVALO', 'INATIVO'].includes(op.status)) return false;
+            
+            if (flight) {
+                if (flight.positionType === 'CTA' && !op.assignedVehicle.startsWith('CTA')) return false;
+            }
+            return true;
+        }).sort((a, b) => {
             if (a.status === 'DISPONÍVEL' && b.status !== 'DISPONÍVEL') return -1;
             if (a.status !== 'DISPONÍVEL' && b.status === 'DISPONÍVEL') return 1;
-            return 0;
+            return a.warName.localeCompare(b.warName);
         });
-    }, [operators]);
 
-    const categorizedOperators = useMemo(() => {
         return {
-            TODOS: availableOperators,
-            SRV: availableOperators.filter(op => op.assignedVehicle ? op.assignedVehicle.startsWith('SRV') : (op.fleetCapability === 'SRV' || op.fleetCapability === 'BOTH')),
-            CTA: availableOperators.filter(op => op.assignedVehicle ? op.assignedVehicle.startsWith('CTA') : (op.fleetCapability === 'CTA' || op.fleetCapability === 'BOTH')),
+            TODOS: available,
+            SRV: available.filter(op => op.assignedVehicle ? op.assignedVehicle.startsWith('SRV') : (op.fleetCapability === 'SRV' || op.fleetCapability === 'BOTH')),
+            CTA: available.filter(op => op.assignedVehicle ? op.assignedVehicle.startsWith('CTA') : (op.fleetCapability === 'CTA' || op.fleetCapability === 'BOTH')),
         };
-    }, [availableOperators]);
+    }, [operators, flight]);
 
     const isOperatorDisabled = (op: OperatorProfile) => {
-        if (!op.assignedVehicle) return true;
-        
-        // Prevent assigning if operator is already on an active flight or paused
-        if (['OCUPADO', 'DESIGNADO', 'ABASTECENDO', 'INTERVALO'].includes(op.status)) return true;
-
-        if (!flight) return false;
-        
-        // Se a posição for CTA, inabilitar se estiver num SRV
-        if (flight.positionType === 'CTA' && !op.assignedVehicle.startsWith('CTA')) return true;
-        
-        return false;
+        return false; // Already filtered out, none are disabled
     };
 
     // Fallback logic if statuses aren't exactly matching, or to ensure everyone is somewhere
@@ -206,7 +201,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
                                 return (
                                     <button 
                                         key={op.id}
-                                        onClick={() => !isDisabled && setSelectedOperatorId(op.id)}
+                                        onClick={() => !isDisabled && setSelectedOperatorId(prev => prev === op.id ? null : op.id)}
                                         disabled={isDisabled}
                                         className={`group w-full flex items-center justify-between px-4 py-3.5 rounded-lg border transition-all relative overflow-hidden active:scale-[0.98] ${
                                             isDisabled

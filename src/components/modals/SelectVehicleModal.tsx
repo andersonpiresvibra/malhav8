@@ -45,19 +45,30 @@ export const SelectVehicleModal: React.FC<SelectVehicleModalProps> = ({
             if (activeTab === 'SRV' && v.type !== 'SERVIDOR') return false;
             if (activeTab === 'CTA' && v.type === 'SERVIDOR') return false;
             
+            // Check if vehicle is assigned to another operator
+            const isAssignedToOther = operators.some(op => 
+                op.id !== operator?.id && 
+                op.assignedVehicle && 
+                (op.assignedVehicle === v.displayName || 
+                 op.assignedVehicle.replace('SRV-', '').replace('CTA-', '') === v.vId)
+            );
+
+            if (isAssignedToOther) return false;
+            
             if (searchQuery) {
                 return v.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                        v.vId.toLowerCase().includes(searchQuery.toLowerCase());
             }
             return true;
         });
-    }, [processedVehicles, activeTab, searchQuery]);
+    }, [processedVehicles, activeTab, searchQuery, operators, operator]);
 
     if (!isOpen || !operator) return null;
 
     const handleSelect = (vehicleName: string) => {
         if (operator.assignedVehicle === vehicleName) {
-            onClose(); // Already assigned
+            onAssignVehicle(operator.id, '');
+            onClose();
             return;
         }
 

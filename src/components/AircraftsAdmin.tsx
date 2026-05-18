@@ -532,55 +532,11 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
            </div>
         </div>
 
-        {/* TABS */}
-        <div className={`h-12 shrink-0 flex border-b ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'} z-30 overflow-hidden`}>
-           <nav className="flex overflow-x-auto custom-scrollbar flex-1 items-stretch">
-             <button
-                onClick={() => setActiveAirline('EM GERAL')}
-                className={`
-                    group
-                    shrink-0 px-6 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'}
-                    ${activeAirline === 'EM GERAL' 
-                        ? (isDarkMode ? 'bg-slate-950 text-emerald-400 border-b-2 border-emerald-500' : 'bg-[#329858] text-white border-b-0')
-                        : (isDarkMode ? 'text-slate-500 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')}
-                `}
-             >
-                EM GERAL
-             </button>
-             {airlines.map((airline) => {
-                 const isActive = activeAirline === airline;
-                 return (
-                     <button
-                        key={airline}
-                        onClick={() => setActiveAirline(airline)}
-                        className={`
-                            group
-                            shrink-0 px-6 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'} last:border-r-0
-                            ${isActive 
-                                ? (isDarkMode ? 'bg-slate-950 text-emerald-400 border-b-2 border-emerald-500' : 'bg-[#329858] text-white border-b-0')
-                                : (isDarkMode ? 'text-slate-500 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')}
-                        `}
-                     >
-                        <div className="w-5 h-5 flex items-center justify-center bg-white rounded-sm overflow-hidden shrink-0 shadow-sm border border-slate-200">
-                            <AirlineLogo airlineCode={airline} showName={false} size="md" />
-                        </div>
-                        {airline}
-                     </button>
-                 )
-             })}
-             <button 
-                onClick={() => setShowNewAirlineModal(true)}
-                className={`w-12 flex items-center justify-center shrink-0 border-r ${isDarkMode ? 'bg-slate-800 text-emerald-400 hover:bg-slate-700 border-slate-950/20' : 'bg-slate-100 text-[#329858] hover:bg-slate-200 border-slate-200'} transition-colors group`}
-                title="Adicionar nova companhia"
-             >
-                <Plus size={16} className="group-hover:scale-110 transition-transform" />
-             </button>
-           </nav>
-        </div>
+        
 
         {/* TABLE WRAPPER - aligned to left with right space */}
         <div className={`w-full flex-1 overflow-auto relative flex justify-start custom-scrollbar items-start ${isDarkMode ? 'bg-slate-950' : 'bg-slate-100'}`}>
-            <div className={`w-max border-r border-b text-left ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'}`} style={{ minWidth: '500px' }}>
+            <div className={`flex-1 overflow-auto border-r border-b text-left ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'}`}>
                 <table ref={tableRef} className="w-full text-left border-separate border-spacing-0">
                     <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-950 border-slate-700' : 'bg-[#2D8E48] text-white shadow-sm'}`}>
                         <tr>
@@ -721,6 +677,47 @@ export const AircraftsAdmin: React.FC<AircraftsAdminProps> = ({ isDarkMode }) =>
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* LOGOS DIV */}
+            <div className="w-[360px] shrink-0 p-2 flex flex-col items-center justify-start min-h-[500px] gap-2">
+                 <div className={`flex flex-col items-start justify-center p-3 w-full rounded-[3px] shadow-sm border shrink-0 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                     <div className="flex items-center justify-between w-full">
+                         <h3 className={`text-base font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Companhias Aéreas</h3>
+                         <button 
+                            onClick={() => setShowNewAirlineModal(true)}
+                            className={`flex items-center justify-center p-1.5 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 text-emerald-400 border-slate-700 hover:bg-slate-700' : 'bg-emerald-50 text-[#329858] border-emerald-200 hover:bg-emerald-100'}`}
+                            title="Adicionar nova companhia"
+                         >
+                            <Plus size={14} />
+                         </button>
+                     </div>
+                     <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{airlines.filter(a => a && a !== 'EM GERAL').length} companhias cadastradas</p>
+                 </div>
+                 <div className={`flex flex-wrap gap-4 justify-start content-start overflow-auto p-4 w-full flex-1 border-0 rounded-[3px] ${isDarkMode ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                     {/* BOTAO EM GERAL */}
+                     <div 
+                         className={`cursor-pointer flex-shrink-0 hover:scale-105 hover:-translate-y-1 transition-all duration-200 flex flex-col items-center justify-center relative w-[60px] h-[60px] rounded ${activeAirline === 'EM GERAL' ? (isDarkMode ? 'ring-2 ring-emerald-500 bg-emerald-900/40 text-emerald-300' : 'ring-2 ring-emerald-500 bg-emerald-100 text-emerald-700') : (isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-white shadow text-slate-500')}`}
+                         onClick={() => setActiveAirline('EM GERAL')} 
+                         title="Exibir Todas as Aeronaves"
+                     >
+                         <Database size={24} className="mb-1 opacity-70" />
+                         <span className="text-[8px] font-black uppercase text-center leading-none">TODOS</span>
+                     </div>
+                     
+                     {airlines.filter(a => a && a !== 'EM GERAL').map(airline => {
+                         const aircraftCount = aircrafts.filter(f => f.airline === airline).length;
+                         const isActive = activeAirline === airline;
+                         return (
+                         <div key={airline} className={`cursor-pointer flex-shrink-0 hover:scale-105 hover:-translate-y-1 transition-all duration-200 flex flex-col items-center justify-center relative group ${isActive ? 'ring-2 ring-emerald-500 rounded' : ''}`} onClick={() => setActiveAirline(airline)} title={`${airline} - ${aircraftCount} aeronaves`}>
+                             <AirlineLogo airlineCode={airline} className="w-[60px] h-[60px] rounded overflow-hidden shadow-sm ring-1 ring-black/5 flex items-center justify-center [&_img]:!w-[48px] [&_img]:!h-[48px]" showName={false} size="full" />
+                             <div className="absolute -top-1.5 -right-1.5 flex items-center justify-center bg-white dark:bg-slate-800 text-[#2D8E48] dark:text-green-500 text-[8px] font-black rounded-full min-w-[18px] h-[18px] px-1 text-center shadow border border-slate-300 dark:border-slate-600 transition-transform group-hover:scale-110">
+                                 {aircraftCount}
+                             </div>
+                         </div>
+                         );
+                     })}
+                 </div>
             </div>
         </div>
 
