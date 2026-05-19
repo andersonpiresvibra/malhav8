@@ -268,7 +268,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
     <div className={`w-full h-full flex flex-col ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-white text-slate-900'} overflow-hidden`}>
         
         {portalTarget && createPortal(
-    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-[#e2e8f0] border-transparent text-slate-900 shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} z-20 w-full`}>
+    <div className={`px-4 md:px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-[#E2E8F0] border-transparent text-slate-900 shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} z-20 w-full`}>
                 {selectedFlight ? (
                         <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-4">
@@ -472,9 +472,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                     {/* CABEÇALHO DO DOCUMENTO EMPRESARIAL */}
                     <div className="flex justify-between items-end border-b-4 border-slate-900 pb-4 mb-6">
                         <div>
-                            <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-3">
+                            <h1 className="text-[18px] text-[#4e4e4e] font-black uppercase tracking-tighter flex items-center gap-3">
                                 <FileBarChart size={28} className="text-slate-900" />
-                                RELATÓRIO DE AUDITORIA
+                                SISTEMA DE CONTROLE NOC
                             </h1>
                             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mt-1">
                                 BR Aviation • JETFUEL-SIM / Sistema de Controle NOC
@@ -482,22 +482,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                         </div>
                         <div className="text-right flex flex-col items-end">
                              <div className="font-mono text-[10px] text-slate-500 mb-1 tracking-widest">DOC. REF: {selectedFlight.id.split('-')[0]}-{selectedFlight.id.split('-')[1]?.substring(0,4).toUpperCase()}</div>
-                             <div className="bg-slate-900 text-white px-3 py-1 font-mono text-xl font-black rounded-sm inline-block">
+                             <div className="bg-[#617B7B] text-white px-3 py-1 font-mono text-xl font-black rounded-sm inline-block">
                                 {selectedFlight.flightNumber}
                              </div>
                         </div>
                     </div>
 
                     {/* DADOS CADASTRAIS (GRID TABULAR FECHADO) */}
-                    <div className="mb-6 border-2 border-slate-900 rounded-sm overflow-hidden">
-                        <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest flex justify-between">
+                    <div className="mb-6 border border-[#617B7B] bg-[#617B7B] rounded-sm overflow-hidden">
+                        <div className="bg-[#617B7B] text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest flex justify-between">
                             <span>1.0 / Informações da Missão</span>
                             <span>DATA DE REFERÊNCIA: {selectedFlight.date}</span>
                         </div>
                         <div className="grid grid-cols-4 divide-x divide-y divide-slate-300 bg-white text-sm">
                             <div className="p-2">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">COMPANHIA</span>
-                                <span className="font-black text-slate-900 uppercase truncate block">{selectedFlight.airline} ({selectedFlight.airlineCode})</span>
+                                <span className="font-black text-[#626262] uppercase truncate block">{selectedFlight.airline} ({selectedFlight.airlineCode})</span>
                             </div>
                             <div className="p-2">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">AERONAVE / REG.</span>
@@ -505,11 +505,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                             </div>
                             <div className="p-2">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">MODELO ICAO</span>
-                                <span className="font-black text-slate-900 truncate block">{selectedFlight.model}</span>
+                                <span className="font-black text-[#626262] truncate block">{selectedFlight.model}</span>
                             </div>
                             <div className="p-2">
-                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">ROTA / TRONCO</span>
-                                <span className="font-black text-slate-900 truncate block">{selectedFlight.origin || 'N/A'} / {selectedFlight.destination}</span>
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">ICAO / CIDADE</span>
+                                <span className="font-black text-[#626262] truncate block">{selectedFlight.origin || 'N/A'} / {selectedFlight.destination}</span>
                             </div>
                             <div className="p-2">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">POSIÇÃO (PÁTIO)</span>
@@ -521,11 +521,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                             </div>
                             <div className="p-2">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">FROTA / OPERAÇÃO</span>
-                                <span className="font-black text-slate-900 uppercase truncate block">{selectedFlight.fleet ? `CTA-${selectedFlight.fleet}` : 'REDE HIDRANTE'}</span>
+                                <span className="font-black text-[#626262] uppercase truncate block">{selectedFlight.fleet ? `CTA-${selectedFlight.fleet}` : 'REDE HIDRANTE'}</span>
                             </div>
                             <div className="p-2">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">EQP. / VEÍCULO</span>
-                                <span className="font-black text-slate-900 uppercase truncate block">{selectedFlight.vehicleType || 'N/A'}</span>
+                                <span className="font-black text-[#626262] uppercase truncate block">{selectedFlight.vehicleType || 'N/A'}</span>
                             </div>
                         </div>
                     </div>
@@ -533,8 +533,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                     {/* EXECUÇÃO E VOLUMETRIA EM DUAS COLUNAS */}
                     <div className="flex gap-4 mb-6">
                         {/* LEFT: TIMELINE DE OPERAÇÃO */}
-                        <div className="flex-1 border-2 border-slate-900 rounded-sm overflow-hidden flex flex-col">
-                            <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                        <div className="flex-1 border border-[#617B7B] rounded-sm overflow-hidden flex flex-col">
+                            <div className="bg-[#617B7B] text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
                                 2.0 / Linha de Tempos Oficiais
                             </div>
                             <table className="w-full text-left bg-white text-sm">
@@ -558,8 +558,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2 bg-slate-50 border-t-2 border-slate-900">Operador NOC</td>
-                                        <td className="px-3 py-1.5 text-right bg-slate-50 border-t-2 border-slate-900">
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2 bg-slate-50 border-0">Operador NOC</td>
+                                        <td className="px-3 py-1.5 text-right bg-slate-50 border-0">
                                             <span className="font-bold text-slate-900 text-[10px] px-2 py-0.5 bg-slate-200 rounded-sm inline-block">
                                                 {selectedFlight.operator || 'NÃO DESIGNADO'}
                                             </span>
@@ -570,8 +570,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                         </div>
 
                         {/* RIGHT: VOLUMETRIA */}
-                        <div className="flex-1 border-2 border-slate-900 rounded-sm overflow-hidden flex flex-col">
-                            <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                        <div className="flex-1 border border-[#617B7B] rounded-sm overflow-hidden flex flex-col">
+                            <div className="bg-[#617B7B] text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
                                 3.0 / Fechamento Volumétrico
                             </div>
                             <table className="w-full text-left bg-white text-sm h-full">
@@ -601,11 +601,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
 
                     {/* ALERTA DE ATRASO OBRIGATÓRIO */}
                     {selectedFlight.delayJustification && (
-                        <div className="mb-6 border-2 border-slate-900 rounded-sm overflow-hidden flex flex-col relative print-avoid-break">
-                            <div className="absolute top-0 left-0 bottom-0 w-2.5 bg-slate-900"></div>
+                        <div className="mb-6 border-2 border-[#617B7B] rounded-sm overflow-hidden flex flex-col relative print-avoid-break">
+                            <div className="absolute top-0 left-0 bottom-0 w-2.5 bg-[#617B7B]"></div>
                             <div className="bg-slate-100 border-b border-slate-300 pl-4 py-1.5 px-3">
-                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
-                                    <AlertTriangle size={12} className="text-slate-900" />
+                                <div className="text-[10px] font-black uppercase tracking-widest text-[#696969] flex items-center gap-2">
+                                    <AlertTriangle size={12} className="text-[#696969]" />
                                     JUSTIFICATIVA DE QUEBRA DE SLA (ATRASO DETECTADO)
                                 </div>
                             </div>
@@ -617,8 +617,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
 
                     {/* OBSERVAÇÕES DE PÁTIO */}
                     {selectedFlight.report && Object.values(selectedFlight.report).some(v => v) && (
-                        <div className="mb-6 border-2 border-slate-900 rounded-sm overflow-hidden print-avoid-break">
-                            <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                        <div className="mb-6 border border-[#617B7B] rounded-sm overflow-hidden print-avoid-break">
+                            <div className="bg-[#617B7B] text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
                                 4.0 / Anotações de Pátio e Assinaturas
                             </div>
                             <div className="p-3 bg-white grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
@@ -667,20 +667,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
 
                     {/* CAIXA PRETA / AUDITORIA */}
                     <div className="mb-6 flex-1 print-avoid-break">
-                        <div className="border-b-2 border-slate-900 pb-1 mb-3 flex items-center gap-2">
+                        <div className="pb-1 mb-3 flex items-center gap-2 border-solid border-0 text-[#939393]">
                             <History size={14} className="text-slate-900" />
-                            <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-900">
+                            <h2 className="text-[11px] font-black uppercase tracking-wider text-[#696969]">
                                 5.0 / Trilha de Auditoria do Sistema (Caixa Preta)
                             </h2>
                         </div>
-                        <div className="bg-white border-2 border-slate-900 rounded-sm overflow-hidden">
+                        <div className="bg-white border-2 border-[#cfcfcf] rounded-sm overflow-hidden">
                            <table className="w-full text-left text-[9px] border-collapse">
-                               <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
+                               <thead className="text-white font-black uppercase tracking-wider">
                                     <tr>
-                                        <th className="px-2 py-1.5 w-[15%]">Timestamp</th>
-                                        <th className="px-2 py-1.5 w-[15%]">Ação Oficial</th>
-                                        <th className="px-2 py-1.5 w-[20%]">Autor / Matrícula</th>
-                                        <th className="px-2 py-1.5 w-[50%] border-l border-slate-700">Descrição/Contexto Operacional</th>
+                                        <th className="px-2 py-1.5 w-[15%] bg-[#617B7B]">Timestamp</th>
+                                        <th className="px-2 py-1.5 w-[15%] bg-[#617B7B]">Ação Oficial</th>
+                                        <th className="px-2 py-1.5 w-[20%] bg-[#617B7B]">Autor / Matrícula</th>
+                                        <th className="px-2 py-1.5 w-[50%] border-l border-slate-700 bg-[#617B7B]">Descrição/Contexto Operacional</th>
                                     </tr>
                                </thead>
                                <tbody className="divide-y divide-slate-300 font-mono font-bold text-[8px]">
@@ -709,25 +709,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                         </div>
                     </div>
 
-                    {/* ASSINATURAS E VALIDAÇÃO */}
-                    <div className="mt-auto pt-8 flex justify-between items-end print-avoid-break">
-                        <div className="w-[30%] border-t-2 border-slate-900 pt-2 text-center flex flex-col items-center">
-                            <span className="block text-[8px] font-black uppercase text-slate-900 tracking-widest mt-2">
-                                ASSINATURA OPR (CÓPIA NOC)
-                            </span>
-                        </div>
-                        <div className="w-[40%] text-center text-[7px] text-slate-500 font-mono tracking-widest font-black uppercase flex flex-col items-center pb-2">
-                            <span className="mb-1 text-slate-300">| | | | | | | | | | | | | | | | | | | | |</span>
-                            <span>ID DOC: {selectedFlight.id}</span>
-                            <span>HASH DE VALIDAÇÃO ELETRÔNICA DO SISTEMA</span>
-                            <span>AUTENTICADOR: {btoa(selectedFlight.id).replace(/=/g, '').substring(0, 16).toUpperCase()}</span>
-                        </div>
-                        <div className="w-[30%] border-t-2 border-slate-900 pt-2 text-center flex flex-col items-center">
-                            <span className="block text-[8px] font-black uppercase text-slate-900 tracking-widest mt-2">
-                                REVISÃO TÉCNICA (SUPERVISÃO)
-                            </span>
-                        </div>
-                    </div>
+
 
                 </div>
             </div>
