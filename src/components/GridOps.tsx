@@ -1446,11 +1446,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
       setDelayModalFlightId(null);
   };
 
-  const handleSubmitDelay = () => {
-      if (delayModalFlightId && delayReasonCode) {
+  const handleSubmitDelay = (finalCode?: string, finalDetail?: string) => {
+      const code = typeof finalCode === 'string' ? finalCode : delayReasonCode;
+      const detail = typeof finalDetail === 'string' ? finalDetail : delayReasonDetail;
+      
+      if (delayModalFlightId && code) {
           const flight = flights.find(f => f.id === delayModalFlightId);
           if (flight) {
-              const justification = `${delayReasonCode}${delayReasonDetail ? ` - ${delayReasonDetail}` : ''}`;
+              const justification = `${code}${detail ? ` - ${detail}` : ''}`;
               confirmFinish(delayModalFlightId, flight.flightNumber, justification);
           }
       }

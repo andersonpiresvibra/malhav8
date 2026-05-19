@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { TimerOff } from 'lucide-react';
+import { TimerOff, Clock } from 'lucide-react';
 import { FlightData } from '../../types';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -12,18 +12,32 @@ interface DelayJustificationModalProps {
     delayReasonDetail: string;
     setDelayReasonDetail: (detail: string) => void;
     onClose: () => void;
-    onSubmit: () => void;
+    onSubmit: (finalCode?: string, finalDetail?: string) => void;
 }
 
 const DELAY_REASONS = [
-    "Atraso Chegada Aeronave (Late Arrival)",
-    "Solicitação Cia Aérea (Abastecimento Parcial)",
-    "Manutenção Equipamento Abastecimento",
-    "Manutenção Aeronave (Mecânica)",
-    "Indisponibilidade de Posição/Balizamento",
-    "Restrição Meteorológica (Raios)",
-    "Atraso Operacional (Equipe)",
-    "Fluxo Lento / Pressão Hidrante Baixa"
+    "Não houve atraso",
+    "Autorização",
+    "Calço",
+    "DOC/DOT",
+    "Mecânico",
+    "Manut. Aeronave - Liberado",
+    "Area Obstruída",
+    "Imprev. Trajeto",
+    "Equipe de Rampa",
+    "Restr. Meteorologica",
+    "Hidrante/Pit",
+    "Frota",
+    "Outros"
+];
+
+const REQUIRES_TIME = [
+    "Autorização",
+    "Calço",
+    "DOC/DOT",
+    "Mecânico",
+    "Manut. Aeronave - Liberado",
+    "Area Obstruída"
 ];
 
 export const DelayJustificationModal: React.FC<DelayJustificationModalProps> = ({
@@ -37,6 +51,18 @@ export const DelayJustificationModal: React.FC<DelayJustificationModalProps> = (
     onSubmit
 }) => {
     const { isDarkMode } = useTheme();
+    const [timeInput, setTimeInput] = useState('');
+
+    const needsTime = REQUIRES_TIME.includes(delayReasonCode);
+
+    const handleConfirm = () => {
+        let finalCode = delayReasonCode;
+        if (needsTime && timeInput) {
+            finalCode = `${delayReasonCode} (${timeInput})`;
+        }
+        onSubmit(finalCode, delayReasonDetail);
+    };
+
     return createPortal(
         <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in p-4">
             <div className={`${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-slate-200'} border-[0.5px] rounded-[8px] w-[500px] shadow-[0_0_50px_rgba(245,158,11,0.2)] animate-in zoom-in-95 overflow-hidden`}>
@@ -46,7 +72,7 @@ export const DelayJustificationModal: React.FC<DelayJustificationModalProps> = (
                     </div>
                     <div>
                         <h3 className="text-lg font-black text-white uppercase tracking-wider">Atraso Detectado</h3>
-                        <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Justificativa Obrigatória para SLA</p>
+                        <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Justificativa Operacional</p>
                     </div>
                 </div>
 
@@ -56,7 +82,10 @@ export const DelayJustificationModal: React.FC<DelayJustificationModalProps> = (
                         <select 
                             className={`w-full border rounded-md px-4 py-3 text-sm outline-none focus:border-amber-500 ${isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                             value={delayReasonCode}
-                            onChange={(e) => setDelayReasonCode(e.target.value)}
+                            onChange={(e) => {
+                                setDelayReasonCode(e.target.value);
+                                setTimeInput('');
+                            }}
                         >
                             <option value="">-- SELECIONE O MOTIVO --</option>
                             {DELAY_REASONS.map(r => (
@@ -64,9 +93,24 @@ export const DelayJustificationModal: React.FC<DelayJustificationModalProps> = (
                             ))}
                         </select>
                     </div>
+
+                    {needsTime && (
+                        <div className="animate-in fade-in slide-in-from-top-2">
+                            <label className={`text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                                <Clock size={12} className="text-amber-500" />
+                                Horário da Ocorrência
+                            </label>
+                            <input 
+                                type="time"
+                                className={`w-full border rounded-md px-4 py-3 text-sm outline-none focus:border-amber-500 ${isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
+                                value={timeInput}
+                                onChange={(e) => setTimeInput(e.target.value)}
+                            />
+                        </div>
+                    )}
                     
                     <div>
-                        <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Notas Operacionais (Opcional)</label>
+                        <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Observações (Opcional)</label>
                         <textarea 
                             className={`w-full border rounded-md px-4 py-3 text-sm outline-none focus:border-amber-500 resize-none h-24 ${isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                             placeholder="Detalhes adicionais sobre o ocorrido..."
@@ -76,7 +120,7 @@ export const DelayJustificationModal: React.FC<DelayJustificationModalProps> = (
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mt-8 p-8 pt-0">
+                <div className="grid grid-cols-2 gap-3 mt-4 p-8 pt-0">
                     <button 
                         onClick={onClose}
                         className={`py-3 rounded-lg border font-bold uppercase text-[10px] tracking-widest transition-all active:scale-95 ${isDarkMode ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-600 hover:bg-slate-100'}`}
@@ -84,8 +128,8 @@ export const DelayJustificationModal: React.FC<DelayJustificationModalProps> = (
                         Cancelar
                     </button>
                     <button 
-                        onClick={onSubmit}
-                        disabled={!delayReasonCode}
+                        onClick={handleConfirm}
+                        disabled={!delayReasonCode || (needsTime && !timeInput)}
                         className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-lg shadow-lg shadow-indigo-600/20 transition-all active:scale-95 btn-confirm-delay disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <span className="text-[10px] font-black uppercase tracking-widest">Confirmar e Finalizar</span>
