@@ -598,23 +598,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                             <PlaneTakeoff size={10} className="text-slate-300" /> Nº Voo (Saída)
                         </label>
-                        {isEditingDepFlight ? (
-                            <input 
-                                autoFocus
-                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
-                                value={depFlightInput}
-                                onChange={e => setDepFlightInput(e.target.value.toUpperCase())}
-                                onBlur={handleSaveDepFlight}
-                                onKeyDown={e => e.key === 'Enter' && handleSaveDepFlight()}
-                            />
-                        ) : (
-                            <div onClick={() => setIsEditingDepFlight(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
-                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
-                                    {localFlight.departureFlightNumber || '--'}
-                                </span>
-                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                            </div>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                {localFlight.departureFlightNumber || '--'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* DESTINO */}
@@ -622,24 +610,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Globe size={10} className="text-slate-300" /> Destino
                         </label>
-                        {isEditingDest ? (
-                            <input 
-                                autoFocus
-                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
-                                value={destInput}
-                                onChange={e => setDestInput(e.target.value.toUpperCase().slice(0, 4))}
-                                onBlur={handleSaveDest}
-                                onKeyDown={e => e.key === 'Enter' && handleSaveDest()}
-                                maxLength={4}
-                            />
-                        ) : (
-                            <div onClick={() => setIsEditingDest(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
-                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
-                                    {localFlight.destination || '--'}
-                                </span>
-                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                            </div>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                {localFlight.destination || '--'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* CID (cidade) */}
@@ -660,23 +635,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Hash size={10} className="text-slate-300" /> Prefixo
                         </label>
-                        {isEditingReg ? (
-                            <input 
-                                autoFocus
-                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
-                                value={regInput}
-                                onChange={e => setRegInput(e.target.value.toUpperCase())}
-                                onBlur={handleSaveReg}
-                                onKeyDown={e => e.key === 'Enter' && handleSaveReg()}
-                            />
-                        ) : (
-                            <div onClick={() => setIsEditingReg(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
-                                <span className="text-[14px] leading-[20px] mb-[20px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
-                                    {localFlight.registration || '--'}
-                                </span>
-                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                            </div>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[14px] leading-[20px] mb-[20px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                {localFlight.registration || '--'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* POSIÇÃO */}
@@ -684,66 +647,14 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                             <MapPin size={10} className="text-slate-300" /> Posição
                         </label>
-                        {isEditingPos ? (
-                            <input 
-                                autoFocus
-                                className={`w-full bg-slate-50 border-2 ${localFlight.positionType === 'CTA' ? 'border-yellow-500 focus:ring-yellow-500/20' : 'border-emerald-500 focus:ring-emerald-500/20'} text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none uppercase transition-all shadow-sm`}
-                                placeholder="Ex: 101"
-                                value={posInput}
-                                onChange={e => setPosInput(e.target.value.toUpperCase())}
-                                onBlur={() => setIsEditingPos(false)}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                        const newLog = generateAuditLog('Posição ID', localFlight.positionId, posInput);
-                                        const updated = { ...localFlight, positionId: posInput, logs: [...localFlight.logs, newLog] };
-                                        setLocalFlight(updated);
-                                        onUpdate(updated);
-                                        setIsEditingPos(false);
-                                    }
-                                }}
-                            />
-                        ) : (
-                            <div onClick={() => setIsEditingPos(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
-                                <span className={`text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[40px] inline-block text-center border ${
-                                    localFlight.positionType === 'CTA' 
-                                    ? 'bg-yellow-400 border-yellow-500 text-slate-900' 
-                                    : 'bg-emerald-50 border-emerald-100 text-emerald-700'
-                                }`}>
-                                    {localFlight.positionId || '--'}
-                                </span>
-                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* POS TIPO (SRV / CTA) */}
-                    <div className="space-y-1 group">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                            <Activity size={10} className="text-slate-300" /> Pos Tipo
-                        </label>
-                        <div className="flex gap-1">
-                            {['SRV', 'CTA'].map(type => (
-                                <button
-                                    key={type}
-                                    type="button"
-                                    onClick={() => {
-                                        const newLog = generateAuditLog('Pos Tipo', localFlight.positionType || 'N/A', type);
-                                        const updated = { ...localFlight, positionType: type as 'SRV' | 'CTA', logs: [...localFlight.logs, newLog] };
-                                        setLocalFlight(updated);
-                                        onUpdate(updated);
-                                        setPosTypeInput(type as 'SRV' | 'CTA');
-                                    }}
-                                    className={`flex-1 py-1 text-[9px] font-bold rounded border transition-all ${
-                                        localFlight.positionType === type 
-                                        ? (type === 'CTA' 
-                                            ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-lg shadow-yellow-400/20' 
-                                            : 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20')
-                                        : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-200 hover:text-emerald-600 shadow-sm'
-                                    }`}
-                                >
-                                    {type}
-                                </button>
-                            ))}
+                        <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[40px] inline-block text-center border ${
+                                localFlight.positionType === 'CTA' 
+                                ? 'bg-yellow-400 border-yellow-500 text-slate-900' 
+                                : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                            }`}>
+                                {localFlight.positionId || '--'}
+                            </span>
                         </div>
                     </div>
 
@@ -753,24 +664,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Clock size={10} className="text-slate-300" /> ETD
                         </label>
-                        {isEditingEtd ? (
-                            <input 
-                                autoFocus
-                                type="time"
-                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
-                                value={etdInput}
-                                onChange={e => setEtdInput(e.target.value)}
-                                onBlur={handleSaveEtd}
-                                onKeyDown={e => e.key === 'Enter' && handleSaveEtd()}
-                            />
-                        ) : (
-                            <div onClick={() => setIsEditingEtd(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
-                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
-                                    {localFlight.etd || '--:--'}
-                                </span>
-                                <Pen size={8} className="text-slate-300 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                            </div>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                {localFlight.etd || '--:--'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* CALÇO */}
@@ -778,24 +676,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Anchor size={10} className="text-slate-300" /> Calço
                         </label>
-                        {isEditingChock ? (
-                            <input 
-                                autoFocus
-                                type="time"
-                                className="w-full bg-slate-50 border-2 border-emerald-500 text-slate-900 text-xs px-2 py-1 rounded-lg font-mono font-black outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-sm"
-                                value={chockInput}
-                                onChange={e => setChockInput(e.target.value)}
-                                onBlur={handleSaveChock}
-                                onKeyDown={e => e.key === 'Enter' && handleSaveChock()}
-                            />
-                        ) : (
-                            <div onClick={() => setIsEditingChock(true)} className="flex items-center gap-1.5 cursor-pointer group/item">
-                                <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
-                                    {chockInput || '--:--'}
-                                </span>
-                                <Pen size={8} className="text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                            </div>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-mono text-emerald-700 bg-emerald-50 border border-emerald-100 font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center">
+                                {localFlight.actualArrivalTime || '--:--'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* TEMPOS (RESTANTE / ATRASO) */}
@@ -912,7 +797,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                             <UserPlus size={10} className="text-indigo-500" /> Operador
                         </label>
                         {localFlight.operator ? (
-                            <div className={`flex items-center justify-between border p-2 rounded-lg group transition-all shadow-sm ${isDarkMode ? 'bg-slate-900 border-slate-800 hover:border-indigo-500/50' : 'bg-white border-slate-200 hover:border-indigo-300'}`}>
+                            <div className={`flex items-center justify-between border p-2 rounded-lg group transition-all shadow-sm ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                                 <div className="flex items-center gap-2">
                                     <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold border ${isDarkMode ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
                                         {localFlight.operator.charAt(0)}
@@ -924,20 +809,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                                         </div>
                                     </div>
                                 </div>
-                                <button 
-                                    onClick={() => setIsAssignModalOpen(true)}
-                                    className={`p-1.5 rounded-lg transition-all ${isDarkMode ? 'text-slate-500 hover:text-indigo-400 hover:bg-slate-800' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                                >
-                                    <RefreshCw size={10} />
-                                </button>
                             </div>
                         ) : (
-                            <button 
-                                onClick={() => setIsAssignModalOpen(true)}
-                                className={`w-full h-[36px] border border-dashed rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 uppercase tracking-widest transition-all ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10' : 'bg-white border-slate-300 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/30'}`}
-                            >
-                                <UserPlus size={14} /> Designar
-                            </button>
+                            <div className={`w-full h-[36px] border rounded-lg flex items-center justify-center text-[9px] font-bold uppercase tracking-widest ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                                --
+                            </div>
                         )}
                     </div>
 
@@ -949,7 +825,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         {localFlight.operator ? (
                             <div className="relative">
                                 {localFlight.supportOperator ? (
-                                    <div className={`flex items-center justify-between border p-2 rounded-lg group transition-all shadow-sm ${isDarkMode ? 'bg-slate-900 border-slate-800 hover:border-emerald-500/50' : 'bg-white border-slate-200 hover:border-emerald-300'}`}>
+                                    <div className={`flex items-center justify-between border p-2 rounded-lg group transition-all shadow-sm ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                                         <div className="flex items-center gap-2">
                                             <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold border ${isDarkMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
                                                 {localFlight.supportOperator.charAt(0)}
@@ -962,30 +838,16 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                                                 <div className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">Auxiliar</div>
                                             </div>
                                         </div>
-                                        <button 
-                                            onClick={() => {
-                                                const newLog = generateAuditLog('Op. Apoio', localFlight.supportOperator, undefined);
-                                                const updated = { ...localFlight, supportOperator: undefined, logs: [...localFlight.logs, newLog] };
-                                                setLocalFlight(updated);
-                                                onUpdate(updated);
-                                            }}
-                                            className={`p-1.5 rounded-lg transition-all ${isDarkMode ? 'text-slate-500 hover:text-red-400 hover:bg-slate-800' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                                        >
-                                            <X size={10} />
-                                        </button>
                                     </div>
                                 ) : (
-                                    <button 
-                                        onClick={() => onOpenAssignSupport && onOpenAssignSupport(localFlight)}
-                                        className={`w-full h-[36px] border border-dashed rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 uppercase tracking-widest transition-all ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-500 hover:text-emerald-400 hover:border-emerald-500/50 hover:bg-emerald-500/10' : 'bg-white border-slate-300 text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/30'}`}
-                                    >
-                                        <Plus size={14} /> Adicionar
-                                    </button>
+                                    <div className={`w-full h-[36px] border rounded-lg flex items-center justify-center text-[9px] font-bold uppercase tracking-widest ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                                        --
+                                    </div>
                                 )}
                             </div>
                         ) : (
                             <div className={`w-full h-[36px] border rounded-lg flex items-center justify-center text-[9px] font-bold uppercase tracking-widest ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-600' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
-                                Aguardando
+                                Aguardando Operador
                             </div>
                         )}
                     </div>
@@ -1029,14 +891,6 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
             </div>
         </div>
     </motion.div>
-
-    <DesigOpr 
-        isOpen={isAssignModalOpen}
-        onClose={() => setIsAssignModalOpen(false)}
-        flight={localFlight}
-        operators={operators}
-        onConfirm={handleAssignOperator}
-    />
   </>,
   document.body
 );

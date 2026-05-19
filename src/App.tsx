@@ -260,7 +260,7 @@ const App: React.FC = () => {
            console.error("Error fetching base mesh for date: " + currentMeshDate, err);
        }
     });
-  }, [currentMeshDate]);
+  }, [currentMeshDate, view]);
 
   const meshFlights = meshFlightsByDate[currentMeshDate] || [];
   
@@ -751,7 +751,7 @@ const App: React.FC = () => {
                         const merged = newFlights.map(newF => {
                           const existing = prev.find(p => 
                             p.id === newF.id || 
-                            (p.flightNumber === newF.flightNumber && p.airline === newF.airline && p.date === newF.date)
+                            (p.flightNumber && p.flightNumber === newF.flightNumber && p.airline === newF.airline && p.date === newF.date)
                           );
 
                           // Se o voo já existe e TEM operador ou está em status avançado, preservamos o operacional
@@ -767,7 +767,7 @@ const App: React.FC = () => {
 
                         // Adicionar também voos que estão na tela mas NÃO estão na malha (inserções manuais)
                         const manualFlights = prev.filter(p => 
-                          !newFlights.some(nf => nf.id === p.id || (nf.flightNumber === p.flightNumber && nf.airline === p.airline))
+                          !newFlights.some(nf => nf.id === p.id || (nf.flightNumber && nf.flightNumber === p.flightNumber && nf.airline === p.airline))
                         );
 
                         const final = [...merged, ...manualFlights];

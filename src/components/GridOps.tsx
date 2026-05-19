@@ -947,8 +947,36 @@ export const GridOps: React.FC<GridOpsProps> = ({
        }
        
        return false;
+    }).map(f => {
+        let augmentedModel = f.model;
+        if ((!augmentedModel || augmentedModel === '--') && f.registration) {
+            const cleanReg = f.registration.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            let match = aircrafts.find(a => a.prefix.toUpperCase() === f.registration?.toUpperCase());
+            if (!match && cleanReg.length >= 3) {
+                match = aircrafts.find(a => {
+                    const cleanPrefix = a.prefix.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                    return cleanPrefix === cleanReg || cleanPrefix.endsWith(cleanReg);
+                });
+            }
+            if (match && match.model && match.model !== '--') {
+                augmentedModel = match.model;
+            }
+        }
+        let augmentedFleetType = f.fleetType;
+        if ((!augmentedFleetType || augmentedFleetType === '--') && f.fleet) {
+            const cleanFleet = String(f.fleet).replace(/[^0-9A-Z]/ig, '');
+            const vMatch = vehicles.find(v => String(v.id).replace(/[^0-9A-Z]/ig, '') === cleanFleet);
+            if (vMatch) {
+                augmentedFleetType = vMatch.type === 'SERVIDOR' ? 'SRV' : 'CTA';
+            }
+        }
+        return {
+            ...f,
+            model: augmentedModel,
+            fleetType: augmentedFleetType
+        };
     });
-  }, [flights, activeDateOffset]);
+  }, [flights, activeDateOffset, aircrafts, vehicles]);
 
   const shiftedFlights = useMemo(() => 
     visibleFlights.filter(f => isTimeInShift(f.etd, activeShift)), 
@@ -1572,13 +1600,24 @@ export const GridOps: React.FC<GridOpsProps> = ({
               assigned_by: ltName 
           });
 
+          let derivedFleetType: 'SRV' | 'CTA' | undefined;
+          if (operator.assignedVehicle) {
+              if (operator.assignedVehicle.startsWith('CTA')) derivedFleetType = 'CTA';
+              else if (operator.assignedVehicle.startsWith('SRV')) derivedFleetType = 'SRV';
+              else {
+                  const cleanv = operator.assignedVehicle.replace(/[^0-9A-Z]/ig, '');
+                  const vMatch = vehicles.find(v => String(v.id).replace(/[^0-9A-Z]/ig, '') === cleanv);
+                  if (vMatch) derivedFleetType = vMatch.type === 'SERVIDOR' ? 'SRV' : 'CTA';
+              }
+          }
+
           const updated = { 
               ...assignModalFlight, 
               status: FlightStatus.DESIGNADO, 
               operator: operator.warName,
               operatorId: operator.id,
               fleet: operator.assignedVehicle,
-              fleetType: operator.assignedVehicle?.startsWith('CTA') ? 'CTA' : operator.assignedVehicle?.startsWith('SRV') ? 'SRV' : undefined,
+              fleetType: derivedFleetType,
               designationTime: new Date(),
               assignmentTime: new Date(),
               assignedByLt: ltName,
@@ -1675,44 +1714,24 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const minutesToETA = getMinutesDiff(f.eta, f.date);
     const minutesToETD = getMinutesDiff(f.etd, f.date);
 
-    if (activeTab === 'GERAL') {
-        const baseStatusMap: Record<FlightStatus, string> = {
-            [FlightStatus.CHEGADA]: 'CHEGADA',
-            [FlightStatus.FILA]: 'FILA',
-            [FlightStatus.DESIGNADO]: 'DESIGNADO',
-            [FlightStatus.AGUARDANDO]: 'AGUARDANDO',
-            [FlightStatus.ABASTECENDO]: 'ABASTECENDO',
-            [FlightStatus.FINALIZADO]: 'FINALIZADO',
-            [FlightStatus.CANCELADO]: 'CANCELADO',
-            [FlightStatus.PRÉ]: 'PRÉ',
-        };
-        const stLabel = baseStatusMap[f.status] || f.status;
-        return {
-            label: stLabel,
-            color: isDarkMode ? 'text-slate-300 bg-slate-800 border-slate-700' : 'text-slate-700 bg-slate-200 border-slate-400'
-        };
-    }
-
     if (f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO) {
-        if (activeTab === 'FINALIZADO') {
-            if (f.status === FlightStatus.CANCELADO) return { 
-                label: 'CANCELADO', 
-                color: isDarkMode ? 'text-red-400 bg-red-500/10 border-red-500/30' : 'text-red-600 bg-red-50 border-red-200' 
-            };
-            const hasSwap = f.logs.some(l => l.message.toLowerCase().includes('troca') || l.message.toLowerCase().includes('swap'));
-            if (hasSwap) return { 
-                label: 'COM TROCA', 
-                color: isDarkMode ? 'text-purple-400 bg-purple-500/10 border-purple-500/30' : 'text-purple-600 bg-purple-50 border-purple-200' 
-            };
-            if (checkIsDelayed(f) || f.delayJustification) return { 
-                label: 'COM ATRASO', 
-                color: isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500/30' : 'text-amber-600 bg-amber-50 border-amber-200' 
-            };
-            return { 
-                label: 'COM SUCESSO', 
-                color: isDarkMode ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200' 
-            };
-        }
+        if (f.status === FlightStatus.CANCELADO) return { 
+            label: 'CANCELADO', 
+            color: isDarkMode ? 'text-red-400 bg-red-500/10 border-red-500/30' : 'text-red-600 bg-red-50 border-red-200' 
+        };
+        const hasSwap = f.logs.some(l => l.message.toLowerCase().includes('troca') || l.message.toLowerCase().includes('swap'));
+        if (hasSwap) return { 
+            label: 'COM TROCA', 
+            color: isDarkMode ? 'text-purple-400 bg-purple-500/10 border-purple-500/30' : 'text-purple-600 bg-purple-50 border-purple-200' 
+        };
+        if (checkIsDelayed(f) || f.delayJustification) return { 
+            label: 'COM ATRASO', 
+            color: isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500/30' : 'text-amber-600 bg-amber-50 border-amber-200' 
+        };
+        return { 
+            label: 'COM SUCESSO', 
+            color: isDarkMode ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200' 
+        };
     }
 
     if (f.status === FlightStatus.CHEGADA) {
@@ -2197,10 +2216,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     ) : isStreamlinedView ? (
                         <>
                             <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
+                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
+                            <SortableHeader label="MODELO" columnKey="model" className="text-center w-16" />
                             <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
                             <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
                             <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
                             <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
                             <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
                             <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
@@ -2226,6 +2246,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         <>
                             <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
                             <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
+                            <SortableHeader label="MODELO" columnKey="model" className="text-center w-16" />
                             <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
                             <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
                             <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
@@ -2399,28 +2420,33 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             </>
                           ) : isStreamlinedView ? (
                             <>
+                                {/* FLIGHT OUT (Moved later) */}
+
+                                {/* REGISTRATION */}
+                                {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 1)}
+
+                                {/* MODEL */}
+                                {renderEditableCell(row, 'model', row.model, "text-center font-mono text-[10px] font-bold", rowIndex, 2, false)}
+
                                 {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1, true)}
+                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 3, true)}
 
                                 {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 2, true)}
+                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 4, true)}
 
                                 {/* CITY (Not directly editable, derived from destination) */}
                                 <td className={`px-1 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
                                     {getCityName(row.destination || '', destinosDB)}
                                 </td>
 
-                                {/* REGISTRATION */}
-                                {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 3)}
-
                                 {/* POSITION */}
-                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 4)}
+                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 5)}
 
                                 {/* CALÇO (ATA) */}
-                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 5)}
+                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 6)}
 
                                 {/* ETD */}
-                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 6)}
+                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 7)}
 
                                 {/* OPERATOR (WITH ASSIGN BUTTON) */}
                                 <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-left align-middle overflow-visible`}>
@@ -2442,10 +2468,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 </td>
 
                                 {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
+                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
 
                                 {/* FLEET TYPE */}
-                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
+                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 9, false)}
 
                                 {/* REPORT */}
                                 {renderReportCell(row)}
@@ -2476,11 +2502,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 {/* REGISTRATION */}
                                 {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 1)}
 
+                                {/* MODEL */}
+                                {renderEditableCell(row, 'model', row.model, "text-center font-mono text-[10px] font-bold", rowIndex, 2, false)}
+
                                 {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 2, true)}
+                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 3, true)}
 
                                 {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 3, true)}
+                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 4, true)}
 
                                 {/* CITY */}
                                 <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
@@ -2488,13 +2517,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 </td>
 
                                 {/* POSITION */}
-                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 4)}
+                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 5)}
 
                                 {/* CALÇO (ATA) */}
-                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 5)}
+                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 6)}
 
                                 {/* ETD */}
-                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 6)}
+                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 7)}
                                 
                                 {/* OPERATOR (WITH ASSIGN BUTTON & MESSAGE DOT) */}
                                 <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-left align-middle overflow-visible truncate`}>
@@ -2510,10 +2539,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 </td>
 
                                 {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
+                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
 
                                 {/* FLEET TYPE */}
-                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
+                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 9, false)}
 
                                 {/* REPORT */}
                                 {renderReportCell(row)}
@@ -2588,7 +2617,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             </>
                           )}
                           
-                          {/* STATUS (PILL DESIGN RESTORED) - MOVED OUTSIDE CONDITIONAL */}
+                          {/* STATUS (PILL DESIGN RESTORED) */}
                           <td className={`px-1.5 py-1 text-center border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all`}>
                               {dynamicStatus ? (
                                   <div className="flex flex-col items-center justify-center gap-0.5 w-full">

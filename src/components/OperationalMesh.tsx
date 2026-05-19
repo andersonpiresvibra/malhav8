@@ -11,7 +11,7 @@ import { TimeConflictModal } from './TimeConflictModal';
 import { BulkNextDayModal } from './BulkNextDayModal';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { supabase } from '../lib/supabase';
-import { upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos, getRootMesh } from '../services/supabaseService';
+import { getBaseMeshFlights, upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos, getRootMesh } from '../services/supabaseService';
 import { formatAirlineName } from '../utils/airlineUtils';
 import { downloadTemplate } from '../utils/excelTemplateUtils';
 
@@ -211,7 +211,11 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
     getDestinos().then(destinos => {
       setDestinosDB(destinos as StaticFlight[]);
     });
-  }, []);
+    // Add fetching on mount/date change
+    getBaseMeshFlights(currentMeshDate).then(mesh => {
+       if (mesh) setMeshFlights(mesh);
+    }).catch(console.error);
+  }, [currentMeshDate]);
 
   useEffect(() => {
     if (readyStateFilter !== lastFiltersRef.current.readyStateFilter || 
@@ -291,9 +295,12 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
   };
 
   const startEditingCell = (rowId: string, colIndex: number) => {
+      const colKey = COLUMNS[colIndex]?.key;
+      if (colKey === 'model') return;
+
       const flight = meshFlights.find(f => f.id === rowId);
       if (flight) {
-          setEditingCellOriginalValue(flight[COLUMNS[colIndex].key as keyof MeshFlight] as string || '');
+          setEditingCellOriginalValue(flight[colKey as keyof MeshFlight] as string || '');
       }
       setEditingCell({ rowId, col: colIndex });
   };
@@ -613,10 +620,15 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
 
   const handleActivate = () => {
     const activeFlights = meshFlights.filter(f => !f.disabled);
+    if (activeFlights.length === 0) {
+        setAlertState({isOpen: true, title: 'Malha Vazia', message: 'Não há voos na malha de base ativa para esta data.'});
+        return;
+    }
+
     const unsyncedFlights = activeFlights.filter(f => !isFlightSynced(f));
 
     if (unsyncedFlights.length === 0) {
-        setAlertState({isOpen: true, title: 'Malha Sincronizada', message: 'A malha geral já está sincronizada. Todos os voos ativos da malha base já estão presentes na malha geral.'});
+        setAlertState({isOpen: true, title: 'Malha Sincronizada', message: 'A malha geral já está sincronizada. Todos os voos ativos da malha base já estão presentes na malha geral (Operação Mês).'});
         return;
     }
 
@@ -668,12 +680,12 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
       }
       
       return {
-        id: generateUUID(),
+        id: mesh.id, // Use mesh.id to allow correct deduplication and sync tracking
         airline: mesh.airline,
         airlineCode: derivedCode,
         registration: mesh.registration.toUpperCase(),
         model: mesh.model.toUpperCase(),
-        flightNumber: '', 
+        flightNumber: mesh.flightNumber || '', 
         eta: mesh.eta,
         departureFlightNumber: mesh.departureFlightNumber.toUpperCase(),
         destination: mesh.destination.toUpperCase(),
@@ -1267,6 +1279,26 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                                 return map[code] || code;
                             };
 
+                            let reg = getCol(cols, idxPrefixo).trim().toUpperCase();
+                            let model = getCol(cols, idxModelo).trim().toUpperCase();
+                            
+                            if ((!model || model === '--') && reg) {
+                                const cleanReg = reg.replace(/[^A-Z0-9]/ig, '');
+                                let attemptMatch;
+                                if (cleanReg.length >= 3) {
+                                    attemptMatch = aircraftsDB.find(a => {
+                                        const cleanPrefix = a.prefix.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                                        return cleanPrefix === cleanReg || cleanPrefix.endsWith(cleanReg);
+                                    });
+                                }
+                                if (!attemptMatch) {
+                                    attemptMatch = aircraftsDB.find(a => a.prefix.toUpperCase() === reg);
+                                }
+                                if (attemptMatch && attemptMatch.model && attemptMatch.model !== '--') {
+                                    model = attemptMatch.model;
+                                }
+                            }
+
                             newFlights.push({
                               id: generateUUID(),
                               airline: getAirlineName(cia),
@@ -1275,8 +1307,8 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                               departureFlightNumber: vooSaida,
                               destination: getCol(cols, idxDestino).trim().toUpperCase(),
                               etd: formatImportTime(getCol(cols, idxEtd)),
-                              registration: getCol(cols, idxPrefixo).trim().toUpperCase(),
-                              model: getCol(cols, idxModelo).trim().toUpperCase(),
+                              registration: reg,
+                              model: model,
                               eta: formatImportTime(getCol(cols, idxEta)),
                               positionId: getCol(cols, idxPosicao).trim().toUpperCase(),
                               actualArrivalTime: formatImportTime(getCol(cols, idxCalco)),

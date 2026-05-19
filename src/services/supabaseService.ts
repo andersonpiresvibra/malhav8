@@ -481,25 +481,38 @@ export const getRootMesh = async (): Promise<MeshFlight[]> => {
 export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
   if (!isSupabaseConfigured()) return;
   
-  let payload = flights.map(f => {
+  let payloadRaw = flights.map(f => {
     const obj: any = {
       flight_number: f.flightNumber || f.departureFlightNumber,
       airline_code: (f as any).cia || f.airline || f.airlineCode || '',
       destination: f.destination,
       etd: cleanTime(f.etd),
       eta: cleanTime(f.eta),
+      registration: f.registration,
+      model: f.model,
+      position_id: f.positionId,
+      actual_arrival_time: cleanTime(f.actualArrivalTime),
       is_disabled: f.disabled || false,
       updated_at: new Date().toISOString()
     };
-    if (f.id) {
-       obj.id = f.id;
-    }
+    if (f.id) obj.id = f.id;
     return obj;
   });
+  
+  // Deduplicate by flight_number
+  const seenFlights = new Set();
+  let payload = [];
+  for (const p of payloadRaw) {
+      if (!p.flight_number) continue; // Skip empty
+      if (!seenFlights.has(p.flight_number)) {
+          seenFlights.add(p.flight_number);
+          payload.push(p);
+      }
+  }
 
   let maxAttempts = 10;
   while (maxAttempts > 0) {
-    const { error } = await supabase.from('malha_raiz').upsert(payload);
+    const { error } = await supabase.from('malha_raiz').upsert(payload, { onConflict: 'flight_number' });
     
     if (!error) return;
 
@@ -627,11 +640,11 @@ export const upsertBaseMeshFlights = async (flightsBase: MeshFlight[]): Promise<
       flight_number: f.flightNumber,
       departure_flight_number: f.departureFlightNumber,
       destination: f.destination,
-      etd: cleanTime(f.etd),
+      etd: f.etd,
       registration: f.registration,
-      eta: cleanTime(f.eta),
+      eta: f.eta,
       position_id: f.positionId,
-      actual_arrival_time: cleanTime(f.actualArrivalTime),
+      actual_arrival_time: f.actualArrivalTime,
       model: f.model,
       updated_at: new Date().toISOString()
     };
@@ -642,15 +655,30 @@ export const upsertBaseMeshFlights = async (flightsBase: MeshFlight[]): Promise<
   });
 
   let maxAttempts = 10;
+  let missingCol = '';
+  
   while (maxAttempts > 0) {
-    const { data, error } = await supabase.from('malha_dia').upsert(payload).select('id');
-    
-    if (!error) {
-       if (data && data.length === 0 && payload.length > 0) {
-           throw new Error("A inserção falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS) do banco de dados permitem (ou desabilite o RLS da tabela 'malha_dia').");
-       }
-       return;
+    let allChunksSuccess = true;
+    let chunkError = null;
+
+    const chunkSize = 200;
+    for (let i = 0; i < payload.length; i += chunkSize) {
+      const chunk = payload.slice(i, i + chunkSize);
+      const { data, error } = await supabase.from('malha_dia').upsert(chunk).select('id');
+      
+      if (error) {
+         allChunksSuccess = false;
+         chunkError = error;
+         break;
+      }
+      if (data && data.length === 0 && chunk.length > 0) {
+          throw new Error("A inserção falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS) do banco de dados permitem (ou desabilite o RLS da tabela 'malha_dia').");
+      }
     }
+    
+    if (allChunksSuccess) return;
+
+    const error = chunkError;
 
     const notFoundMatch = error.message.match(/Could not find the '([^']+)' column/);
     const doesNotExistMatch = error.message.match(/column\s+([^\s]+)\s+of relation/i) 
@@ -713,9 +741,9 @@ export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> =>
       registration: flight.registration,
       origin: flight.origin,
       destination: flight.destination,
-      eta: cleanTime(flight.eta),
-      etd: cleanTime(flight.etd),
-      actual_arrival_time: cleanTime(flight.actualArrivalTime),
+      eta: flight.eta,
+      etd: flight.etd,
+      actual_arrival_time: flight.actualArrivalTime,
       position_id: flight.positionId,
       position_type: flight.positionType || null,
       pit_id: flight.pitId || null,

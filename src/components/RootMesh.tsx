@@ -5,7 +5,7 @@ import { FlightData, FlightStatus, AircraftType, MeshFlight, StaticFlight } from
 import { getCurrentShift, getLocalDateStr } from '../utils/shiftUtils';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
-import { bulkInsertFlights, upsertRootMesh, clearRootMesh, deleteRootMeshFlight, getDestinos } from '../services/supabaseService';
+import { getBaseMeshFlights, upsertBaseMeshFlights, upsertRootMesh, clearRootMesh, deleteRootMeshFlight, getDestinos } from '../services/supabaseService';
 import { ConfirmActionModal } from './modals/ConfirmActionModal';
 import { AlertModal } from './modals/AlertModal';
 import { generateUUID } from '../utils/uuid';
@@ -544,9 +544,9 @@ export const RootMesh: React.FC<RootMeshProps> = ({
     const [year, month] = targetMonth.split('-');
     const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
     
-    const allGeneratedFlights: FlightData[] = [];
+    const allGeneratedFlights: MeshFlight[] = [];
     
-    // Preparar dados para o banco
+    // Preparar dados para o banco (tabela malha_dia)
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
         activeFlights.forEach((f, i) => {
@@ -556,22 +556,17 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                 date: dateStr,
                 airline: f.airline,
                 airlineCode: f.airlineCode,
+                companhia_id: f.companhia_id,
                 flightNumber: f.flightNumber || f.departureFlightNumber,
                 departureFlightNumber: f.departureFlightNumber,
                 destination: f.destination,
                 etd: f.etd,
                 registration: f.registration,
                 eta: f.eta || f.etd, // Fallback ETA = ETD
-                origin: '',
                 actualArrivalTime: f.actualArrivalTime || '',
-                positionId: f.positionId,
-                model: f.model,
-                status: 'PRÉ' as FlightStatus,
-                fuelStatus: 0,
-                volume: 0,
-                isOnGround: false,
-                logs: [],
-                report: {}
+                positionId: f.positionId || '',
+                model: f.model || '',
+                disabled: false
             });
         });
     }
@@ -579,18 +574,15 @@ export const RootMesh: React.FC<RootMeshProps> = ({
     try {
         setAlertState({
             isOpen: true, 
-            title: 'Gerando Malha...', 
-            message: `Processando ${allGeneratedFlights.length} registros. Por favor, aguarde...`
+            title: 'Gerando Malha Base...', 
+            message: `Processando ${allGeneratedFlights.length} registros para malha de base. Por favor, aguarde...`
         });
         
-        await bulkInsertFlights(allGeneratedFlights);
+        const { supabase } = await import('../lib/supabase');
+        await supabase.from('malha_dia').delete().like('date', targetMonth + '-%');
+        await upsertBaseMeshFlights(allGeneratedFlights);
         
-        setMeshFlightsByDate(prev => {
-            const newMap = { ...prev };
-            // Optional: Update local state for the month if needed, 
-            // but usually GridOps fetches per day from DB anyway.
-            return newMap;
-        });
+        setMeshFlightsByDate({}); // Limpa o cache local para forçar nova busca ao voltar para a aba de operação
 
         setAlertState({
             isOpen: true, 

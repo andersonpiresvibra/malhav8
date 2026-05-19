@@ -469,145 +469,129 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                 
                 {/* A4 SHEET SIMULATION - ID usado pelo CSS @media print */}
                 <div id="printable-report-container" className="print-report w-[210mm] min-h-[297mm] bg-white text-slate-950 p-12 shadow-2xl rounded-sm flex flex-col font-sans">
-                    
-                    {/* CABEÇALHO */}
-                    <div className="border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-start">
+                    {/* CABEÇALHO DO DOCUMENTO EMPRESARIAL */}
+                    <div className="flex justify-between items-end border-b-4 border-slate-900 pb-4 mb-6">
                         <div>
-                            <h1 className="text-2xl font-black uppercase tracking-tight mb-1 flex items-center gap-2">
-                                <FileBarChart size={24} className="text-slate-900" />
-                                Relatório de Operações
+                            <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-3">
+                                <FileBarChart size={28} className="text-slate-900" />
+                                RELATÓRIO DE AUDITORIA
                             </h1>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                Registro Operacional • ID: {selectedFlight.id.toUpperCase()}
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mt-1">
+                                BR Aviation • JETFUEL-SIM / Sistema de Controle NOC
                             </p>
                         </div>
-                        <div className="text-right">
-                            <span className="block text-3xl font-mono font-black text-slate-900">{selectedFlight.flightNumber}</span>
-                            <span className="block text-xs font-bold uppercase text-slate-500 mt-1">
-                                {new Date().toLocaleDateString()} • {new Date().toLocaleTimeString()}
-                            </span>
+                        <div className="text-right flex flex-col items-end">
+                             <div className="font-mono text-[10px] text-slate-500 mb-1 tracking-widest">DOC. REF: {selectedFlight.id.split('-')[0]}-{selectedFlight.id.split('-')[1]?.substring(0,4).toUpperCase()}</div>
+                             <div className="bg-slate-900 text-white px-3 py-1 font-mono text-xl font-black rounded-sm inline-block">
+                                {selectedFlight.flightNumber}
+                             </div>
                         </div>
                     </div>
 
-                    {/* ALERT DE ATRASO SE HOUVER */}
-                    {selectedFlight.delayJustification && (
-                        <div className="mb-8 border border-amber-500/50 bg-amber-50 rounded-md p-4 flex gap-4 items-start">
-                            <div className="text-amber-600 shrink-0 mt-1">
-                                <TimerOff size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-1">
-                                    Análise de Discrepância de Horário (Atraso)
-                                </h3>
-                                <p className="text-xs font-medium text-slate-800 leading-relaxed">
-                                    <span className="font-bold">ETD Previsto:</span> {selectedFlight.etd} • <span className="font-bold">Finalização Real:</span> {selectedFlight.endTime?.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                                </p>
-                                <div className="mt-2 text-xs text-slate-900 border-l-2 border-amber-500 pl-3 italic">
-                                    "{selectedFlight.delayJustification}"
-                                </div>
-                            </div>
+                    {/* DADOS CADASTRAIS (GRID TABULAR FECHADO) */}
+                    <div className="mb-6 border-2 border-slate-900 rounded-sm overflow-hidden">
+                        <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest flex justify-between">
+                            <span>1.0 / Informações da Missão</span>
+                            <span>DATA DE REFERÊNCIA: {selectedFlight.date}</span>
                         </div>
-                    )}
-
-                    {/* DADOS DO VOO (GRID SIMPLES) */}
-                    <div className="mb-8">
-                        <h2 className="text-xs font-black uppercase tracking-widest border-b border-slate-300 pb-1 mb-3 text-slate-600">
-                            Dados da Missão
-                        </h2>
-                        <div className="grid grid-cols-4 gap-y-4 gap-x-8 text-sm">
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Companhia</span>
-                                <span className="font-bold text-slate-900">{selectedFlight.airline} ({selectedFlight.airlineCode})</span>
+                        <div className="grid grid-cols-4 divide-x divide-y divide-slate-300 bg-white text-sm">
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">COMPANHIA</span>
+                                <span className="font-black text-slate-900 uppercase truncate block">{selectedFlight.airline} ({selectedFlight.airlineCode})</span>
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Aeronave</span>
-                                <span className="font-bold text-slate-900 font-mono">{selectedFlight.registration}</span>
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">AERONAVE / REG.</span>
+                                <span className="font-black text-slate-900 font-mono truncate block">{selectedFlight.registration}</span>
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Modelo</span>
-                                <span className="font-bold text-slate-900">{selectedFlight.model}</span>
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">MODELO ICAO</span>
+                                <span className="font-black text-slate-900 truncate block">{selectedFlight.model}</span>
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Rota</span>
-                                <span className="font-bold text-slate-900">{selectedFlight.origin} / {selectedFlight.destination}</span>
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">ROTA / TRONCO</span>
+                                <span className="font-black text-slate-900 truncate block">{selectedFlight.origin || 'N/A'} / {selectedFlight.destination}</span>
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Posição</span>
-                                <span className="font-bold text-slate-900">{selectedFlight.positionId}</span>
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">POSIÇÃO (PÁTIO)</span>
+                                <span className="font-black text-slate-900 font-mono truncate block">{selectedFlight.positionId}</span>
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">ETD (Saída)</span>
-                                <span className="font-bold text-slate-900 font-mono">{selectedFlight.etd}</span>
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">ETD (SAÍDA PRESUMIDA)</span>
+                                <span className="font-black text-slate-900 font-mono truncate block">{selectedFlight.etd}</span>
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Frota Utilizada</span>
-                                <span className="font-bold text-slate-900 uppercase">{selectedFlight.fleet ? `CTA-${selectedFlight.fleet}` : 'REDE HIDRANTE'}</span>
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">FROTA / OPERAÇÃO</span>
+                                <span className="font-black text-slate-900 uppercase truncate block">{selectedFlight.fleet ? `CTA-${selectedFlight.fleet}` : 'REDE HIDRANTE'}</span>
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Tipo Eqp.</span>
-                                <span className="font-bold text-slate-900 uppercase">{selectedFlight.vehicleType}</span>
+                            <div className="p-2">
+                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider">EQP. / VEÍCULO</span>
+                                <span className="font-black text-slate-900 uppercase truncate block">{selectedFlight.vehicleType || 'N/A'}</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* DADOS OPERACIONAIS E VOLUMETRIA */}
-                    <div className="mb-8">
-                        <h2 className="text-xs font-black uppercase tracking-widest border-b border-slate-300 pb-1 mb-3 text-slate-600">
-                            Execução e Volumetria
-                        </h2>
-                        
-                        {/* Linha de Tempos */}
-                        <div className="grid grid-cols-4 gap-4 mb-6 p-4 bg-slate-50 rounded border border-slate-200">
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Hora Designação</span>
-                                <span className="font-mono font-bold text-slate-900">
-                                    {selectedFlight.designationTime ? selectedFlight.designationTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-                                </span>
+                    {/* EXECUÇÃO E VOLUMETRIA EM DUAS COLUNAS */}
+                    <div className="flex gap-4 mb-6">
+                        {/* LEFT: TIMELINE DE OPERAÇÃO */}
+                        <div className="flex-1 border-2 border-slate-900 rounded-sm overflow-hidden flex flex-col">
+                            <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                                2.0 / Linha de Tempos Oficiais
                             </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Início Abastecimento</span>
-                                <span className="font-mono font-bold text-slate-900">
-                                    {selectedFlight.startTime ? selectedFlight.startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-                                </span>
-                            </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Término Abastecimento</span>
-                                <span className="font-mono font-bold text-slate-900">
-                                    {selectedFlight.endTime ? selectedFlight.endTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-                                </span>
-                            </div>
-                            <div>
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">Operador Responsável</span>
-                                <div className="mt-1">
-                                    <OperatorCell operatorName={selectedFlight.operator} operators={operators} />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Tabela de Volumes */}
-                        <div className="border border-slate-300 rounded overflow-hidden">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                            <table className="w-full text-left bg-white text-sm">
+                                <tbody className="divide-y divide-slate-200">
                                     <tr>
-                                        <th className="px-4 py-2 border-r border-slate-300">Unidade</th>
-                                        <th className="px-4 py-2 text-right">Quantidade Fornecida</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-200 text-slate-900 font-mono font-bold">
-                                    <tr>
-                                        <td className="px-4 py-2 border-r border-slate-200 text-xs uppercase">Litros (L)</td>
-                                        <td className="px-4 py-2 text-right">{selectedFlight.volume?.toLocaleString() || 0}</td>
-                                    </tr>
-                                    <tr>
-                                        <td className="px-4 py-2 border-r border-slate-200 text-xs uppercase">Quilogramas (KG) <span className="text-[9px] text-slate-400 font-normal">@0.803</span></td>
-                                        <td className="px-4 py-2 text-right">
-                                            {selectedFlight.volume ? Math.round(selectedFlight.volume * AVG_DENSITY).toLocaleString() : 0}
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2">Hora Confirmação</td>
+                                        <td className="px-3 py-1.5 text-right font-mono font-black text-slate-900">
+                                            {selectedFlight.designationTime ? new Date(selectedFlight.designationTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td className="px-4 py-2 border-r border-slate-200 text-xs uppercase">Galões (US GAL)</td>
-                                        <td className="px-4 py-2 text-right">
-                                            {selectedFlight.volume ? Math.round(selectedFlight.volume * L_TO_GAL).toLocaleString() : 0}
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2">Início Bombeamento</td>
+                                        <td className="px-3 py-1.5 text-right font-mono font-black text-slate-900">
+                                            {selectedFlight.startTime ? new Date(selectedFlight.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2">Término Real</td>
+                                        <td className="px-3 py-1.5 text-right font-mono font-black text-slate-900">
+                                            {selectedFlight.endTime ? new Date(selectedFlight.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2 bg-slate-50 border-t-2 border-slate-900">Operador NOC</td>
+                                        <td className="px-3 py-1.5 text-right bg-slate-50 border-t-2 border-slate-900">
+                                            <span className="font-bold text-slate-900 text-[10px] px-2 py-0.5 bg-slate-200 rounded-sm inline-block">
+                                                {selectedFlight.operator || 'NÃO DESIGNADO'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* RIGHT: VOLUMETRIA */}
+                        <div className="flex-1 border-2 border-slate-900 rounded-sm overflow-hidden flex flex-col">
+                            <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                                3.0 / Fechamento Volumétrico
+                            </div>
+                            <table className="w-full text-left bg-white text-sm h-full">
+                                <tbody className="divide-y divide-slate-200">
+                                    <tr>
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2">Volume (Litros Totais)</td>
+                                        <td className="px-3 py-1.5 text-right font-mono text-lg font-black text-slate-900">
+                                            {selectedFlight.volume?.toLocaleString() || 0} <span className="text-[10px] text-slate-500 font-bold ml-1">L</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2">Conversão (US GAL)</td>
+                                        <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-900 text-xs">
+                                            {selectedFlight.volume ? Math.round(selectedFlight.volume * 0.264172).toLocaleString() : 0} GAL
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-1/2">Massa Estimada (KG)<br/><span className="text-[7px] text-slate-400">@ 0.803 DENS</span></td>
+                                        <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-900 text-xs">
+                                            {selectedFlight.volume ? Math.round(selectedFlight.volume * 0.803).toLocaleString() : 0} KG
                                         </td>
                                     </tr>
                                 </tbody>
@@ -615,85 +599,134 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                         </div>
                     </div>
 
-                    {/* CAIXA PRETA - LOG DE EVENTOS */}
-                    <div className="mb-8">
-                        <h2 className="text-xs font-black uppercase tracking-widest border-b border-slate-300 pb-1 mb-4 text-slate-600 flex items-center gap-2">
-                            <History size={14} /> Log de Eventos (Caixa Preta)
-                        </h2>
-                        
-                        <div className="border-l-2 border-slate-200 ml-2 space-y-3 py-1">
-                            {selectedFlight.logs && selectedFlight.logs.length > 0 ? (
-                                selectedFlight.logs.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((log, idx) => (
-                                    <div key={idx} className="relative pl-6">
-                                        <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                                            log.type === 'SISTEMA' ? 'bg-slate-400' : 
-                                            log.type === 'MANUAL' ? 'bg-blue-500' :
-                                            log.type === 'ATRASO' ? 'bg-amber-500' :
-                                            log.type === 'OBSERVACAO' ? 'bg-amber-500' : 'bg-red-500'
-                                        }`}></div>
-                                        <div className="flex flex-col">
-                                            <div className="flex items-baseline gap-2 text-[10px] uppercase font-bold text-slate-500">
-                                                <span className="font-mono text-slate-800">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                                                <span>•</span>
-                                                <span>{log.type}</span>
-                                                <span>•</span>
-                                                <span className="text-slate-700">{log.author}</span>
-                                            </div>
-                                            <p className="text-xs text-slate-800 mt-0.5 font-medium leading-relaxed">
-                                                {log.message}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="pl-6 text-xs text-slate-400 italic">Nenhum evento registrado.</div>
-                            )}
+                    {/* ALERTA DE ATRASO OBRIGATÓRIO */}
+                    {selectedFlight.delayJustification && (
+                        <div className="mb-6 border-2 border-slate-900 rounded-sm overflow-hidden flex flex-col relative print-avoid-break">
+                            <div className="absolute top-0 left-0 bottom-0 w-2.5 bg-slate-900"></div>
+                            <div className="bg-slate-100 border-b border-slate-300 pl-4 py-1.5 px-3">
+                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                                    <AlertTriangle size={12} className="text-slate-900" />
+                                    JUSTIFICATIVA DE QUEBRA DE SLA (ATRASO DETECTADO)
+                                </div>
+                            </div>
+                            <div className="bg-white pl-4 p-3 text-slate-800 text-xs font-mono border-l-2 border-transparent">
+                                <b>PARECER TÉCNICO:</b> "{selectedFlight.delayJustification}"
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    {/* RELATÓRIO DO CAMPO */}
+                    {/* OBSERVAÇÕES DE PÁTIO */}
                     {selectedFlight.report && Object.values(selectedFlight.report).some(v => v) && (
-                        <div className="mb-8">
-                            <h2 className="text-xs font-black uppercase tracking-widest border-b border-slate-300 pb-1 mb-4 text-slate-600 flex items-center gap-2">
-                                <FileText size={14} /> Relatório de Campo Adicional
-                            </h2>
-                            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                                {selectedFlight.report.fuelOrderTime && (
-                                    <div><span className="block text-[10px] font-bold text-slate-500 uppercase">Fuel Order</span><span className="font-mono">{selectedFlight.report.fuelOrderTime}</span></div>
-                                )}
-                                {selectedFlight.report.mechanicTime && (
-                                    <div><span className="block text-[10px] font-bold text-slate-500 uppercase">Mecânico</span><span className="font-mono">{selectedFlight.report.mechanicTime}</span></div>
-                                )}
-                                {selectedFlight.report.crewTime && (
-                                    <div><span className="block text-[10px] font-bold text-slate-500 uppercase">Tripulação</span><span className="font-mono">{selectedFlight.report.crewTime}</span></div>
-                                )}
-                                {selectedFlight.report.authorizationTime && (
-                                    <div><span className="block text-[10px] font-bold text-slate-500 uppercase">Autorização</span><span className="font-mono">{selectedFlight.report.authorizationTime}</span></div>
-                                )}
-                                {selectedFlight.report.obstructedAreaTime && (
-                                    <div className="text-red-600"><span className="block text-[10px] font-bold uppercase">Área Desobstruída</span><span className="font-mono">{selectedFlight.report.obstructedAreaTime}</span></div>
-                                )}
+                        <div className="mb-6 border-2 border-slate-900 rounded-sm overflow-hidden print-avoid-break">
+                            <div className="bg-slate-900 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                                4.0 / Anotações de Pátio e Assinaturas
+                            </div>
+                            <div className="p-3 bg-white grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between border-b border-slate-100 border-dashed pb-1">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">FUEL ORDER COLETADA</span>
+                                        <span className="font-mono font-bold text-slate-900">{selectedFlight.report.fuelOrderTime || '--:--'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-100 border-dashed pb-1">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">APRESENTAÇÃO MECÂNICA</span>
+                                        <span className="font-mono font-bold text-slate-900">{selectedFlight.report.mechanicTime || '--:--'}</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between border-b border-slate-100 border-dashed pb-1">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">CHEGADA DA TRIPULAÇÃO</span>
+                                        <span className="font-mono font-bold text-slate-900">{selectedFlight.report.crewTime || '--:--'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-100 border-dashed pb-1">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">TÉRMINO (ÁREA DESOBSTR.)</span>
+                                        <span className="font-mono font-bold text-slate-900">{selectedFlight.report.obstructedAreaTime || '--:--'}</span>
+                                    </div>
+                                </div>
                             </div>
                             
                             {selectedFlight.report.dispensed && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded text-red-800 text-sm mb-4">
-                                    <h4 className="font-bold text-[10px] uppercase tracking-wider mb-1">Dispensa de Abastecimento</h4>
-                                    <p>Resp: <span className="font-bold">{selectedFlight.report.dispensedBy}</span> | Colete: <span className="font-mono font-bold">{selectedFlight.report.dispensedBadge}</span></p>
+                                <div className="border-t border-slate-300 bg-slate-100 p-2 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">
+                                        *** DISPENSA FORMALIZADA PELO RESPONSÁVEL DO VOO ***
+                                    </span>
                                 </div>
                             )}
-
-                            {selectedFlight.report.observations && (
-                                <div className="text-sm">
-                                    <span className="block text-[10px] font-bold text-slate-500 uppercase">Observações Gerais</span>
-                                    <p className="p-3 bg-slate-50 border border-slate-200 mt-1 italic text-slate-700">{selectedFlight.report.observations}</p>
+                            
+                            {(selectedFlight.report.observations || selectedFlight.report.dispensed) && (
+                                <div className="border-t border-slate-300 p-3 bg-white text-xs">
+                                    <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">OBSERVAÇÕES DO OPERADOR:</span>
+                                    <p className="font-mono bg-slate-50 border border-slate-300 shadow-inner p-2 rounded-sm italic">
+                                        {selectedFlight.report.dispensed && !selectedFlight.report.observations 
+                                            ? `Voo sem abastecimento solicitado por: ${selectedFlight.report.dispensedBy} (Colete ${selectedFlight.report.dispensedBadge})`
+                                            : selectedFlight.report.observations}
+                                    </p>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* RODAPÉ DO SISTEMA */}
-                    <div className="mt-auto pt-6 border-t border-slate-200 text-[9px] font-mono text-slate-400 text-center uppercase tracking-widest">
-                        JETFUEL-SIM Audit System • Documento Gerado Eletronicamente • Não Requer Assinatura
+                    {/* CAIXA PRETA / AUDITORIA */}
+                    <div className="mb-6 flex-1 print-avoid-break">
+                        <div className="border-b-2 border-slate-900 pb-1 mb-3 flex items-center gap-2">
+                            <History size={14} className="text-slate-900" />
+                            <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-900">
+                                5.0 / Trilha de Auditoria do Sistema (Caixa Preta)
+                            </h2>
+                        </div>
+                        <div className="bg-white border-2 border-slate-900 rounded-sm overflow-hidden">
+                           <table className="w-full text-left text-[9px] border-collapse">
+                               <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
+                                    <tr>
+                                        <th className="px-2 py-1.5 w-[15%]">Timestamp</th>
+                                        <th className="px-2 py-1.5 w-[15%]">Ação Oficial</th>
+                                        <th className="px-2 py-1.5 w-[20%]">Autor / Matrícula</th>
+                                        <th className="px-2 py-1.5 w-[50%] border-l border-slate-700">Descrição/Contexto Operacional</th>
+                                    </tr>
+                               </thead>
+                               <tbody className="divide-y divide-slate-300 font-mono font-bold text-[8px]">
+                                    {selectedFlight.logs && selectedFlight.logs.length > 0 ? (
+                                        selectedFlight.logs.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((log, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50">
+                                                <td className="px-2 py-2 text-slate-600">{new Date(log.timestamp).toLocaleString()}</td>
+                                                <td className="px-2 py-2">
+                                                    <span className={`${log.type === 'ALERTA' || log.type === 'ATRASO' ? 'bg-slate-900 text-white px-1.5 py-0.5 rounded-sm' : 'text-slate-900'}`}>
+                                                        {log.type}
+                                                    </span>
+                                                </td>
+                                                <td className="px-2 py-2 truncate max-w-[120px] text-slate-900">{log.author}</td>
+                                                <td className="px-2 py-2 text-slate-900 break-words border-l border-slate-200">{log.message}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={4} className="px-2 py-4 text-center text-slate-400 italic font-sans font-bold">
+                                                NÃO ASSINALADO - NENHUM EVENTO REGISTRADO
+                                            </td>
+                                        </tr>
+                                    )}
+                               </tbody>
+                           </table>
+                        </div>
+                    </div>
+
+                    {/* ASSINATURAS E VALIDAÇÃO */}
+                    <div className="mt-auto pt-8 flex justify-between items-end print-avoid-break">
+                        <div className="w-[30%] border-t-2 border-slate-900 pt-2 text-center flex flex-col items-center">
+                            <span className="block text-[8px] font-black uppercase text-slate-900 tracking-widest mt-2">
+                                ASSINATURA OPR (CÓPIA NOC)
+                            </span>
+                        </div>
+                        <div className="w-[40%] text-center text-[7px] text-slate-500 font-mono tracking-widest font-black uppercase flex flex-col items-center pb-2">
+                            <span className="mb-1 text-slate-300">| | | | | | | | | | | | | | | | | | | | |</span>
+                            <span>ID DOC: {selectedFlight.id}</span>
+                            <span>HASH DE VALIDAÇÃO ELETRÔNICA DO SISTEMA</span>
+                            <span>AUTENTICADOR: {btoa(selectedFlight.id).replace(/=/g, '').substring(0, 16).toUpperCase()}</span>
+                        </div>
+                        <div className="w-[30%] border-t-2 border-slate-900 pt-2 text-center flex flex-col items-center">
+                            <span className="block text-[8px] font-black uppercase text-slate-900 tracking-widest mt-2">
+                                REVISÃO TÉCNICA (SUPERVISÃO)
+                            </span>
+                        </div>
                     </div>
 
                 </div>
