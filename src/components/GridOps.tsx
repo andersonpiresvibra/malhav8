@@ -422,6 +422,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const [selectedFlight, setSelectedFlight] = useState<FlightData | null>(null);
   const [clickedRowId, setClickedRowId] = useState<string | null>(null);
+
+  const getRowBgClass = (rowId: string) => {
+    return isDarkMode
+      ? (rowId === clickedRowId
+          ? "border-emerald-500/80 bg-emerald-900/60"
+          : "border-slate-700/50 bg-slate-900/90 group-hover:bg-slate-800/80 group-hover:border-emerald-500/30")
+      : (rowId === clickedRowId
+          ? "border-emerald-400 bg-emerald-300"
+          : "border-slate-200 bg-white group-hover:bg-emerald-100");
+  };
   const [reportInputFlight, setReportInputFlight] = useState<FlightData | null>(
     null,
   );
@@ -1585,10 +1595,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
       row.status === FlightStatus.FILA &&
       minutesToEtd >= 20 &&
       minutesToEtd < 40; // "ATRASANDO"
+    const isFilaReal = row.status === FlightStatus.FILA && !isDelayed && !isPenalty && !isAtrasando; // "FILA"
 
     let cellStyle = className;
     if (isDelayed) {
-      if (colKey === "etd") {
+      if (colKey === "etd" || colKey === "registration") {
         // Para coluna etd e preto (off-white no dark mode)
         cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
       } else {
@@ -1597,7 +1608,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           : " !text-[#000000] font-bold";
       }
     } else if (isPenalty) {
-      if (colKey === "etd") {
+      if (colKey === "etd" || colKey === "registration") {
         // Penalty permanece em vermelho (perfeito!)
         cellStyle += isDarkMode ? " !text-red-450" : " !text-[#E7000B]";
       } else {
@@ -1606,13 +1617,22 @@ export const GridOps: React.FC<GridOpsProps> = ({
           : " !text-[#dc2626] font-bold";
       }
     } else if (isAtrasando) {
-      if (colKey === "etd") {
+      if (colKey === "etd" || colKey === "registration") {
         // Para coluna etd e preto (off-white no dark mode)
         cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
       } else {
         cellStyle += isDarkMode
           ? " !text-slate-100 font-bold"
           : " !text-[#000000] font-bold";
+      }
+    } else if (isFilaReal) {
+      if (colKey === "etd" || colKey === "registration") {
+        // Para coluna etd e fone preta (off-white no dark mode)
+        cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
+      }
+    } else {
+      if (colKey === "registration") {
+        cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
       }
     }
 
@@ -1686,7 +1706,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           data-rowid={row.id}
           data-colkey={colKey as string}
           className={`p-0 border-y border-l transition-all relative h-10 outline-none
-               ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"}
+               ${getRowBgClass(row.id)}
             `}
         >
           <div className="w-full h-full flex items-center justify-center p-1">
@@ -1711,7 +1731,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         data-editable={editable}
         className={`
           p-0 border-y border-l transition-all relative h-10 outline-none
-          ${isRemota ? "bg-[#fff700] border-[#ccc600]" : isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"}
+          ${isRemota ? "bg-[#fff700] border-[#ccc600]" : getRowBgClass(row.id)}
         `}
       >
         {isEditing ? (
@@ -2637,8 +2657,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
             ? "text-white bg-[#4b4b4b] border-neutral-700 shadow-[0_0_8px_rgba(255,255,255,0.05)] font-bold"
             : "text-white bg-[#4b4b4b] border-neutral-400 shadow-[0_0_8px_rgba(0,0,0,0.25)] font-black",
           rowClass: isDarkMode
-            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-[#1e1e1e] [&>td:not(.grid-ops-timerest-cell)]:!to-[#121212] [&>td:not(.grid-ops-timerest-cell)]:!border-neutral-800/80"
-            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-neutral-100 [&>td:not(.grid-ops-timerest-cell)]:!to-neutral-50 [&>td:not(.grid-ops-timerest-cell)]:!border-neutral-200",
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-[#151515] [&>td:not(.grid-ops-timerest-cell)]:!border-neutral-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-neutral-100 [&>td:not(.grid-ops-timerest-cell)]:!border-neutral-200",
         };
 
       if (minutesToETD < 20)
@@ -2649,8 +2669,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
             ? "text-white bg-red-600/95 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-[pulse_1.5s_infinite] font-black"
             : "text-white bg-red-600 border-red-700 shadow-[0_0_10px_rgba(220,38,38,0.4)] animate-[pulse_1.5s_infinite] font-black",
           rowClass: isDarkMode
-            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-[#2d0a0f] [&>td:not(.grid-ops-timerest-cell)]:!to-[#160407] [&>td:not(.grid-ops-timerest-cell)]:!border-red-50/10"
-            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-red-50/60 [&>td:not(.grid-ops-timerest-cell)]:!to-orange-50/40 [&>td:not(.grid-ops-timerest-cell)]:!border-red-200",
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-[#22070a] [&>td:not(.grid-ops-timerest-cell)]:!border-red-50/10"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-50/50 [&>td:not(.grid-ops-timerest-cell)]:!border-red-200",
         };
       if (minutesToETD < 30)
         return {
@@ -2661,7 +2681,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             : "text-yellow-900 bg-yellow-100 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.2)]",
           rowClass: isDarkMode
             ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-yellow-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-yellow-900/40"
-            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-yellow-50 [&>td:not(.grid-ops-timerest-cell)]:!to-amber-50/50 [&>td:not(.grid-ops-timerest-cell)]:!border-yellow-200",
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-yellow-50/60 [&>td:not(.grid-ops-timerest-cell)]:!border-yellow-200",
         };
       if (minutesToETD < 40)
         return {
@@ -2887,7 +2907,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isActive = sortConfig.key === columnKey;
     return (
       <th
-        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-[40] grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} ${className}`}
+        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-[40] grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} ${className}`}
         onClick={() => handleSort(columnKey)}
       >
         <div
@@ -2943,9 +2963,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const etd = row.etd;
     const dateStr = row.date;
 
+    const standardRowBg = getRowBgClass(row.id);
+
     if (!etd || etd === "?" || etd === "PRÉ") {
       return (
-        <td className="grid-ops-timerest-cell px-2 border-y border-slate-200 dark:border-slate-700/50 text-center align-middle">
+        <td className={`grid-ops-timerest-cell px-2 border-y border-l text-center align-middle transition-colors ${standardRowBg}`}>
           <span
             className={`text-[11px] font-mono font-bold opacity-30 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
           >
@@ -2978,14 +3000,18 @@ export const GridOps: React.FC<GridOpsProps> = ({
     } else if (label === "ATRASANDO") {
       bgStyle = "bg-[#EAB308] !bg-[#EAB308]";
       textStyle = "text-black !text-black font-extrabold tracking-wider";
+    } else if (label && label.startsWith("RETIDO")) {
+      bgStyle = isDarkMode ? "bg-slate-900/40 !bg-slate-900/40 border-slate-800/50 !border-slate-800/50" : "bg-slate-100 !bg-slate-100 border-slate-200 !border-slate-200";
+      textStyle = isDarkMode ? "text-slate-400 font-bold" : "text-slate-500 font-bold";
     } else {
-      // Outros estados: herda o fundo da linha e usa cor do texto preta (no light mode) ou off-white (no dark mode).
+      // Outros estados: herda o fundo da linha
+      bgStyle = standardRowBg;
       textStyle = isDarkMode ? "text-slate-100 font-bold" : "text-[#000000] font-bold";
     }
 
     return (
       <td
-        className={`grid-ops-timerest-cell px-2 border-y border-slate-200 dark:border-slate-700/50 text-center align-middle transition-colors ${bgStyle}`}
+        className={`grid-ops-timerest-cell px-2 border-y border-l text-center align-middle transition-colors ${bgStyle}`}
       >
         <span className={`text-[11px] font-mono ${textStyle}`}>
           {text}
@@ -3490,7 +3516,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       className="text-center w-14"
                     />
                     <th
-                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
                     >
                       <div className="flex items-center justify-center gap-1.5">
                         <span
@@ -3583,7 +3609,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       className="text-center w-14"
                     />
                     <th
-                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
                     >
                       <div className="flex items-center justify-center gap-1.5">
                         <span
@@ -3594,7 +3620,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       </div>
                     </th>
                     <th
-                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
                     >
                       <div className="flex items-center justify-center gap-1.5">
                         <span
@@ -3700,7 +3726,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 )}
 
                 <th
-                  className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} group w-16`}
+                  className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l border-r ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} group w-16`}
                 >
                   <div className="flex items-center justify-center gap-1.5">
                     <span
@@ -3729,7 +3755,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   if (!latest) {
                     return (
                       <td
-                        className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center`}
+                        className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-center`}
                       >
                         <span className="text-slate-300">-</span>
                       </td>
@@ -3737,7 +3763,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   }
                   return (
                     <td
-                      className={`px-1 py-1 border-y border-l cursor-pointer ${isDarkMode ? "border-slate-700/50 hover:bg-slate-700 bg-gradient-to-b from-slate-800/50 to-slate-900/80" : "border-slate-200 hover:bg-emerald-200 bg-white"} transition-all text-center`}
+                      className={`px-1 py-1 border-y border-l cursor-pointer ${getRowBgClass(row.id)} transition-all text-center`}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (onOpenReport) {
@@ -3829,7 +3855,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* CITY */}
                         <td
-                          className={`px-1 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                          className={`px-1 border-y border-l ${getRowBgClass(row.id)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
                         >
                           {getCityName(row.destination || "", destinosDB)}
                         </td>
@@ -3892,7 +3918,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* OPERATOR (WITH ASSIGN BUTTON) */}
                         <td
-                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible`}
+                          className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-left align-middle overflow-visible`}
                         >
                           <div className="relative w-full h-full flex flex-col justify-center">
                             {row.operator ? (
@@ -3996,7 +4022,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* CITY (Not directly editable, derived from destination) */}
                         <td
-                          className={`px-1 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                          className={`px-1 border-y border-l ${getRowBgClass(row.id)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
                         >
                           {getCityName(row.destination || "", destinosDB)}
                         </td>
@@ -4039,7 +4065,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* OPERATOR (WITH ASSIGN BUTTON) */}
                         <td
-                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible`}
+                          className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-left align-middle overflow-visible`}
                         >
                           <div className="relative w-full h-full flex flex-col justify-center">
                             {row.operator ? (
@@ -4119,7 +4145,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             )}
                             {/* LT */}
                             <td
-                              className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left font-black text-[9px] ${isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight overflow-hidden truncate`}
+                              className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-left font-black text-[9px] ${isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight overflow-hidden truncate`}
                             >
                               {row.assignedByLt || "--"}
                             </td>
@@ -4173,7 +4199,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* CITY */}
                         <td
-                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                          className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
                         >
                           {getCityName(row.destination || "", destinosDB)}
                         </td>
@@ -4216,7 +4242,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* OPERATOR (WITH ASSIGN BUTTON & MESSAGE DOT) */}
                         <td
-                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible truncate`}
+                          className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-left align-middle overflow-visible truncate`}
                         >
                           <div className="relative w-full h-full flex flex-col justify-center">
                             {row.operator ? (
@@ -4275,7 +4301,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* TAB (Exclusivo Finalizados) - Not directly editable as it's calculated */}
                         <td
-                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-mono ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
+                          className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-center font-mono ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
                         >
                           {calculateTAB(row)}
                         </td>
@@ -4347,7 +4373,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* CITY */}
                         <td
-                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                          className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
                         >
                           {getCityName(row.destination || "", destinosDB)}
                         </td>
@@ -4390,7 +4416,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                         {/* OPERATOR (WITH ASSIGN BUTTON) */}
                         <td
-                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible`}
+                          className={`px-2 border-y border-l ${getRowBgClass(row.id)} transition-all text-left align-middle overflow-visible`}
                         >
                           <div className="relative w-full h-full flex flex-col justify-center">
                             {row.operator ? (
@@ -4449,7 +4475,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
                     {/* STATUS (PILL DESIGN RESTORED) */}
                     <td
-                      className={`px-1.5 py-1 text-center border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all`}
+                      className={`px-1.5 py-1 text-center border-y border-l ${getRowBgClass(row.id)} transition-all`}
                     >
                       {dynamicStatus ? (
                         <div className="flex flex-col items-center justify-center gap-0.5 w-full">
@@ -4483,7 +4509,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     </td>
 
                     <td
-                      className={`px-1.5 text-center last:rounded-r-[4px] border-y border-l border-r ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all`}
+                      className={`px-1.5 text-center last:rounded-r-[4px] border-y border-l border-r ${getRowBgClass(row.id)} transition-all`}
                     >
                       <div className="relative">
                         <>
