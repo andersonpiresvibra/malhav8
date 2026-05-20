@@ -396,10 +396,26 @@ export const upsertFlight = async (flight: FlightData): Promise<void> => {
     wing_side: flight.wingSide || null,
     fuel_status: flight.fuelStatus,
     status: flight.status,
-    operator_id: flight.operatorId || operatorsCache.find(o => o.warName === flight.operator)?.id || null,
-    support_operator_id: flight.supportOperatorId || null,
+    operator_id: (
+      flight.operatorId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(flight.operatorId)
+        ? flight.operatorId
+        : (flight.operator ? operatorsCache.find(o => o.warName === flight.operator)?.id : null)
+    ) || null,
+    support_operator_id: (
+      flight.supportOperatorId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(flight.supportOperatorId)
+        ? flight.supportOperatorId
+        : (flight.supportOperator ? operatorsCache.find(o => o.warName === flight.supportOperator)?.id : null)
+    ) || null,
     support_operator: flight.supportOperator || null,
-    vehicle_id: flight.vehicleId || (flight.fleet ? vehiclesCache.find(v => v.fleetNumber === String(flight.fleet).replace('SRV-', '').replace('CTA-', ''))?.id : null) || null,
+    vehicle_id: (
+      flight.vehicleId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(flight.vehicleId)
+        ? flight.vehicleId
+        : (flight.vehicleId ? vehiclesCache.find(v => v.fleetNumber === String(flight.vehicleId))?.id : null)
+    ) || (
+      flight.fleet
+        ? vehiclesCache.find(v => v.fleetNumber === String(flight.fleet).replace('SRV-', '').replace('CTA-', ''))?.id
+        : null
+    ) || null,
     vehicle_type: flight.vehicleType || null,
     volume: flight.volume || 0,
     is_on_ground: flight.isOnGround || false,
@@ -753,10 +769,26 @@ export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> =>
       wing_side: flight.wingSide || null,
       fuel_status: flight.fuelStatus,
       status: flight.status,
-      operator_id: flight.operatorId || operatorsCache.find(o => o.warName === flight.operator)?.id || null,
-      support_operator_id: flight.supportOperatorId || null,
+      operator_id: (
+        flight.operatorId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(flight.operatorId)
+          ? flight.operatorId
+          : (flight.operator ? operatorsCache.find(o => o.warName === flight.operator)?.id : null)
+      ) || null,
+      support_operator_id: (
+        flight.supportOperatorId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(flight.supportOperatorId)
+          ? flight.supportOperatorId
+          : (flight.supportOperator ? operatorsCache.find(o => o.warName === flight.supportOperator)?.id : null)
+      ) || null,
       support_operator: flight.supportOperator || null,
-      vehicle_id: flight.vehicleId || (flight.fleet ? vehiclesCache.find(v => v.fleetNumber === String(flight.fleet).replace('SRV-', '').replace('CTA-', ''))?.id : null) || null,
+      vehicle_id: (
+        flight.vehicleId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(flight.vehicleId)
+          ? flight.vehicleId
+          : (flight.vehicleId ? vehiclesCache.find(v => v.fleetNumber === String(flight.vehicleId))?.id : null)
+      ) || (
+        flight.fleet
+          ? vehiclesCache.find(v => v.fleetNumber === String(flight.fleet).replace('SRV-', '').replace('CTA-', ''))?.id
+          : null
+      ) || null,
       vehicle_type: flight.vehicleType || null,
       volume: flight.volume || 0,
       is_on_ground: flight.isOnGround || false,

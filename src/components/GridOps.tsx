@@ -18,6 +18,7 @@ import {
 import { FlightDetailsModal } from "./FlightDetailsModal";
 import { FlightReportInputModal } from "./FlightReportInputModal";
 import { TimeConflictModal } from "./TimeConflictModal";
+import { RadarOpsModal } from "./RadarOpsModal";
 import { StatusBadge } from "./SharedStats";
 import { OperatorCell } from "./OperatorCell";
 import { AirlineLogo } from "./AirlineLogo";
@@ -82,6 +83,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Table,
+  Radio,
 } from "lucide-react";
 
 type Tab =
@@ -524,6 +526,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [observationModalFlight, setObservationModalFlight] =
     useState<FlightData | null>(null);
   const [newObservation, setNewObservation] = useState("");
+  const [radarTargetFlight, setRadarTargetFlight] = useState<FlightData | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
   const [optionsMenuRect, setOptionsMenuRect] = useState<DOMRect | null>(null);
@@ -4762,7 +4765,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                 setOpenMenuId(row.id);
                               }
                             }}
-                            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-all btn-action-menu shadow-lg shadow-indigo-600/20 active:scale-95"
+                            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-all btn-action-menu shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer"
                           >
                             <MoreVertical size={16} />
                           </button>
@@ -4857,6 +4860,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                         Fila
                                       </button>
                                     );
+
+
 
                                     const inputReportBtn = (
                                       <button
@@ -5279,6 +5284,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
           onCreate={handleCreateFlight}
         />
       )}
+
+      {/* TACTICAL RADAR & AMS MONITOR MODAL */}
+      {radarTargetFlight && (
+        <RadarOpsModal
+          flight={radarTargetFlight}
+          onClose={() => setRadarTargetFlight(null)}
+          onUpdateFlights={onUpdateFlights}
+          isDarkMode={isDarkMode}
+        />
+      )}
+      {/* Flight Detail Modals render block */}
 
       {/* IMPORT MODAL */}
       {isImportModalOpen && (

@@ -188,15 +188,12 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    import('./services/supabaseService').then(async ({ getVehicles, getOperators, getFlights, getRootMesh, getBaseMeshFlights, getAerodromoConfig }) => {
+    import('./services/supabaseService').then(async ({ getVehicles, getOperators, getRootMesh, getAerodromoConfig }) => {
       try {
-        const today = getLocalTodayDateStr();
-        const [vehicles, operators, flights, rootMesh, baseMesh, aerodromoConfig] = await Promise.all([
+        const [vehicles, operators, rootMesh, aerodromoConfig] = await Promise.all([
           getVehicles(),
           getOperators(),
-          getFlights(today),
           getRootMesh(),
-          getBaseMeshFlights(today),
           getAerodromoConfig()
         ]);
         
@@ -212,16 +209,8 @@ const App: React.FC = () => {
           setGlobalOperators(mappedOperators);
         }
 
-        if (flights && flights.length > 0) {
-          setGlobalFlights(flights);
-        }
-
         if (rootMesh && rootMesh.length > 0) {
           setRootMeshFlights(rootMesh);
-        }
-        
-        if (baseMesh && baseMesh.length > 0) {
-          setMeshFlightsByDate(prev => ({ ...prev, [today]: baseMesh }));
         }
 
         if (aerodromoConfig) {
@@ -253,8 +242,6 @@ const App: React.FC = () => {
                 setSupabaseError(`Erro de conexão com o Supabase: ${err.message || JSON.stringify(err)}`);
             }
         });
-      } finally {
-        setIsLoadingData(false);
       }
     }).catch(err => {
       console.error('Failed to import supabaseService:', err);
@@ -263,7 +250,6 @@ const App: React.FC = () => {
               setSupabaseError(`${err.message || 'Erro ao inicializar conexão com Supabase'}`);
           }
       });
-      setIsLoadingData(false);
     });
   }, []);
 
@@ -297,9 +283,9 @@ const App: React.FC = () => {
       
       import('./services/supabaseService').then(async ({ getFlights, getOperators, getVehicles }) => {
         try {
-          const today = getLocalTodayDateStr();
+          const targetDate = currentMeshDate || getLocalTodayDateStr();
           const [flights, operators, vehicles] = await Promise.all([
-             getFlights(today),
+             getFlights(targetDate),
              getOperators(),
              getVehicles()
           ]);
@@ -310,14 +296,14 @@ const App: React.FC = () => {
               const isRecentAction = (now - lastManualActionRef.current) < 10000; // 10s window
 
               // 1. Manter voos de outras datas intocados
-              const otherDatesFlights = prev.filter(f => f.date && f.date !== today);
+              const otherDatesFlights = prev.filter(f => f.date && f.date !== targetDate);
               
-              // 2. Para a data sincronizada (hoje), mesclamos em vez de substituir
-              const todayLocal = prev.filter(f => f.date === today || !f.date);
+              // 2. Para a data sincronizada, mesclamos em vez de substituir
+              const dateLocal = prev.filter(f => f.date === targetDate || !f.date);
               
               // 3. Smart Merge para evitar sobrescrever ações locais
-              let mergedToday = flights.map(dbF => {
-                 const localF = todayLocal.find(lf => lf.id === dbF.id);
+              let mergedDate = flights.map(dbF => {
+                 const localF = dateLocal.find(lf => lf.id === dbF.id);
                  // Se houve uma ação recente, preservamos os dados locais (como pit_id alterado antes de salvar no DB)
                  if (localF && isRecentAction) {
                      return { ...dbF, ...localF };
@@ -326,16 +312,16 @@ const App: React.FC = () => {
               });
               
               // Adicionamos voos locais que ainda NÃO estão no banco
-              todayLocal.forEach(localF => {
-                 const existsInDB = mergedToday.some(dbF => dbF.id === localF.id);
+              dateLocal.forEach(localF => {
+                 const existsInDB = mergedDate.some(dbF => dbF.id === localF.id);
                  if (!existsInDB) {
-                    mergedToday.push(localF); 
+                    mergedDate.push(localF); 
                  }
               });
 
-              const finalToday = mergedToday;
+              const finalDate = mergedDate;
 
-              const updatedGlobal = [...otherDatesFlights, ...finalToday];
+              const updatedGlobal = [...otherDatesFlights, ...finalDate];
               const isDifferent = JSON.stringify(prev) !== JSON.stringify(updatedGlobal);
               
               if (isDifferent) {
@@ -369,22 +355,35 @@ const App: React.FC = () => {
     }, 10000); // 10 seconds auto-refresh Real-Time
     
     return () => clearInterval(syncInterval);
-  }, [user]);
+  }, [user, currentMeshDate]);
 
   useEffect(() => {
-    import('./services/supabaseService').then(async ({ getBaseMeshFlights }) => {
+    if (!user) return;
+    setIsLoadingData(true);
+    import('./services/supabaseService').then(async ({ getBaseMeshFlights, getFlights }) => {
        try {
-           const mesh = await getBaseMeshFlights(currentMeshDate);
+           const [mesh, flights] = await Promise.all([
+               getBaseMeshFlights(currentMeshDate),
+               getFlights(currentMeshDate)
+           ]);
+           
            if (mesh && mesh.length > 0) {
               setMeshFlightsByDate(prev => ({ ...prev, [currentMeshDate]: mesh }));
            } else {
               setMeshFlightsByDate(prev => ({ ...prev, [currentMeshDate]: [] }));
            }
+           
+           setGlobalFlights(prev => {
+               const otherDates = prev.filter(f => f.date && f.date !== currentMeshDate);
+               return [...otherDates, ...(flights || [])];
+           });
        } catch (err) {
-           console.error("Error fetching base mesh for date: " + currentMeshDate, err);
+           console.error("Error fetching data for date: " + currentMeshDate, err);
+       } finally {
+           setIsLoadingData(false);
        }
     });
-  }, [currentMeshDate, view]);
+  }, [currentMeshDate, view, user]);
 
   const meshFlights = meshFlightsByDate[currentMeshDate] || [];
   
@@ -404,11 +403,6 @@ const App: React.FC = () => {
       localStorage.removeItem('rootMeshFlights');
       localStorage.removeItem('meshFlightsByDate');
       localStorage.setItem('migration_no_mocks_v8', 'true');
-      
-      import('./services/supabaseService').then(({ clearAllBaseMeshFlights, clearRootMesh }) => {
-          clearRootMesh().catch(console.error);
-          clearAllBaseMeshFlights().catch(console.error);
-      });
       
       setTimeout(() => {
           window.location.reload();
