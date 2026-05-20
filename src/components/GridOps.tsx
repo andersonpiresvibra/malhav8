@@ -1,84 +1,150 @@
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import {
+  FlightStatus,
+  FlightData,
+  FlightLog,
+  LogType,
+  OperatorProfile,
+  StaticFlight,
+} from "../types";
+import {
+  getCurrentShift,
+  getLocalTodayDateStr,
+  getLocalDateStr,
+} from "../utils/shiftUtils";
+// Importando perfis para designação
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { FlightStatus, FlightData, FlightLog, LogType, OperatorProfile, StaticFlight } from '../types';
-import { getCurrentShift, getLocalTodayDateStr, getLocalDateStr } from '../utils/shiftUtils';
- // Importando perfis para designação
+import { FlightDetailsModal } from "./FlightDetailsModal";
+import { FlightReportInputModal } from "./FlightReportInputModal";
+import { TimeConflictModal } from "./TimeConflictModal";
+import { StatusBadge } from "./SharedStats";
+import { OperatorCell } from "./OperatorCell";
+import { AirlineLogo } from "./AirlineLogo";
+import { Spinner } from "./ui/Spinner";
+import { InlineCalendar } from "./ui/InlineCalendar";
+import { InlineOperatorSelect } from "./ui/InlineOperatorSelect";
+import {
+  insertAuditLog,
+  upsertFlight,
+  deleteFlight,
+  getDestinos,
+} from "../services/supabaseService";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 
-import { FlightDetailsModal } from './FlightDetailsModal';
-import { FlightReportInputModal } from './FlightReportInputModal';
-import { TimeConflictModal } from './TimeConflictModal';
-import { StatusBadge } from './SharedStats';
-import { OperatorCell } from './OperatorCell';
-import { AirlineLogo } from './AirlineLogo';
-import { Spinner } from './ui/Spinner';
-import { InlineCalendar } from './ui/InlineCalendar';
-import { InlineOperatorSelect } from './ui/InlineOperatorSelect';
-import { insertAuditLog, upsertFlight, deleteFlight, getDestinos } from '../services/supabaseService';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { getCityName } from "../utils/destinos";
+import {
+  LayoutGrid,
+  Clock,
+  UserCheck,
+  Droplet,
+  CheckCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  MessageSquare,
+  FileText,
+  Plane,
+  Pen,
+  BusFront,
+  PlaneLanding,
+  ListOrdered,
+  AlertTriangle,
+  Play,
+  Pause,
+  XCircle,
+  Plus,
+  Anchor,
+  MapPin,
+  Eye,
+  CheckCheck,
+  X,
+  Save,
+  History,
+  TimerOff,
+  UserPlus,
+  Building2,
+  Bell,
+  Zap,
+  MessageCircle,
+  MoreVertical,
+  Search,
+  Settings,
+  Upload,
+  RefreshCw,
+  Network,
+  Archive,
+  Trash2,
+  Printer,
+  FileBarChart,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Table,
+} from "lucide-react";
 
-import { getCityName } from '../utils/destinos';
-import { 
-  LayoutGrid, Clock, UserCheck, Droplet, CheckCircle, 
-  ArrowUp, ArrowDown, ArrowUpDown, 
-  MessageSquare, FileText, Plane, Pen, BusFront,
-  PlaneLanding, ListOrdered, AlertTriangle, Play, Pause, XCircle, Plus, Anchor,
-  MapPin, Eye, CheckCheck, X, Save, History, TimerOff, UserPlus, Building2, Bell, Zap,
-  MessageCircle, MoreVertical, Search, Settings, Upload, RefreshCw, Network, Archive, Trash2, Printer, FileBarChart,
-  CalendarDays, ChevronLeft, ChevronRight, Table
-} from 'lucide-react';
-
-type Tab = 'GERAL' | 'CHEGADA' | 'FILA' | 'DESIGNADOS' | 'ABASTECENDO' | 'FINALIZADO' | 'MALHA';
-type SortDirection = 'asc' | 'desc' | null;
-type MeshShift = 'TODOS' | 'MANHA' | 'TARDE' | 'NOITE';
+type Tab =
+  | "GERAL"
+  | "CHEGADA"
+  | "FILA"
+  | "DESIGNADOS"
+  | "ABASTECENDO"
+  | "FINALIZADO"
+  | "MALHA";
+type SortDirection = "asc" | "desc" | null;
+type MeshShift = "TODOS" | "MANHA" | "TARDE" | "NOITE";
 
 // Utils para Data da Malha
 const getDisplayDate = (dateOffset: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + dateOffset);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const formattedDate = `${day}/${month}`;
-    if (dateOffset === 0) return `HOJE`;
-    if (dateOffset === -1) return `ONTEM`;
-    if (dateOffset === 1) return `AMANHÃ`;
-    return formattedDate;
+  const d = new Date();
+  d.setDate(d.getDate() + dateOffset);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const formattedDate = `${day}/${month}`;
+  if (dateOffset === 0) return `HOJE`;
+  if (dateOffset === -1) return `ONTEM`;
+  if (dateOffset === 1) return `AMANHÃ`;
+  return formattedDate;
 };
 
 const isTimeInShift = (timeStr: string, shift: MeshShift) => {
-  if (shift === 'TODOS' || !timeStr) return true;
-  const parts = timeStr.split(':');
+  if (shift === "TODOS" || !timeStr) return true;
+  const parts = timeStr.split(":");
   if (parts.length < 2) return true;
   const h = parseInt(parts[0], 10);
   const m = parseInt(parts[1], 10);
   const totalMinutes = h * 60 + m;
 
-  if (shift === 'MANHA') return totalMinutes >= 300 && totalMinutes < 900;
-  if (shift === 'TARDE') return totalMinutes >= 840 && totalMinutes <= 1440;
-  if (shift === 'NOITE') return (totalMinutes >= 1260 && totalMinutes <= 1440) || (totalMinutes >= 0 && totalMinutes < 360);
+  if (shift === "MANHA") return totalMinutes >= 300 && totalMinutes < 900;
+  if (shift === "TARDE") return totalMinutes >= 840 && totalMinutes <= 1440;
+  if (shift === "NOITE")
+    return (
+      (totalMinutes >= 1260 && totalMinutes <= 1440) ||
+      (totalMinutes >= 0 && totalMinutes < 360)
+    );
   return true;
 };
 
 const ICAO_CITIES: Record<string, string> = {
-  'SBGL': 'GALEÃO',
-  'SBGR': 'GUARULHOS',
-  'SBSP': 'CONGONHAS',
-  'SBRJ': 'ST. DUMONT',
-  'SBKP': 'VIRACOPOS',
-  'SBNT': 'NATAL',
-  'SBSV': 'SALVADOR',
-  'SBPA': 'PTO ALEGRE',
-  'SBCT': 'CURITIBA',
-  'LPPT': 'LISBOA',
-  'EDDF': 'FRANKFURT',
-  'LIRF': 'FIUMICINO',
-  'KMIA': 'MIAMI',
-  'KATL': 'ATLANTA',
-  'MPTO': 'TOCUMEN',
-  'SCEL': 'SANTIAGO',
-  'SUMU': 'MONTEVIDÉU',
-  'SAEZ': 'EZEIZA',
+  SBGL: "GALEÃO",
+  SBGR: "GUARULHOS",
+  SBSP: "CONGONHAS",
+  SBRJ: "ST. DUMONT",
+  SBKP: "VIRACOPOS",
+  SBNT: "NATAL",
+  SBSV: "SALVADOR",
+  SBPA: "PTO ALEGRE",
+  SBCT: "CURITIBA",
+  LPPT: "LISBOA",
+  EDDF: "FRANKFURT",
+  LIRF: "FIUMICINO",
+  KMIA: "MIAMI",
+  KATL: "ATLANTA",
+  MPTO: "TOCUMEN",
+  SCEL: "SANTIAGO",
+  SUMU: "MONTEVIDÉU",
+  SAEZ: "EZEIZA",
 };
 
 interface SortConfig {
@@ -87,173 +153,217 @@ interface SortConfig {
 }
 
 interface ToastNotification {
-    id: string;
-    title: string;
-    message: string;
-    type: 'success' | 'info' | 'warning';
+  id: string;
+  title: string;
+  message: string;
+  type: "success" | "info" | "warning";
 }
 
-import { CreateFlightModal } from './CreateFlightModal';
-import { DesigOpr } from './desigopr';
-import { DelayJustificationModal } from './modals/DelayJustificationModal';
-import { ObservationModal } from './modals/ObservationModal';
-import { ConfirmActionModal } from './modals/ConfirmActionModal';
-import { ImportModal } from './modals/ImportModal';
-import { Vehicle, MeshFlight } from '../types';
-import { useTheme } from '../contexts/ThemeContext';
+import { CreateFlightModal } from "./CreateFlightModal";
+import { DesigOpr } from "./desigopr";
+import { DelayJustificationModal } from "./modals/DelayJustificationModal";
+import { ObservationModal } from "./modals/ObservationModal";
+import { ConfirmActionModal } from "./modals/ConfirmActionModal";
+import { ImportModal } from "./modals/ImportModal";
+import { Vehicle, MeshFlight } from "../types";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface GridOpsProps {
-    flights: FlightData[];
-    onUpdateFlights: React.Dispatch<React.SetStateAction<FlightData[]>>;
-    vehicles: Vehicle[];
-    operators: OperatorProfile[];
-    initialTab?: Tab;
-    globalSearchTerm?: string;
-    onUpdateSearch?: (term: string) => void;
-    meshFlights?: MeshFlight[];
-    setMeshFlights?: React.Dispatch<React.SetStateAction<MeshFlight[]>>;
-    onOpenShiftOperators?: () => void;
-    onOpenReport?: (flight: FlightData) => void;
-    pendingAction?: 'CREATE' | 'IMPORT' | null;
-    setPendingAction?: React.Dispatch<React.SetStateAction<'CREATE' | 'IMPORT' | null>>;
-    onEditingStateChange?: (isEditing: boolean) => void;
-    ltName: string;
-    currentMeshDate?: string;
-    positionRestrictions: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
-    positionsMetadata?: Record<string, any>;
+  flights: FlightData[];
+  onUpdateFlights: React.Dispatch<React.SetStateAction<FlightData[]>>;
+  vehicles: Vehicle[];
+  operators: OperatorProfile[];
+  initialTab?: Tab;
+  globalSearchTerm?: string;
+  onUpdateSearch?: (term: string) => void;
+  meshFlights?: MeshFlight[];
+  setMeshFlights?: React.Dispatch<React.SetStateAction<MeshFlight[]>>;
+  onOpenShiftOperators?: () => void;
+  onOpenReport?: (flight: FlightData) => void;
+  pendingAction?: "CREATE" | "IMPORT" | null;
+  setPendingAction?: React.Dispatch<
+    React.SetStateAction<"CREATE" | "IMPORT" | null>
+  >;
+  onEditingStateChange?: (isEditing: boolean) => void;
+  ltName: string;
+  currentMeshDate?: string;
+  positionRestrictions: Record<string, "HYBRID" | "CTA" | "SRV">;
+  positionsMetadata?: Record<string, any>;
 }
 
 const parseTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    return date;
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date;
 };
 
 // Função para calcular diferença em minutos entre uma hora (HH:MM) e o momento atual
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
-    if (!targetTimeStr) return 0;
-    
-    const [hours, minutes] = targetTimeStr.split(':').map(Number);
-    const target = new Date();
-    
-    if (flightDateStr) {
-        // flightDateStr is in "YYYY-MM-DD"
-        const [year, month, day] = flightDateStr.split('-').map(Number);
-        target.setFullYear(year, month - 1, day);
-    }
-    
-    target.setHours(hours, minutes, 0, 0);
-    const current = new Date();
-    
-    let diff = Math.round((target.getTime() - current.getTime()) / 60000);
-    
-    return diff;
+  if (!targetTimeStr) return 0;
+
+  const [hours, minutes] = targetTimeStr.split(":").map(Number);
+  const target = new Date();
+
+  if (flightDateStr) {
+    // flightDateStr is in "YYYY-MM-DD"
+    const [year, month, day] = flightDateStr.split("-").map(Number);
+    target.setFullYear(year, month - 1, day);
+  }
+
+  target.setHours(hours, minutes, 0, 0);
+  const current = new Date();
+
+  let diff = Math.round((target.getTime() - current.getTime()) / 60000);
+
+  return diff;
 };
 
 const DELAY_REASONS = [
-    "Atraso Chegada Aeronave (Late Arrival)",
-    "Solicitação Cia Aérea (Abastecimento Parcial)",
-    "Manutenção Equipamento Abastecimento",
-    "Manutenção Aeronave (Mecânica)",
-    "Indisponibilidade de Posição/Balizamento",
-    "Restrição Meteorológica (Raios)",
-    "Atraso Operacional (Equipe)",
-    "Fluxo Lento / Pressão Hidrante Baixa"
+  "Atraso Chegada Aeronave (Late Arrival)",
+  "Solicitação Cia Aérea (Abastecimento Parcial)",
+  "Manutenção Equipamento Abastecimento",
+  "Manutenção Aeronave (Mecânica)",
+  "Indisponibilidade de Posição/Balizamento",
+  "Restrição Meteorológica (Raios)",
+  "Atraso Operacional (Equipe)",
+  "Fluxo Lento / Pressão Hidrante Baixa",
 ];
 
 const calculateLandingETA = (blockTime: string) => {
-    const date = parseTime(blockTime);
-    date.setMinutes(date.getMinutes() - 15);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const date = parseTime(blockTime);
+  date.setMinutes(date.getMinutes() - 15);
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
 const getLatestReportItem = (flight: FlightData) => {
-    if (!flight.report) return null;
-    const { report } = flight;
-    
-    const items = [];
-    if (report.fuelOrderTime) items.push({ label: 'FO', time: report.fuelOrderTime, color: 'text-orange-500', bg: 'bg-orange-500/10' });
-    if (report.mechanicTime) items.push({ label: 'MEC', time: report.mechanicTime, color: 'text-blue-500', bg: 'bg-blue-500/10' });
-    if (report.crewTime) items.push({ label: 'TRP', time: report.crewTime, color: 'text-indigo-500', bg: 'bg-indigo-500/10' });
-    if (report.obstructedAreaTime) items.push({ label: 'OBS', time: report.obstructedAreaTime, color: 'text-red-500', bg: 'bg-red-500/10' });
-    if (report.authorizationTime) items.push({ label: 'AUT', time: report.authorizationTime, color: 'text-emerald-500', bg: 'bg-emerald-500/10' });
-    if (report.dispensed) items.push({ label: 'DISP', time: '--:--', color: 'text-amber-500', bg: 'bg-amber-500/10' });
-    
-    if (items.length === 0) return null;
+  if (!flight.report) return null;
+  const { report } = flight;
 
-    items.sort((a, b) => {
-        if (a.time === '--:--') return -1;
-        if (b.time === '--:--') return 1;
-        return a.time.localeCompare(b.time);
+  const items = [];
+  if (report.fuelOrderTime)
+    items.push({
+      label: "FO",
+      time: report.fuelOrderTime,
+      color: "text-orange-500",
+      bg: "bg-orange-500/10",
+    });
+  if (report.mechanicTime)
+    items.push({
+      label: "MEC",
+      time: report.mechanicTime,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+    });
+  if (report.crewTime)
+    items.push({
+      label: "TRP",
+      time: report.crewTime,
+      color: "text-indigo-500",
+      bg: "bg-indigo-500/10",
+    });
+  if (report.obstructedAreaTime)
+    items.push({
+      label: "OBS",
+      time: report.obstructedAreaTime,
+      color: "text-red-500",
+      bg: "bg-red-500/10",
+    });
+  if (report.authorizationTime)
+    items.push({
+      label: "AUT",
+      time: report.authorizationTime,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+    });
+  if (report.dispensed)
+    items.push({
+      label: "DISP",
+      time: "--:--",
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
     });
 
-    return items[items.length - 1];
+  if (items.length === 0) return null;
+
+  items.sort((a, b) => {
+    if (a.time === "--:--") return -1;
+    if (b.time === "--:--") return 1;
+    return a.time.localeCompare(b.time);
+  });
+
+  return items[items.length - 1];
 };
 
 // Verifica se houve atraso REAL (Hora Finalização > ETD)
 const checkIsDelayed = (flight: FlightData) => {
-    if (!flight.endTime || !flight.etd) return false;
-    const [h, m] = flight.etd.split(':').map(Number);
-    const etdDate = new Date(flight.endTime); 
-    etdDate.setHours(h, m, 0, 0);
-    // Se EndTime for maior que ETD, houve atraso
-    return new Date(flight.endTime).getTime() > etdDate.getTime();
+  if (!flight.endTime || !flight.etd) return false;
+  const [h, m] = flight.etd.split(":").map(Number);
+  const etdDate = new Date(flight.endTime);
+  etdDate.setHours(h, m, 0, 0);
+  // Se EndTime for maior que ETD, houve atraso
+  return new Date(flight.endTime).getTime() > etdDate.getTime();
 };
 
 const calculateTAB = (flight: FlightData) => {
-    if (!flight.designationTime || !flight.endTime) return "--:--";
-    const diffMs = new Date(flight.endTime).getTime() - new Date(flight.designationTime).getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const hrs = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  if (!flight.designationTime || !flight.endTime) return "--:--";
+  const diffMs =
+    new Date(flight.endTime).getTime() -
+    new Date(flight.designationTime).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const hrs = Math.floor(diffMins / 60);
+  const mins = diffMins % 60;
+  return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 };
 
-const createNewLog = (type: LogType, message: string, author: string = 'GESTOR_MESA'): FlightLog => ({
-    id: Date.now().toString(),
-    timestamp: new Date(),
-    type,
-    message,
-    author
+const createNewLog = (
+  type: LogType,
+  message: string,
+  author: string = "GESTOR_MESA",
+): FlightLog => ({
+  id: Date.now().toString(),
+  timestamp: new Date(),
+  type,
+  message,
+  author,
 });
 
-export const GridOps: React.FC<GridOpsProps> = ({ 
-    flights, 
-    onUpdateFlights, 
-    vehicles, 
-    operators,
-    initialTab = 'GERAL', 
-    globalSearchTerm = '',
-    onUpdateSearch,
-    meshFlights = [],
-    setMeshFlights,
-    onOpenShiftOperators,
-    onOpenReport,
-    pendingAction,
-    setPendingAction,
-    onEditingStateChange,
-    ltName,
-    currentMeshDate,
-    positionRestrictions,
-    positionsMetadata = {}
+export const GridOps: React.FC<GridOpsProps> = ({
+  flights,
+  onUpdateFlights,
+  vehicles,
+  operators,
+  initialTab = "GERAL",
+  globalSearchTerm = "",
+  onUpdateSearch,
+  meshFlights = [],
+  setMeshFlights,
+  onOpenShiftOperators,
+  onOpenReport,
+  pendingAction,
+  setPendingAction,
+  onEditingStateChange,
+  ltName,
+  currentMeshDate,
+  positionRestrictions,
+  positionsMetadata = {},
 }) => {
   const { isDarkMode } = useTheme();
   const { user, warName } = useAuth();
-  
-  const currentUserName = user?.warName || warName || ltName || 'SISTEMA';
-  const currentUserRole = user?.role || 'LÍDER DE TURNO';
+
+  const currentUserName = user?.warName || warName || ltName || "SISTEMA";
+  const currentUserRole = user?.role || "LÍDER DE TURNO";
 
   const logAudit = (
-    actionType: string, 
-    flight: Partial<FlightData>, 
-    field?: string, 
-    oldVal?: string, 
-    newVal?: string, 
-    metadata?: any
+    actionType: string,
+    flight: Partial<FlightData>,
+    field?: string,
+    oldVal?: string,
+    newVal?: string,
+    metadata?: any,
   ) => {
     insertAuditLog({
-      entity_type: 'FLIGHT',
+      entity_type: "FLIGHT",
       entity_id: flight.id,
       action_type: actionType,
       flight_number: flight.flightNumber,
@@ -264,94 +374,124 @@ export const GridOps: React.FC<GridOpsProps> = ({
       new_value: newVal,
       user_name: currentUserName,
       user_role: currentUserRole,
-      metadata
+      metadata,
     });
   };
 
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
-  const [activeShift, setActiveShift] = useState<MeshShift>(getCurrentShift(false) as MeshShift);
+  const [activeShift, setActiveShift] = useState<MeshShift>(
+    getCurrentShift(false) as MeshShift,
+  );
   const [activeDateOffset, setActiveDateOffset] = useState<number>(0);
   const [showCalendar, setShowCalendar] = useState(false);
-  
+
   // Track target simulated day from App
   useEffect(() => {
-     if (currentMeshDate) {
-         const targetD = new Date(currentMeshDate + 'T00:00:00');
-         const today = new Date();
-         today.setHours(0,0,0,0);
-         const diffTime = targetD.getTime() - today.getTime();
-         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-         setActiveDateOffset(diffDays);
-     }
+    if (currentMeshDate) {
+      const targetD = new Date(currentMeshDate + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffTime = targetD.getTime() - today.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      setActiveDateOffset(diffDays);
+    }
   }, [currentMeshDate]);
 
   const [destinosDB, setDestinosDB] = useState<StaticFlight[]>([]);
   const [aircrafts, setAircrafts] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from('aeronaves').select('*').then(res => {
-      if (res.data) setAircrafts(res.data);
-    });
+    supabase
+      .from("aeronaves")
+      .select("*")
+      .then((res) => {
+        if (res.data) setAircrafts(res.data);
+      });
     // Manter o hook vazio por enquanto caso no futuro precise carregar dados reais, mas sem o delay simulado
-    getDestinos().then(destinos => {
+    getDestinos().then((destinos) => {
       setDestinosDB(destinos as StaticFlight[]);
     });
   }, []);
 
   useEffect(() => {
-      if (initialTab) {
-          setActiveTab(initialTab);
-      }
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
   }, [initialTab]);
 
   const [selectedFlight, setSelectedFlight] = useState<FlightData | null>(null);
   const [clickedRowId, setClickedRowId] = useState<string | null>(null);
-  const [reportInputFlight, setReportInputFlight] = useState<FlightData | null>(null);
+  const [reportInputFlight, setReportInputFlight] = useState<FlightData | null>(
+    null,
+  );
 
   // Keep selectedFlight in sync with global flights
   useEffect(() => {
-      if (selectedFlight) {
-          const updated = flights.find(f => f.id === selectedFlight.id);
-          if (updated && JSON.stringify(updated) !== JSON.stringify(selectedFlight)) {
-              setSelectedFlight(updated);
-          }
+    if (selectedFlight) {
+      const updated = flights.find((f) => f.id === selectedFlight.id);
+      if (
+        updated &&
+        JSON.stringify(updated) !== JSON.stringify(selectedFlight)
+      ) {
+        setSelectedFlight(updated);
       }
+    }
   }, [flights, selectedFlight]);
 
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: null });
-  
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    key: null,
+    direction: null,
+  });
+
   // Estado para controlar visualização de finalizados na aba GERAL
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
-  
+
   // Modals e Toasts
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [standbyModalFlightId, setStandbyModalFlightId] = useState<string | null>(null);
-  const [standbyReason, setStandbyReason] = useState('');
-  const [observationModalFlight, setObservationModalFlight] = useState<FlightData | null>(null);
-  const [newObservation, setNewObservation] = useState('');
+  const [standbyModalFlightId, setStandbyModalFlightId] = useState<
+    string | null
+  >(null);
+  const [standbyReason, setStandbyReason] = useState("");
+  const [observationModalFlight, setObservationModalFlight] =
+    useState<FlightData | null>(null);
+  const [newObservation, setNewObservation] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
   const [optionsMenuRect, setOptionsMenuRect] = useState<DOMRect | null>(null);
-  const [timeConflictData, setTimeConflictData] = useState<{rowId: string, oldEtd: string, newEtd: string} | null>(null);
-  
+  const [timeConflictData, setTimeConflictData] = useState<{
+    rowId: string;
+    oldEtd: string;
+    newEtd: string;
+  } | null>(null);
+
   // NEW: Spreadsheet inline editing states
-  const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: string } | null>(null);
-  const [editingCell, setEditingCell] = useState<{ rowId: string; col: string } | null>(null);
+  const [focusedCell, setFocusedCell] = useState<{
+    rowId: string;
+    col: string;
+  } | null>(null);
+  const [editingCell, setEditingCell] = useState<{
+    rowId: string;
+    col: string;
+  } | null>(null);
   const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
-  const [calcoModalFlight, setCalcoModalFlight] = useState<FlightData | null>(null);
-  const [calcoModalPosition, setCalcoModalPosition] = useState<string>('');
-  const [calcoModalTime, setCalcoModalTime] = useState<string>('');
+  const [calcoModalFlight, setCalcoModalFlight] = useState<FlightData | null>(
+    null,
+  );
+  const [calcoModalPosition, setCalcoModalPosition] = useState<string>("");
+  const [calcoModalTime, setCalcoModalTime] = useState<string>("");
   const tableRef = useRef<HTMLTableElement>(null);
   const lastStableFlightsRef = useRef<FlightData[]>([]);
   const lastFiltersRef = useRef({ activeTab, activeShift, globalSearchTerm });
 
   useEffect(() => {
-    if (activeTab !== lastFiltersRef.current.activeTab || 
-        activeShift !== lastFiltersRef.current.activeShift || 
-        globalSearchTerm !== lastFiltersRef.current.globalSearchTerm) {
+    if (
+      activeTab !== lastFiltersRef.current.activeTab ||
+      activeShift !== lastFiltersRef.current.activeShift ||
+      globalSearchTerm !== lastFiltersRef.current.globalSearchTerm
+    ) {
       setEditingCell(null);
       lastFiltersRef.current = { activeTab, activeShift, globalSearchTerm };
     }
@@ -359,13 +499,20 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   useEffect(() => {
     if (focusedCell) {
-      if (editingCell?.rowId === focusedCell.rowId && editingCell?.col === focusedCell.col) {
-        const input = tableRef.current?.querySelector(`tr[data-rowid="${focusedCell.rowId}"] td[data-colkey="${focusedCell.col}"] input`) as HTMLInputElement;
+      if (
+        editingCell?.rowId === focusedCell.rowId &&
+        editingCell?.col === focusedCell.col
+      ) {
+        const input = tableRef.current?.querySelector(
+          `tr[data-rowid="${focusedCell.rowId}"] td[data-colkey="${focusedCell.col}"] input`,
+        ) as HTMLInputElement;
         if (input && document.activeElement !== input) {
           input.focus();
         }
       } else {
-        const cell = tableRef.current?.querySelector(`tr[data-rowid="${focusedCell.rowId}"] td[data-colkey="${focusedCell.col}"] div`) as HTMLDivElement;
+        const cell = tableRef.current?.querySelector(
+          `tr[data-rowid="${focusedCell.rowId}"] td[data-colkey="${focusedCell.col}"] div`,
+        ) as HTMLDivElement;
         if (cell && document.activeElement !== cell) {
           cell.focus();
         }
@@ -373,154 +520,239 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
   }, [focusedCell, editingCell]);
 
-  const syncFlight = (updatedFlight: FlightData, shouldPersist: boolean = true) => {
-    onUpdateFlights(prev => prev.map(f => f.id === updatedFlight.id ? updatedFlight : f));
-    
+  const syncFlight = (
+    updatedFlight: FlightData,
+    shouldPersist: boolean = true,
+  ) => {
+    onUpdateFlights((prev) =>
+      prev.map((f) => (f.id === updatedFlight.id ? updatedFlight : f)),
+    );
+
     if (shouldPersist) {
-      upsertFlight(updatedFlight).catch(err => {
-        console.error('Failed to persist flight update:', err);
+      upsertFlight(updatedFlight).catch((err) => {
+        console.error("Failed to persist flight update:", err);
       });
     }
 
     if (setMeshFlights) {
-      setMeshFlights(prevMesh => prevMesh.map(m => {
-        const flightIdBase = updatedFlight.id.replace(/^mesh-\d+-/, '');
-        const isIdMatch = updatedFlight.id === m.id || flightIdBase === m.id || flightIdBase === m.id.replace(/^mesh-\d+-/, '');
-        const isNumberMatch = (updatedFlight.departureFlightNumber && m.departureFlightNumber && updatedFlight.departureFlightNumber === m.departureFlightNumber) ||
-                             (updatedFlight.flightNumber && m.flightNumber && updatedFlight.flightNumber === m.flightNumber);
+      setMeshFlights((prevMesh) =>
+        prevMesh.map((m) => {
+          const flightIdBase = updatedFlight.id.replace(/^mesh-\d+-/, "");
+          const isIdMatch =
+            updatedFlight.id === m.id ||
+            flightIdBase === m.id ||
+            flightIdBase === m.id.replace(/^mesh-\d+-/, "");
+          const isNumberMatch =
+            (updatedFlight.departureFlightNumber &&
+              m.departureFlightNumber &&
+              updatedFlight.departureFlightNumber ===
+                m.departureFlightNumber) ||
+            (updatedFlight.flightNumber &&
+              m.flightNumber &&
+              updatedFlight.flightNumber === m.flightNumber);
 
-        if (isIdMatch || isNumberMatch) {
-          return { 
-            ...m, 
-            actualArrivalTime: updatedFlight.actualArrivalTime || m.actualArrivalTime,
-            etd: updatedFlight.etd || m.etd,
-            eta: updatedFlight.eta || m.eta,
-            registration: updatedFlight.registration || m.registration,
-            destination: updatedFlight.destination || m.destination,
-            positionId: updatedFlight.positionId || m.positionId,
-            positionType: updatedFlight.positionType || m.positionType,
-            departureFlightNumber: updatedFlight.departureFlightNumber || m.departureFlightNumber,
-            operator: updatedFlight.operator || m.operator,
-            supportOperator: updatedFlight.supportOperator || m.supportOperator,
-            fleet: updatedFlight.fleet || m.fleet,
-          };
-        }
-        return m;
-      }));
+          if (isIdMatch || isNumberMatch) {
+            return {
+              ...m,
+              actualArrivalTime:
+                updatedFlight.actualArrivalTime || m.actualArrivalTime,
+              etd: updatedFlight.etd || m.etd,
+              eta: updatedFlight.eta || m.eta,
+              registration: updatedFlight.registration || m.registration,
+              destination: updatedFlight.destination || m.destination,
+              positionId: updatedFlight.positionId || m.positionId,
+              positionType: updatedFlight.positionType || m.positionType,
+              departureFlightNumber:
+                updatedFlight.departureFlightNumber || m.departureFlightNumber,
+              operator: updatedFlight.operator || m.operator,
+              supportOperator:
+                updatedFlight.supportOperator || m.supportOperator,
+              fleet: updatedFlight.fleet || m.fleet,
+            };
+          }
+          return m;
+        }),
+      );
     }
   };
 
-  const handleFieldChange = (id: string, field: keyof FlightData, value: string) => {
-    const flight = flights.find(f => f.id === id);
+  const handleFieldChange = (
+    id: string,
+    field: keyof FlightData,
+    value: string,
+  ) => {
+    const flight = flights.find((f) => f.id === id);
     if (!flight) return;
 
     let newValue: any = value.toUpperCase();
-    
-    if (field === 'eta' || field === 'etd' || field === 'actualArrivalTime' || field === 'designationTime') {
-      newValue = value.replace(/[^0-9]/g, '');
+
+    if (
+      field === "eta" ||
+      field === "etd" ||
+      field === "actualArrivalTime" ||
+      field === "designationTime"
+    ) {
+      newValue = value.replace(/[^0-9]/g, "");
       if (newValue.length > 2) {
         newValue = `${newValue.slice(0, 2)}:${newValue.slice(2, 4)}`;
       }
       if (newValue.length > 5) newValue = newValue.slice(0, 5);
-    } else if (field === 'fuelStatus' || field === 'volume' || field === 'maxFlowRate') {
+    } else if (
+      field === "fuelStatus" ||
+      field === "volume" ||
+      field === "maxFlowRate"
+    ) {
       newValue = parseFloat(value) || 0;
-    } else if (field === 'positionId') {
+    } else if (field === "positionId") {
       let payload: FlightData = { ...flight, [field]: newValue };
       const restrictionType = positionRestrictions[newValue];
-      if (restrictionType === 'CTA') {
-        payload.positionType = 'CTA';
-      } else if (restrictionType === 'SRV') {
-        payload.positionType = 'SRV';
+      if (restrictionType === "CTA") {
+        payload.positionType = "CTA";
+      } else if (restrictionType === "SRV") {
+        payload.positionType = "SRV";
       } else if (payload.positionType) {
         payload.positionType = undefined;
       }
       syncFlight(payload);
       return;
     }
-    
+
     // Auto-fill Destination and Airline based on V.Saída / V.Cheg
     let updatedFlight = { ...flight, [field]: newValue };
 
-    if (field === 'flightNumber' || field === 'departureFlightNumber') {
-        const normalizedInput = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
-        let autoAirlineCode = updatedFlight.airlineCode;
-        
-        const match = destinosDB.find(d => {
-            const f1 = String(d.flightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
-            const f2 = String(d.departureFlightNumber || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
-            const f3 = String((d as any).voo || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
-            
-            if (f1 === normalizedInput || f2 === normalizedInput || f3 === normalizedInput) return true;
-            
-            const numOnlyInput = normalizedInput.replace(/[^0-9]/g, '');
-            if (numOnlyInput.length > 2) {
-                const num1 = f1.replace(/[^0-9]/g, '');
-                const num2 = f2.replace(/[^0-9]/g, '');
-                
-                if ((num1 === numOnlyInput || Number(num1) === Number(numOnlyInput)) && num1.length > 0) {
-                    const airlineCodeInput = normalizedInput.replace(/[0-9]/g, '');
-                    const rowAirlineCode = String(d.airlineCode || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
-                    if (!airlineCodeInput || !rowAirlineCode || rowAirlineCode.includes(airlineCodeInput) || f1.includes(airlineCodeInput)) {
-                        return true;
-                    }
-                }
+    if (field === "flightNumber" || field === "departureFlightNumber") {
+      const normalizedInput = String(newValue || "")
+        .replace(/[^A-Z0-9]/gi, "")
+        .toUpperCase();
+      let autoAirlineCode = updatedFlight.airlineCode;
+
+      const match = destinosDB.find((d) => {
+        const f1 = String(d.flightNumber || "")
+          .replace(/[^A-Z0-9]/gi, "")
+          .toUpperCase();
+        const f2 = String(d.departureFlightNumber || "")
+          .replace(/[^A-Z0-9]/gi, "")
+          .toUpperCase();
+        const f3 = String((d as any).voo || "")
+          .replace(/[^A-Z0-9]/gi, "")
+          .toUpperCase();
+
+        if (
+          f1 === normalizedInput ||
+          f2 === normalizedInput ||
+          f3 === normalizedInput
+        )
+          return true;
+
+        const numOnlyInput = normalizedInput.replace(/[^0-9]/g, "");
+        if (numOnlyInput.length > 2) {
+          const num1 = f1.replace(/[^0-9]/g, "");
+          const num2 = f2.replace(/[^0-9]/g, "");
+
+          if (
+            (num1 === numOnlyInput || Number(num1) === Number(numOnlyInput)) &&
+            num1.length > 0
+          ) {
+            const airlineCodeInput = normalizedInput.replace(/[0-9]/g, "");
+            const rowAirlineCode = String(d.airlineCode || "")
+              .replace(/[^A-Z0-9]/gi, "")
+              .toUpperCase();
+            if (
+              !airlineCodeInput ||
+              !rowAirlineCode ||
+              rowAirlineCode.includes(airlineCodeInput) ||
+              f1.includes(airlineCodeInput)
+            ) {
+              return true;
             }
-            return false;
-        });
-        
+          }
+        }
+        return false;
+      });
+
+      if (match) {
+        updatedFlight.destination = match.destination;
+        updatedFlight.airline =
+          match.airline || match.companhia || updatedFlight.airline;
+
+        if (updatedFlight.airline) {
+          const airlineUpperExact = updatedFlight.airline.toUpperCase();
+          if (airlineUpperExact.includes("GOL")) autoAirlineCode = "RG";
+          else if (airlineUpperExact.includes("LATAM")) autoAirlineCode = "LA";
+          else if (airlineUpperExact.includes("AZUL")) autoAirlineCode = "AD";
+          else
+            autoAirlineCode =
+              match.airlineCode ||
+              updatedFlight.airline.slice(0, 3).toUpperCase();
+        }
+      } else {
+        if (normalizedInput.length >= 2) {
+          const prefix = normalizedInput.slice(0, 2);
+          if (prefix === "LA") autoAirlineCode = "LA";
+          else if (prefix === "G3" || prefix === "RG") autoAirlineCode = "RG";
+          else if (prefix === "AD") autoAirlineCode = "AD";
+          else if (prefix === "CM") autoAirlineCode = "CM";
+          else if (prefix === "TP") autoAirlineCode = "TP";
+          else if (prefix === "AA") autoAirlineCode = "AA";
+        }
+      }
+
+      updatedFlight.airlineCode = autoAirlineCode || updatedFlight.airlineCode;
+      if (
+        autoAirlineCode &&
+        normalizedInput.length > 2 &&
+        /^\d+$/.test(normalizedInput)
+      ) {
+        updatedFlight[field] = `${autoAirlineCode}-${normalizedInput}`;
+      }
+    } else if (field === "registration") {
+      const normalizedPrefix = String(newValue || "")
+        .replace(/[^A-Z0-9]/gi, "")
+        .toUpperCase();
+      if (normalizedPrefix.length >= 3 && !newValue.includes("-")) {
+        const match = aircrafts.find((a) =>
+          String(a.prefix)
+            .replace(/[^A-Z0-9]/gi, "")
+            .toUpperCase()
+            .endsWith(normalizedPrefix),
+        );
         if (match) {
-            updatedFlight.destination = match.destination;
-            updatedFlight.airline = match.airline || match.companhia || updatedFlight.airline;
-            
-            if (updatedFlight.airline) {
-                const airlineUpperExact = updatedFlight.airline.toUpperCase();
-                if (airlineUpperExact.includes('GOL')) autoAirlineCode = 'RG';
-                else if (airlineUpperExact.includes('LATAM')) autoAirlineCode = 'LA';
-                else if (airlineUpperExact.includes('AZUL')) autoAirlineCode = 'AD';
-                else autoAirlineCode = match.airlineCode || updatedFlight.airline.slice(0, 3).toUpperCase();
-            }
-        } else {
-            if (normalizedInput.length >= 2) {
-                const prefix = normalizedInput.slice(0, 2);
-                if (prefix === 'LA') autoAirlineCode = 'LA';
-                else if (prefix === 'G3' || prefix === 'RG') autoAirlineCode = 'RG';
-                else if (prefix === 'AD') autoAirlineCode = 'AD';
-                else if (prefix === 'CM') autoAirlineCode = 'CM';
-                else if (prefix === 'TP') autoAirlineCode = 'TP';
-                else if (prefix === 'AA') autoAirlineCode = 'AA';
-            }
+          updatedFlight.registration = match.prefix;
+          updatedFlight.model =
+            match.model && match.model !== "--"
+              ? match.model
+              : updatedFlight.model;
+          if (!updatedFlight.airlineCode && !!match.airline) {
+            const airUpper = match.airline.toUpperCase();
+            if (airUpper.includes("GOL")) updatedFlight.airlineCode = "RG";
+            else if (airUpper.includes("LATAM"))
+              updatedFlight.airlineCode = "LA";
+            else if (airUpper.includes("AZUL"))
+              updatedFlight.airlineCode = "AD";
+          }
         }
-        
-        updatedFlight.airlineCode = autoAirlineCode || updatedFlight.airlineCode;
-        if (autoAirlineCode && normalizedInput.length > 2 && /^\d+$/.test(normalizedInput)) {
-             updatedFlight[field] = `${autoAirlineCode}-${normalizedInput}`;
+      } else if (normalizedPrefix.length >= 2) {
+        const match = aircrafts.find(
+          (a) =>
+            String(a.prefix)
+              .replace(/[^A-Z0-9]/gi, "")
+              .toUpperCase() === normalizedPrefix,
+        );
+        if (match) {
+          updatedFlight.model =
+            match.model && match.model !== "--"
+              ? match.model
+              : updatedFlight.model;
+          if (!updatedFlight.airlineCode && !!match.airline) {
+            const airUpper = match.airline.toUpperCase();
+            if (airUpper.includes("GOL")) updatedFlight.airlineCode = "RG";
+            else if (airUpper.includes("LATAM"))
+              updatedFlight.airlineCode = "LA";
+            else if (airUpper.includes("AZUL"))
+              updatedFlight.airlineCode = "AD";
+          }
         }
-    } else if (field === 'registration') {
-        const normalizedPrefix = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
-        if (normalizedPrefix.length >= 3 && !newValue.includes('-')) {
-            const match = aircrafts.find(a => String(a.prefix).replace(/[^A-Z0-9]/ig, '').toUpperCase().endsWith(normalizedPrefix));
-            if (match) {
-                updatedFlight.registration = match.prefix;
-                updatedFlight.model = match.model && match.model !== '--' ? match.model : updatedFlight.model;
-                if (!updatedFlight.airlineCode && !!match.airline) {
-                   const airUpper = match.airline.toUpperCase();
-                   if (airUpper.includes('GOL')) updatedFlight.airlineCode = 'RG';
-                   else if (airUpper.includes('LATAM')) updatedFlight.airlineCode = 'LA';
-                   else if (airUpper.includes('AZUL')) updatedFlight.airlineCode = 'AD';
-                }
-            }
-        } else if (normalizedPrefix.length >= 2) {
-            const match = aircrafts.find(a => String(a.prefix).replace(/[^A-Z0-9]/ig, '').toUpperCase() === normalizedPrefix);
-            if (match) {
-                updatedFlight.model = match.model && match.model !== '--' ? match.model : updatedFlight.model;
-                if (!updatedFlight.airlineCode && !!match.airline) {
-                   const airUpper = match.airline.toUpperCase();
-                   if (airUpper.includes('GOL')) updatedFlight.airlineCode = 'RG';
-                   else if (airUpper.includes('LATAM')) updatedFlight.airlineCode = 'LA';
-                   else if (airUpper.includes('AZUL')) updatedFlight.airlineCode = 'AD';
-                }
-            }
-        }
+      }
     }
 
     syncFlight(updatedFlight); // Local update only
@@ -532,84 +764,127 @@ export const GridOps: React.FC<GridOpsProps> = ({
     setEditingCell(null);
     setIsKeystrokeEdit(false);
 
-    const flight = flights.find(f => f.id === rowId);
+    const flight = flights.find((f) => f.id === rowId);
     if (flight) {
       // Persist on blur
-      upsertFlight(flight).catch(err => console.error('Error on blur persistence:', err));
+      upsertFlight(flight).catch((err) =>
+        console.error("Error on blur persistence:", err),
+      );
     }
 
-    if (colKey === 'etd') {
-        const flight = flights.find(f => f.id === rowId);
-        if (flight && flight.etd && flight.etd.length >= 4) {
-            const [h] = flight.etd.split(':').map(Number);
-            const currentH = new Date().getHours();
-            // Verificação se o horário digitado cruza a meia-noite (próximo dia)
-            const isNextDayCross = (currentH >= 12 && h < currentH - 12);
-            
-            if (isNextDayCross) {
-                const oldFlight = lastStableFlightsRef.current.find(f => f.id === rowId);
-                const trueOldEtd = oldFlight?.etd || ''; // REAL original ETD
-                const conflictKey = `${rowId}-${flight.etd}`;
-                if (!confirmedConflictsRef.current.has(conflictKey)) {
-                    setTimeConflictData({ rowId, oldEtd: trueOldEtd, newEtd: flight.etd });
-                }
-            }
+    if (colKey === "etd") {
+      const flight = flights.find((f) => f.id === rowId);
+      if (flight && flight.etd && flight.etd.length >= 4) {
+        const [h] = flight.etd.split(":").map(Number);
+        const currentH = new Date().getHours();
+        // Verificação se o horário digitado cruza a meia-noite (próximo dia)
+        const isNextDayCross = currentH >= 12 && h < currentH - 12;
+
+        if (isNextDayCross) {
+          const oldFlight = lastStableFlightsRef.current.find(
+            (f) => f.id === rowId,
+          );
+          const trueOldEtd = oldFlight?.etd || ""; // REAL original ETD
+          const conflictKey = `${rowId}-${flight.etd}`;
+          if (!confirmedConflictsRef.current.has(conflictKey)) {
+            setTimeConflictData({
+              rowId,
+              oldEtd: trueOldEtd,
+              newEtd: flight.etd,
+            });
+          }
         }
+      }
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, rowId: string, colKey: string, rowIndex: number, colIndex: number) => {
-    const isEditing = editingCell?.rowId === rowId && editingCell?.col === colKey;
+  const handleKeyDown = (
+    e: React.KeyboardEvent,
+    rowId: string,
+    colKey: string,
+    rowIndex: number,
+    colIndex: number,
+  ) => {
+    const isEditing =
+      editingCell?.rowId === rowId && editingCell?.col === colKey;
     let targetTd = e.currentTarget as HTMLElement;
-    if (targetTd.tagName !== 'TD') {
-        targetTd = targetTd.closest('td') as HTMLElement;
+    if (targetTd.tagName !== "TD") {
+      targetTd = targetTd.closest("td") as HTMLElement;
     }
     const currentTr = targetTd?.parentElement as HTMLTableRowElement;
     if (!currentTr) return;
     const tbody = currentTr.parentElement as HTMLTableSectionElement;
     if (!tbody) return;
 
-    const navigate = (newRowIndex: number, newColIndex: number, preferEditing = false, horizontalDirection: 1 | -1 | 0 = 0) => {
-      let targetRow = Array.from(tbody.children).find(el => parseInt(el.getAttribute('data-rowindex') || '-1') === newRowIndex) as HTMLTableRowElement;
-      
+    const navigate = (
+      newRowIndex: number,
+      newColIndex: number,
+      preferEditing = false,
+      horizontalDirection: 1 | -1 | 0 = 0,
+    ) => {
+      let targetRow = Array.from(tbody.children).find(
+        (el) =>
+          parseInt(el.getAttribute("data-rowindex") || "-1") === newRowIndex,
+      ) as HTMLTableRowElement;
+
       let nextRowIndex = newRowIndex;
       let nextColIndex = newColIndex;
 
       if (horizontalDirection !== 0) {
-          while (true) {
-              if (!targetRow) break;
-              let targetCell = Array.from(targetRow.children).find(el => parseInt(el.getAttribute('data-colindex') || '-1') === nextColIndex) as HTMLElement;
-              
-              if (!targetCell) {
-                  if (horizontalDirection === 1) {
-                      nextRowIndex += 1;
-                      nextColIndex = 0;
-                  } else {
-                      nextRowIndex -= 1;
-                      const prevRow = Array.from(tbody.children).find(el => parseInt(el.getAttribute('data-rowindex') || '-1') === nextRowIndex) as HTMLTableRowElement;
-                      if (!prevRow) break;
-                      nextColIndex = Array.from(prevRow.children)
-                          .filter(c => c.hasAttribute('data-colindex'))
-                          .map(c => parseInt(c.getAttribute('data-colindex')!))
-                          .reduce((max, val) => Math.max(max, val), 0);
-                  }
-                  targetRow = Array.from(tbody.children).find(el => parseInt(el.getAttribute('data-rowindex') || '-1') === nextRowIndex) as HTMLTableRowElement;
-                  continue;
-              }
+        while (true) {
+          if (!targetRow) break;
+          let targetCell = Array.from(targetRow.children).find(
+            (el) =>
+              parseInt(el.getAttribute("data-colindex") || "-1") ===
+              nextColIndex,
+          ) as HTMLElement;
 
-              if (targetCell.getAttribute('data-editable') === 'true') {
-                  break;
-              } else {
-                  nextColIndex += horizontalDirection;
-              }
+          if (!targetCell) {
+            if (horizontalDirection === 1) {
+              nextRowIndex += 1;
+              nextColIndex = 0;
+            } else {
+              nextRowIndex -= 1;
+              const prevRow = Array.from(tbody.children).find(
+                (el) =>
+                  parseInt(el.getAttribute("data-rowindex") || "-1") ===
+                  nextRowIndex,
+              ) as HTMLTableRowElement;
+              if (!prevRow) break;
+              nextColIndex = Array.from(prevRow.children)
+                .filter((c) => c.hasAttribute("data-colindex"))
+                .map((c) => parseInt(c.getAttribute("data-colindex")!))
+                .reduce((max, val) => Math.max(max, val), 0);
+            }
+            targetRow = Array.from(tbody.children).find(
+              (el) =>
+                parseInt(el.getAttribute("data-rowindex") || "-1") ===
+                nextRowIndex,
+            ) as HTMLTableRowElement;
+            continue;
           }
+
+          if (targetCell.getAttribute("data-editable") === "true") {
+            break;
+          } else {
+            nextColIndex += horizontalDirection;
+          }
+        }
       }
 
       if (targetRow) {
-        const targetCell = Array.from(targetRow.children).find(el => parseInt(el.getAttribute('data-colindex') || '-1') === nextColIndex) as HTMLElement;
-        if (targetCell && (horizontalDirection !== 0 ? true : targetCell.getAttribute('data-editable') === 'true')) {
-          const newRowId = targetCell.getAttribute('data-rowid');
-          const newColKey = targetCell.getAttribute('data-colkey');
+        const targetCell = Array.from(targetRow.children).find(
+          (el) =>
+            parseInt(el.getAttribute("data-colindex") || "-1") === nextColIndex,
+        ) as HTMLElement;
+        if (
+          targetCell &&
+          (horizontalDirection !== 0
+            ? true
+            : targetCell.getAttribute("data-editable") === "true")
+        ) {
+          const newRowId = targetCell.getAttribute("data-rowid");
+          const newColKey = targetCell.getAttribute("data-colkey");
           if (newRowId && newColKey) {
             setFocusedCell({ rowId: newRowId, col: newColKey });
             if (preferEditing) {
@@ -618,9 +893,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
               handleFinishEdit(rowId, colKey);
             }
             setTimeout(() => {
-                const innerEl = targetCell.querySelector('input') || targetCell.querySelector('div');
-                if (innerEl) (innerEl as HTMLElement).focus();
-                else targetCell.focus();
+              const innerEl =
+                targetCell.querySelector("input") ||
+                targetCell.querySelector("div");
+              if (innerEl) (innerEl as HTMLElement).focus();
+              else targetCell.focus();
             }, 0);
           }
         }
@@ -628,15 +905,15 @@ export const GridOps: React.FC<GridOpsProps> = ({
     };
 
     switch (e.key) {
-      case 'ArrowDown':
+      case "ArrowDown":
         e.preventDefault();
         navigate(rowIndex + 1, colIndex);
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         e.preventDefault();
         navigate(rowIndex - 1, colIndex);
         break;
-      case 'ArrowRight':
+      case "ArrowRight":
         if (!isEditing) {
           e.preventDefault();
           navigate(rowIndex, colIndex + 1, false, 1);
@@ -649,7 +926,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           }
         }
         break;
-      case 'ArrowLeft':
+      case "ArrowLeft":
         if (!isEditing) {
           e.preventDefault();
           navigate(rowIndex, colIndex - 1, false, -1);
@@ -662,19 +939,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
           }
         }
         break;
-      case 'Enter':
+      case "Enter":
         e.preventDefault();
         if (isEditing) {
           navigate(rowIndex, colIndex + 1, false, 1);
           handleFinishEdit(rowId, colKey);
-        } else if (targetTd?.getAttribute('data-editable') === 'true') {
+        } else if (targetTd?.getAttribute("data-editable") === "true") {
           setEditingCell({ rowId, col: colKey });
         } else {
           // If not editable, just move right like excel
           navigate(rowIndex, colIndex + 1, false, 1);
         }
         break;
-      case 'Tab':
+      case "Tab":
         e.preventDefault();
         handleFinishEdit(rowId, colKey);
         if (e.shiftKey) {
@@ -683,24 +960,34 @@ export const GridOps: React.FC<GridOpsProps> = ({
           navigate(rowIndex, colIndex + 1, false, 1);
         }
         break;
-      case 'Escape':
+      case "Escape":
         if (isEditing) {
           e.preventDefault();
           handleFinishEdit(rowId, colKey);
         }
         break;
-      case 'Backspace':
-      case 'Delete':
+      case "Backspace":
+      case "Delete":
         if (!isEditing) {
           e.preventDefault();
-          handleFieldChange(rowId, colKey as keyof FlightData, '');
+          handleFieldChange(rowId, colKey as keyof FlightData, "");
         }
         break;
       default:
-        if (!isEditing && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+        if (
+          !isEditing &&
+          !e.ctrlKey &&
+          !e.altKey &&
+          !e.metaKey &&
+          e.key.length === 1
+        ) {
           e.preventDefault();
           setIsKeystrokeEdit(true);
-          handleFieldChange(rowId, colKey as keyof FlightData, e.key.toUpperCase());
+          handleFieldChange(
+            rowId,
+            colKey as keyof FlightData,
+            e.key.toUpperCase(),
+          );
           setEditingCell({ rowId, col: colKey });
         }
         break;
@@ -708,24 +995,42 @@ export const GridOps: React.FC<GridOpsProps> = ({
   };
 
   // Delay Justification Modal States
-  const [delayModalFlightId, setDelayModalFlightId] = useState<string | null>(null);
-  const [delayReasonCode, setDelayReasonCode] = useState('');
-  const [delayReasonDetail, setDelayReasonDetail] = useState('');
+  const [delayModalFlightId, setDelayModalFlightId] = useState<string | null>(
+    null,
+  );
+  const [delayReasonCode, setDelayReasonCode] = useState("");
+  const [delayReasonDetail, setDelayReasonDetail] = useState("");
 
   // Assign Operator Modal State
-  const [assignModalFlight, setAssignModalFlight] = useState<FlightData | null>(null);
-  const [assignSupportModalFlight, setAssignSupportModalFlight] = useState<FlightData | null>(null);
-  const [selectedOperatorId, setSelectedOperatorId] = useState<string | null>(null);
+  const [assignModalFlight, setAssignModalFlight] = useState<FlightData | null>(
+    null,
+  );
+  const [assignSupportModalFlight, setAssignSupportModalFlight] =
+    useState<FlightData | null>(null);
+  const [selectedOperatorId, setSelectedOperatorId] = useState<string | null>(
+    null,
+  );
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number, left: number } | null>(null);
-  const [cancelModalFlight, setCancelModalFlight] = useState<FlightData | null>(null);
-  const [deleteModalFlight, setDeleteModalFlight] = useState<FlightData | null>(null);
-  
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [cancelModalFlight, setCancelModalFlight] = useState<FlightData | null>(
+    null,
+  );
+  const [deleteModalFlight, setDeleteModalFlight] = useState<FlightData | null>(
+    null,
+  );
+
   // New Confirmation Modals
-  const [confirmStartModalFlight, setConfirmStartModalFlight] = useState<FlightData | null>(null);
-  const [missingPositionModalFlight, setMissingPositionModalFlight] = useState<FlightData | null>(null);
-  const [confirmRemoveOperatorFlight, setConfirmRemoveOperatorFlight] = useState<FlightData | null>(null);
-  const [confirmFinishModalFlight, setConfirmFinishModalFlight] = useState<FlightData | null>(null);
+  const [confirmStartModalFlight, setConfirmStartModalFlight] =
+    useState<FlightData | null>(null);
+  const [missingPositionModalFlight, setMissingPositionModalFlight] =
+    useState<FlightData | null>(null);
+  const [confirmRemoveOperatorFlight, setConfirmRemoveOperatorFlight] =
+    useState<FlightData | null>(null);
+  const [confirmFinishModalFlight, setConfirmFinishModalFlight] =
+    useState<FlightData | null>(null);
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
 
   const isEditingAny = useMemo(() => {
@@ -750,10 +1055,24 @@ export const GridOps: React.FC<GridOpsProps> = ({
       confirmFinishModalFlight
     );
   }, [
-    editingCell, openMenuId, isCreateModalOpen, isImportModalOpen, selectedFlight, reportInputFlight,
-    standbyModalFlightId, observationModalFlight, calcoModalFlight, delayModalFlightId, assignModalFlight,
-    assignSupportModalFlight, cancelModalFlight, deleteModalFlight, confirmStartModalFlight,
-    missingPositionModalFlight, confirmRemoveOperatorFlight, confirmFinishModalFlight
+    editingCell,
+    openMenuId,
+    isCreateModalOpen,
+    isImportModalOpen,
+    selectedFlight,
+    reportInputFlight,
+    standbyModalFlightId,
+    observationModalFlight,
+    calcoModalFlight,
+    delayModalFlightId,
+    assignModalFlight,
+    assignSupportModalFlight,
+    cancelModalFlight,
+    deleteModalFlight,
+    confirmStartModalFlight,
+    missingPositionModalFlight,
+    confirmRemoveOperatorFlight,
+    confirmFinishModalFlight,
   ]);
 
   useEffect(() => {
@@ -773,29 +1092,48 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const dateStr = getLocalDateStr(d);
 
     const flightWithDate = {
-        ...newFlight,
-        date: newFlight.date || dateStr
+      ...newFlight,
+      date: newFlight.date || dateStr,
     };
-    onUpdateFlights(prev => [flightWithDate, ...prev]);
-    upsertFlight(flightWithDate).catch(err => console.error('Error persisting new flight:', err));
-    addToast('VOO CRIADO', `Voo ${newFlight.flightNumber} criado com sucesso.`, 'success');
+    onUpdateFlights((prev) => [flightWithDate, ...prev]);
+    upsertFlight(flightWithDate).catch((err) =>
+      console.error("Error persisting new flight:", err),
+    );
+    addToast(
+      "VOO CRIADO",
+      `Voo ${newFlight.flightNumber} criado com sucesso.`,
+      "success",
+    );
     setIsCreateModalOpen(false);
   };
 
   // Notifications Logic
   const allNotifications = useMemo(() => {
-      const msgs = flights.flatMap(f => (f.messages || []).map(m => ({ ...m, flight: f })));
-      // Filtra mensagens que não são do gestor (mensagens recebidas)
-      return msgs.filter(m => !m.isManager).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const msgs = flights.flatMap((f) =>
+      (f.messages || []).map((m) => ({ ...m, flight: f })),
+    );
+    // Filtra mensagens que não são do gestor (mensagens recebidas)
+    return msgs
+      .filter((m) => !m.isManager)
+      .sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
   }, [flights]);
 
   // Auto-Update Logic (Usando o state setter global)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+      if (
+        actionMenuRef.current &&
+        !actionMenuRef.current.contains(event.target as Node)
+      ) {
         setOpenMenuId(null);
       }
-      if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target as Node)) {
+      if (
+        optionsMenuRef.current &&
+        !optionsMenuRef.current.contains(event.target as Node)
+      ) {
         setShowOptionsDropdown(false);
       }
     }
@@ -807,340 +1145,565 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-        let hasChangesLocal = false;
-        const changedFlightsLocal: FlightData[] = [];
-        
-        flights.forEach(f => {
-            const minutesToETD = getMinutesDiff(f.etd, f.date);
-            let updatedF = { ...f };
-            let isModified = false;
-            
-            // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
-            if (f.status === FlightStatus.CHEGADA && minutesToETD < 60 && !f.operator && !f.isExcludedFromQueue) {
-                isModified = true;
-                const newLog = createNewLog('SISTEMA', 'Voo movido para FILA automaticamente (ETD < 60min).', 'SISTEMA');
-                updatedF = { 
-                    ...updatedF, 
-                    status: FlightStatus.FILA,
-                    logs: [...(f.logs || []), newLog]
-                };
-            }
-            
-            // NOVA LÓGICA: Início de abastecimento automático
-            const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
-            if ((f.status === FlightStatus.DESIGNADO || f.status === FlightStatus.PRÉ) && f.operator && hasPosition) {
-                const designationTime = f.designationTime ? new Date(f.designationTime).getTime() : 0;
-                if (designationTime > 0) {
-                    const minsSinceDesig = (Date.now() - designationTime) / 60000;
-                    if (minsSinceDesig >= 10) {
-                        if (minutesToETD <= 25 || minutesToETD < 30) {
-                            isModified = true;
-                            const newLog = createNewLog('SISTEMA', 'Início aut. de abastecimento (10m deslocamento/acoplamento respeitados).', 'SISTEMA');
-                            updatedF = {
-                                ...updatedF,
-                                status: FlightStatus.ABASTECENDO,
-                                startTime: new Date(),
-                                logs: [...(f.logs || []), newLog]
-                            };
-                        }
-                    }
-                }
-            }
-            
-            if (isModified) {
-                hasChangesLocal = true;
-                changedFlightsLocal.push(updatedF);
-            }
-        });
+      let hasChangesLocal = false;
+      const changedFlightsLocal: FlightData[] = [];
 
-        if (hasChangesLocal) {
-            onUpdateFlights(prevFlights => {
-                return prevFlights.map(f => {
-                    const found = changedFlightsLocal.find(cf => cf.id === f.id);
-                    return found || f;
-                });
-            });
-            // Persistir no banco
-            changedFlightsLocal.forEach(f => {
-                upsertFlight(f).catch(err => console.error("Erro na persistência automática:", err));
-            });
+      flights.forEach((f) => {
+        const minutesToETD = getMinutesDiff(f.etd, f.date);
+        let updatedF = { ...f };
+        let isModified = false;
+
+        // LÓGICA DE AUTOMATIZAÇÃO PARA FILA:
+        if (
+          f.status === FlightStatus.CHEGADA &&
+          minutesToETD < 60 &&
+          !f.operator &&
+          !f.isExcludedFromQueue
+        ) {
+          isModified = true;
+          const newLog = createNewLog(
+            "SISTEMA",
+            "Voo movido para FILA automaticamente (ETD < 60min).",
+            "SISTEMA",
+          );
+          updatedF = {
+            ...updatedF,
+            status: FlightStatus.FILA,
+            logs: [...(f.logs || []), newLog],
+          };
         }
+
+        // NOVA LÓGICA: Início de abastecimento automático
+        const hasPosition =
+          f.positionId && f.positionId !== "?" && f.positionId.trim() !== "";
+        if (
+          (f.status === FlightStatus.DESIGNADO ||
+            f.status === FlightStatus.PRÉ) &&
+          f.operator &&
+          hasPosition
+        ) {
+          const designationTime = f.designationTime
+            ? new Date(f.designationTime).getTime()
+            : 0;
+          if (designationTime > 0) {
+            const minsSinceDesig = (Date.now() - designationTime) / 60000;
+            if (minsSinceDesig >= 10) {
+              if (minutesToETD <= 25 || minutesToETD < 30) {
+                isModified = true;
+                const newLog = createNewLog(
+                  "SISTEMA",
+                  "Início aut. de abastecimento (10m deslocamento/acoplamento respeitados).",
+                  "SISTEMA",
+                );
+                updatedF = {
+                  ...updatedF,
+                  status: FlightStatus.ABASTECENDO,
+                  startTime: new Date(),
+                  logs: [...(f.logs || []), newLog],
+                };
+              }
+            }
+          }
+        }
+
+        if (isModified) {
+          hasChangesLocal = true;
+          changedFlightsLocal.push(updatedF);
+        }
+      });
+
+      if (hasChangesLocal) {
+        onUpdateFlights((prevFlights) => {
+          return prevFlights.map((f) => {
+            const found = changedFlightsLocal.find((cf) => cf.id === f.id);
+            return found || f;
+          });
+        });
+        // Persistir no banco
+        changedFlightsLocal.forEach((f) => {
+          upsertFlight(f).catch((err) =>
+            console.error("Erro na persistência automática:", err),
+          );
+        });
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, [flights, onUpdateFlights]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      if (e.key === "Enter") {
         if (observationModalFlight && newObservation.trim()) {
-            handleSaveObservation();
+          handleSaveObservation();
         } else if (delayModalFlightId && delayReasonCode) {
-            handleSubmitDelay();
+          handleSubmitDelay();
         } else if (cancelModalFlight) {
-            confirmCancelFlight();
+          confirmCancelFlight();
         } else if (deleteModalFlight) {
-            confirmDeleteFlight();
+          confirmDeleteFlight();
         } else if (confirmStartModalFlight) {
-            handleConfirmStart();
+          handleConfirmStart();
         } else if (missingPositionModalFlight) {
-            const f = missingPositionModalFlight;
-            setMissingPositionModalFlight(null);
-            onUpdateFlights(prev => prev.map(flight => 
-                flight.id === f.id ? { ...flight, positionId: 'PÁTIO VIP' } : flight
-            ));
-            setConfirmStartModalFlight({ ...f, positionId: 'PÁTIO VIP' });
+          const f = missingPositionModalFlight;
+          setMissingPositionModalFlight(null);
+          onUpdateFlights((prev) =>
+            prev.map((flight) =>
+              flight.id === f.id
+                ? { ...flight, positionId: "PÁTIO VIP" }
+                : flight,
+            ),
+          );
+          setConfirmStartModalFlight({ ...f, positionId: "PÁTIO VIP" });
         } else if (confirmFinishModalFlight) {
-            handleConfirmFinish();
+          handleConfirmFinish();
         } else if (confirmRemoveOperatorFlight) {
-            handleConfirmRemoveOperator();
+          handleConfirmRemoveOperator();
         }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
-      observationModalFlight, newObservation, 
-      delayModalFlightId, delayReasonCode, 
-      cancelModalFlight, confirmStartModalFlight, missingPositionModalFlight,
-      confirmFinishModalFlight, confirmRemoveOperatorFlight,
-      deleteModalFlight
+    observationModalFlight,
+    newObservation,
+    delayModalFlightId,
+    delayReasonCode,
+    cancelModalFlight,
+    confirmStartModalFlight,
+    missingPositionModalFlight,
+    confirmFinishModalFlight,
+    confirmRemoveOperatorFlight,
+    deleteModalFlight,
   ]);
 
-  const addToast = (title: string, message: string, type: 'success' | 'info' | 'warning' = 'info') => {
-      const id = Date.now().toString();
-      setToasts(prev => [...prev, { id, title, message, type }]);
-      setTimeout(() => {
-          setToasts(prev => prev.filter(t => t.id !== id));
-      }, 5000);
+  const addToast = (
+    title: string,
+    message: string,
+    type: "success" | "info" | "warning" = "info",
+  ) => {
+    const id = Date.now().toString();
+    setToasts((prev) => [...prev, { id, title, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
   };
 
   const removeToast = (id: string) => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
   const visibleFlights = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + activeDateOffset);
     const targetDateStr = getLocalDateStr(d);
-    
+
     // For crossover shift logic
     const dNext = new Date();
     dNext.setDate(dNext.getDate() + activeDateOffset + 1);
     const nextDateStr = getLocalDateStr(dNext);
-    
+
     // We already have getDisplayDate but it returns offset today, but if we need real today:
     const todayStr = getLocalTodayDateStr();
 
-    return flights.filter(f => {
-       if (f.isHiddenFromGrid) return false;
-       const fDate = f.date || todayStr;
-       
-       if (fDate === targetDateStr) return true;
-       
-       // Crossover turn concept (virada de turno): 
-       // Bring next day's early morning flights (00:00 - 05:00) into today's view automatically
-       if (fDate === nextDateStr && f.etd && f.etd !== '?' && f.etd !== 'PRÉ') {
-           const [h] = f.etd.split(':').map(Number);
-           if (h >= 0 && h < 5) {
-               return true; // Aparece simultaneamente
-           }
-       }
-       
-       return false;
-    }).map(f => {
+    return flights
+      .filter((f) => {
+        if (f.isHiddenFromGrid) return false;
+        const fDate = f.date || todayStr;
+
+        if (fDate === targetDateStr) return true;
+
+        // Crossover turn concept (virada de turno):
+        // Bring next day's early morning flights (00:00 - 05:00) into today's view automatically
+        if (
+          fDate === nextDateStr &&
+          f.etd &&
+          f.etd !== "?" &&
+          f.etd !== "PRÉ"
+        ) {
+          const [h] = f.etd.split(":").map(Number);
+          if (h >= 0 && h < 5) {
+            return true; // Aparece simultaneamente
+          }
+        }
+
+        return false;
+      })
+      .map((f) => {
         let augmentedModel = f.model;
-        if ((!augmentedModel || augmentedModel === '--') && f.registration) {
-            const cleanReg = f.registration.replace(/[^A-Z0-9]/ig, '').toUpperCase();
-            let match = aircrafts.find(a => a.prefix.toUpperCase() === f.registration?.toUpperCase());
-            if (!match && cleanReg.length >= 3) {
-                match = aircrafts.find(a => {
-                    const cleanPrefix = a.prefix.replace(/[^A-Z0-9]/ig, '').toUpperCase();
-                    return cleanPrefix === cleanReg || cleanPrefix.endsWith(cleanReg);
-                });
-            }
-            if (match && match.model && match.model !== '--') {
+        let augmentedReg = f.registration;
+        if (f.registration) {
+          const cleanReg = f.registration
+            .replace(/[^A-Z0-9]/gi, "")
+            .toUpperCase();
+          let match = aircrafts.find(
+            (a) => a.prefix.toUpperCase() === f.registration?.toUpperCase(),
+          );
+          if (!match && cleanReg.length >= 3) {
+            match = aircrafts.find((a) => {
+              const cleanPrefix = a.prefix
+                .replace(/[^A-Z0-9]/gi, "")
+                .toUpperCase();
+              return cleanPrefix === cleanReg || cleanPrefix.endsWith(cleanReg);
+            });
+          }
+          if (match) {
+            augmentedReg = match.prefix;
+            if (!augmentedModel || augmentedModel === "--") {
+              if (match.model && match.model !== "--") {
                 augmentedModel = match.model;
+              }
             }
+          }
         }
         let augmentedFleetType = f.fleetType;
-        if ((!augmentedFleetType || augmentedFleetType === '--') && f.fleet) {
-            const cleanFleet = String(f.fleet).replace(/[^0-9A-Z]/ig, '');
-            const vMatch = vehicles.find(v => String(v.id).replace(/[^0-9A-Z]/ig, '') === cleanFleet);
-            if (vMatch) {
-                augmentedFleetType = vMatch.type === 'SERVIDOR' ? 'SRV' : 'CTA';
-            }
+        if ((!augmentedFleetType || augmentedFleetType === "--") && f.fleet) {
+          const cleanFleet = String(f.fleet).replace(/[^0-9A-Z]/gi, "");
+          const vMatch = vehicles.find(
+            (v) => String(v.id).replace(/[^0-9A-Z]/gi, "") === cleanFleet,
+          );
+          if (vMatch) {
+            augmentedFleetType = vMatch.type === "SERVIDOR" ? "SRV" : "CTA";
+          }
         }
         return {
-            ...f,
-            model: augmentedModel,
-            fleetType: augmentedFleetType
+          ...f,
+          model: augmentedModel,
+          registration: augmentedReg,
+          fleetType: augmentedFleetType,
         };
-    });
+      });
   }, [flights, activeDateOffset, aircrafts, vehicles]);
 
-  const shiftedFlights = useMemo(() => 
-    visibleFlights.filter(f => isTimeInShift(f.etd, activeShift)), 
-    [visibleFlights, activeShift]
+  const shiftedFlights = useMemo(
+    () => visibleFlights.filter((f) => isTimeInShift(f.etd, activeShift)),
+    [visibleFlights, activeShift],
   );
 
   const searchFilteredFlights = useMemo(() => {
     if (!globalSearchTerm) return shiftedFlights;
     const lowerTerms = globalSearchTerm.toLowerCase().trim().split(/\s+/);
-    return shiftedFlights.filter(f => {
-        const city = getCityName(f.destination as string, destinosDB) || '';
-        const allFields = [
-            f.flightNumber, f.departureFlightNumber, f.airline, f.airlineCode, f.model, 
-            f.registration, f.origin, f.destination, f.eta, f.etd, f.actualArrivalTime,
-            f.positionId, f.positionType, f.pitId, f.operator,
-            f.supportOperator, f.fleet, f.fleetType, f.vehicleType, 
-            city,
-            (f.airlineCode || '') + '-' + (f.flightNumber || ''),
-            (f.airlineCode || '') + (f.flightNumber || ''),
-            (f.airlineCode || '') + '-' + (f.departureFlightNumber || ''),
-            (f.airlineCode || '') + (f.departureFlightNumber || '')
-        ];
-        const searchString = allFields
-            .filter(Boolean)
-            .map(val => String(val).toLowerCase())
-            .join(' | ');
-        
-        return lowerTerms.every(term => searchString.includes(term));
+    return shiftedFlights.filter((f) => {
+      const city = getCityName(f.destination as string, destinosDB) || "";
+      const allFields = [
+        f.flightNumber,
+        f.departureFlightNumber,
+        f.airline,
+        f.airlineCode,
+        f.model,
+        f.registration,
+        f.origin,
+        f.destination,
+        f.eta,
+        f.etd,
+        f.actualArrivalTime,
+        f.positionId,
+        f.positionType,
+        f.pitId,
+        f.operator,
+        f.supportOperator,
+        f.fleet,
+        f.fleetType,
+        f.vehicleType,
+        city,
+        (f.airlineCode || "") + "-" + (f.flightNumber || ""),
+        (f.airlineCode || "") + (f.flightNumber || ""),
+        (f.airlineCode || "") + "-" + (f.departureFlightNumber || ""),
+        (f.airlineCode || "") + (f.departureFlightNumber || ""),
+      ];
+      const searchString = allFields
+        .filter(Boolean)
+        .map((val) => String(val).toLowerCase())
+        .join(" | ");
+
+      return lowerTerms.every((term) => searchString.includes(term));
     });
   }, [shiftedFlights, globalSearchTerm]);
 
-  const hasReport = (flight: FlightData) => Boolean(flight.report && Object.values(flight.report).some(v => v !== '' && v !== false));
+  const hasReport = (flight: FlightData) =>
+    Boolean(
+      flight.report &&
+      Object.values(flight.report).some((v) => v !== "" && v !== false),
+    );
 
-  const stats = useMemo(() => ({
-    total: searchFilteredFlights.length,
-    chegada: searchFilteredFlights.filter(f => {
+  const stats = useMemo(
+    () => ({
+      total: searchFilteredFlights.length,
+      chegada: searchFilteredFlights.filter((f) => {
         if (!f.eta) return false;
         const minutesToEta = getMinutesDiff(f.eta, f.date);
-        return f.status === FlightStatus.CHEGADA && !(f.isOnGround && f.positionId) && minutesToEta <= 120;
-    }).length,
-    fila: searchFilteredFlights.filter(f => f.status === FlightStatus.FILA && !f.operator).length,
-    designados: searchFilteredFlights.filter(f => f.status === FlightStatus.DESIGNADO).length,
-    abastecendo: searchFilteredFlights.filter(f => f.status === FlightStatus.ABASTECENDO).length,
-    finalizados: searchFilteredFlights.filter(f => f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO).length,
-  }), [searchFilteredFlights]);
+        return (
+          f.status === FlightStatus.CHEGADA &&
+          !(f.isOnGround && f.positionId) &&
+          minutesToEta <= 120
+        );
+      }).length,
+      fila: searchFilteredFlights.filter(
+        (f) => f.status === FlightStatus.FILA && !f.operator,
+      ).length,
+      designados: searchFilteredFlights.filter(
+        (f) => f.status === FlightStatus.DESIGNADO,
+      ).length,
+      abastecendo: searchFilteredFlights.filter(
+        (f) => f.status === FlightStatus.ABASTECENDO,
+      ).length,
+      finalizados: searchFilteredFlights.filter(
+        (f) =>
+          f.status === FlightStatus.FINALIZADO ||
+          f.status === FlightStatus.CANCELADO,
+      ).length,
+    }),
+    [searchFilteredFlights],
+  );
 
-  const tabs: { id: Tab; label: string; icon: React.ElementType; count?: number }[] = [
-    { id: 'GERAL', label: 'TODOS OS VOOS', icon: LayoutGrid, count: stats.total },
-    { id: 'CHEGADA', label: 'CHEGADA', icon: PlaneLanding, count: stats.chegada },
-    { id: 'FILA', label: 'FILA', icon: ListOrdered, count: stats.fila },
-    { id: 'DESIGNADOS', label: 'DESIGNADOS', icon: UserCheck, count: stats.designados },
-    { id: 'ABASTECENDO', label: 'ABASTECENDO', icon: Droplet, count: stats.abastecendo },
-    { id: 'FINALIZADO', label: 'FINALIZADOS', icon: CheckCircle, count: stats.finalizados },
+  const tabs: {
+    id: Tab;
+    label: string;
+    icon: React.ElementType;
+    count?: number;
+  }[] = [
+    {
+      id: "GERAL",
+      label: "TODOS OS VOOS",
+      icon: LayoutGrid,
+      count: stats.total,
+    },
+    {
+      id: "CHEGADA",
+      label: "CHEGADA",
+      icon: PlaneLanding,
+      count: stats.chegada,
+    },
+    { id: "FILA", label: "FILA", icon: ListOrdered, count: stats.fila },
+    {
+      id: "DESIGNADOS",
+      label: "DESIGNADOS",
+      icon: UserCheck,
+      count: stats.designados,
+    },
+    {
+      id: "ABASTECENDO",
+      label: "ABASTECENDO",
+      icon: Droplet,
+      count: stats.abastecendo,
+    },
+    {
+      id: "FINALIZADO",
+      label: "FINALIZADOS",
+      icon: CheckCircle,
+      count: stats.finalizados,
+    },
   ];
 
   const filteredData = useMemo(() => {
     let base = searchFilteredFlights;
-    
+
     switch (activeTab) {
-      case 'CHEGADA': 
-        base = searchFilteredFlights.filter(f => {
-            if (!f.eta) return false;
-            const minutesToEta = getMinutesDiff(f.eta, f.date);
-            return f.status === FlightStatus.CHEGADA && 
-                   !(f.isOnGround && f.positionId) && 
-                   minutesToEta <= 120;
+      case "CHEGADA":
+        base = searchFilteredFlights.filter((f) => {
+          if (!f.eta) return false;
+          const minutesToEta = getMinutesDiff(f.eta, f.date);
+          return (
+            f.status === FlightStatus.CHEGADA &&
+            !(f.isOnGround && f.positionId) &&
+            minutesToEta <= 120
+          );
         });
         break;
-      case 'FILA': 
-        base = searchFilteredFlights.filter(f => f.status === FlightStatus.FILA && !f.operator);
+      case "FILA":
+        base = searchFilteredFlights.filter(
+          (f) => f.status === FlightStatus.FILA && !f.operator,
+        );
         break;
-      case 'DESIGNADOS': base = searchFilteredFlights.filter(f => f.status === FlightStatus.DESIGNADO); break;
-      case 'ABASTECENDO': base = searchFilteredFlights.filter(f => f.status === FlightStatus.ABASTECENDO); break;
-      case 'FINALIZADO': base = searchFilteredFlights.filter(f => f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO); break;
-      case 'GERAL': 
+      case "DESIGNADOS":
+        base = searchFilteredFlights.filter(
+          (f) => f.status === FlightStatus.DESIGNADO,
+        );
+        break;
+      case "ABASTECENDO":
+        base = searchFilteredFlights.filter(
+          (f) => f.status === FlightStatus.ABASTECENDO,
+        );
+        break;
+      case "FINALIZADO":
+        base = searchFilteredFlights.filter(
+          (f) =>
+            f.status === FlightStatus.FINALIZADO ||
+            f.status === FlightStatus.CANCELADO,
+        );
+        break;
+      case "GERAL":
         base = searchFilteredFlights;
         break;
-      default: base = searchFilteredFlights;
+      default:
+        base = searchFilteredFlights;
     }
 
     return base;
   }, [activeTab, searchFilteredFlights, archivedIds]);
 
-  const isStreamlinedView = ['FILA', 'DESIGNADOS', 'ABASTECENDO'].includes(activeTab);
-  const isFinishedView = activeTab === 'FINALIZADO';
+  const isStreamlinedView = ["FILA", "DESIGNADOS", "ABASTECENDO"].includes(
+    activeTab,
+  );
+  const isFinishedView = activeTab === "FINALIZADO";
 
   const handleSort = (key: keyof FlightData) => {
-    let direction: SortDirection = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
-    else if (sortConfig.key === key && sortConfig.direction === 'desc') direction = null;
+    let direction: SortDirection = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc")
+      direction = "desc";
+    else if (sortConfig.key === key && sortConfig.direction === "desc")
+      direction = null;
     setSortConfig({ key: direction ? key : null, direction });
   };
 
-  const renderEditableCell = (row: FlightData, colKey: keyof FlightData, value: string | number, className: string = "", rowIndex: number, colIndex: number, editable: boolean = true) => {
-    const isFocused = focusedCell?.rowId === row.id && focusedCell?.col === colKey;
-    const isEditing = editable && editingCell?.rowId === row.id && editingCell?.col === colKey;
-    
+  const renderEditableCell = (
+    row: FlightData,
+    colKey: keyof FlightData,
+    value: string | number,
+    className: string = "",
+    rowIndex: number,
+    colIndex: number,
+    editable: boolean = true,
+  ) => {
+    const isFocused =
+      focusedCell?.rowId === row.id && focusedCell?.col === colKey;
+    const isEditing =
+      editable && editingCell?.rowId === row.id && editingCell?.col === colKey;
+
     // Custom styling for REMOTA positions (based on user request)
-    const isRemota = colKey === 'positionId' && (
-      (positionsMetadata && positionsMetadata[row.positionId as string]?.type === 'REMOTA') || 
-      (!positionsMetadata && positionRestrictions[row.positionId as string] === 'SRV')
-    );
+    const isRemota =
+      colKey === "positionId" &&
+      ((positionsMetadata &&
+        positionsMetadata[row.positionId as string]?.type === "REMOTA") ||
+        (!positionsMetadata &&
+          positionRestrictions[row.positionId as string] === "SRV"));
+
+    // Check if the flight is delayed
+    const minutesToEtd = getMinutesDiff(row.etd, row.date);
+    const isDelayed = row.status === FlightStatus.FILA && minutesToEtd < 0; // "ATRASADO"
+    const isPenalty = row.status === FlightStatus.FILA && minutesToEtd >= 0 && minutesToEtd < 20; // "PENALTY"
+    const isAtrasando =
+      row.status === FlightStatus.FILA &&
+      minutesToEtd >= 20 &&
+      minutesToEtd < 40; // "ATRASANDO"
 
     let cellStyle = className;
+    if (isDelayed) {
+      if (colKey === "etd") {
+        // Para coluna etd e preto (off-white no dark mode)
+        cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
+      } else {
+        cellStyle += isDarkMode
+          ? " !text-slate-100 font-bold"
+          : " !text-[#000000] font-bold";
+      }
+    } else if (isPenalty) {
+      if (colKey === "etd") {
+        // Penalty permanece em vermelho (perfeito!)
+        cellStyle += isDarkMode ? " !text-red-450" : " !text-[#E7000B]";
+      } else {
+        cellStyle += isDarkMode
+          ? " !text-red-300 font-bold"
+          : " !text-[#dc2626] font-bold";
+      }
+    } else if (isAtrasando) {
+      if (colKey === "etd") {
+        // Para coluna etd e preto (off-white no dark mode)
+        cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
+      } else {
+        cellStyle += isDarkMode
+          ? " !text-slate-100 font-bold"
+          : " !text-[#000000] font-bold";
+      }
+    }
+
     let extraLabel = null;
 
-    if (colKey === 'etd' && row.status !== FlightStatus.FINALIZADO && row.status !== FlightStatus.CANCELADO) {
-        // Removido destaque de cor para seguir padrão automático solicitado
+    if (
+      colKey === "etd" &&
+      row.status !== FlightStatus.FINALIZADO &&
+      row.status !== FlightStatus.CANCELADO
+    ) {
+      // Removido destaque de cor para seguir padrão automático solicitado
     }
 
     if (row.status === FlightStatus.CHEGADA) {
-        const hasPositionAndCalco = Boolean(row.positionId && row.positionId !== '?' && row.positionId.trim() !== '' && row.actualArrivalTime && row.actualArrivalTime.trim() !== '');
+      const hasPositionAndCalco = Boolean(
+        row.positionId &&
+        row.positionId !== "?" &&
+        row.positionId.trim() !== "" &&
+        row.actualArrivalTime &&
+        row.actualArrivalTime.trim() !== "",
+      );
 
-        if (colKey === 'positionId' || colKey === 'flightNumber' || colKey === 'actualArrivalTime' || (colKey === 'eta' && !hasPositionAndCalco)) {
-            cellStyle += isDarkMode ? " !text-yellow-400 font-bold" : " !text-yellow-600 font-bold";
-        }
+      if (
+        colKey === "positionId" ||
+        colKey === "flightNumber" ||
+        colKey === "actualArrivalTime" ||
+        (colKey === "eta" && !hasPositionAndCalco)
+      ) {
+        cellStyle += isDarkMode
+          ? " !text-yellow-400 font-bold"
+          : " !text-yellow-600 font-bold";
+      }
     }
 
     // Indicator for Next Day crossover shift
     const d = new Date();
     d.setDate(d.getDate() + activeDateOffset);
     const targetDateStr = getLocalDateStr(d);
-    if (colKey === 'etd' && row.date && row.date > targetDateStr) {
-        extraLabel = <span className="absolute -top-1.5 -left-1 text-[7px] bg-blue-500 text-white px-1 rounded-sm font-black uppercase tracking-tighter shadow-sm z-20 pointer-events-none" title="Voo do dia seguinte (cruzamento de turno)">+1D</span>;
+    if (colKey === "etd" && row.date && row.date > targetDateStr) {
+      extraLabel = (
+        <span
+          className="absolute -top-1.5 -left-1 text-[7px] bg-blue-500 text-white px-1 rounded-sm font-black uppercase tracking-tighter shadow-sm z-20 pointer-events-none"
+          title="Voo do dia seguinte (cruzamento de turno)"
+        >
+          +1D
+        </span>
+      );
     }
 
-    if (row.status === FlightStatus.CHEGADA && colKey === 'actualArrivalTime' && !value) {
-        const handleSetCalcoNow = (e: React.MouseEvent) => {
-            e.stopPropagation();
-            const now = new Date();
-            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            
-            if (!row.positionId) {
-                setCalcoModalFlight(row);
-                setCalcoModalPosition('');
-                setCalcoModalTime(timeStr);
-            } else {
-                syncFlight({ ...row, actualArrivalTime: timeStr });
-            }
-        };
-        return (
-          <td 
-            key={`${row.id}-${colKey}`}
-            data-rowid={row.id}
-            data-colkey={colKey as string}
-            className={`p-0 border-y border-l transition-all relative h-10 outline-none
-               ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')}
+    if (
+      row.status === FlightStatus.CHEGADA &&
+      colKey === "actualArrivalTime" &&
+      !value
+    ) {
+      const handleSetCalcoNow = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+        if (!row.positionId) {
+          setCalcoModalFlight(row);
+          setCalcoModalPosition("");
+          setCalcoModalTime(timeStr);
+        } else {
+          syncFlight({ ...row, actualArrivalTime: timeStr });
+        }
+      };
+      return (
+        <td
+          key={`${row.id}-${colKey}`}
+          data-rowid={row.id}
+          data-colkey={colKey as string}
+          className={`p-0 border-y border-l transition-all relative h-10 outline-none
+               ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"}
             `}
-          >
-             <div className="w-full h-full flex items-center justify-center p-1">
-                 <button 
-                   onClick={handleSetCalcoNow}
-                   title="Marcar calço (hora atual)"
-                   className="w-full h-full bg-yellow-500/10 hover:bg-yellow-500/30 border border-yellow-500/30 hover:border-yellow-500/60 text-yellow-600 dark:text-yellow-400 rounded flex items-center justify-center gap-1 text-[9px] uppercase tracking-tighter font-black transition-all shadow-sm"
-                 >
-                    CALÇO
-                 </button>
-             </div>
-          </td>
-        );
+        >
+          <div className="w-full h-full flex items-center justify-center p-1">
+            <button
+              onClick={handleSetCalcoNow}
+              title="Marcar calço (hora atual)"
+              className="w-full h-full bg-yellow-500/10 hover:bg-yellow-500/30 border border-yellow-500/30 hover:border-yellow-500/60 text-yellow-600 dark:text-yellow-400 rounded flex items-center justify-center gap-1 text-[9px] uppercase tracking-tighter font-black transition-all shadow-sm"
+            >
+              CALÇO
+            </button>
+          </div>
+        </td>
+      );
     }
 
     return (
-      <td 
+      <td
         data-rowid={row.id}
         data-colkey={colKey as string}
         data-rowindex={rowIndex}
@@ -1148,32 +1711,34 @@ export const GridOps: React.FC<GridOpsProps> = ({
         data-editable={editable}
         className={`
           p-0 border-y border-l transition-all relative h-10 outline-none
-          ${isRemota ? 'bg-[#fff700] border-[#ccc600]' : (isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200'))}
+          ${isRemota ? "bg-[#fff700] border-[#ccc600]" : isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"}
         `}
       >
         {isEditing ? (
-          <input 
+          <input
             type="text"
             autoFocus
             onFocus={(e) => {
               if (isKeystrokeEdit) {
                 // Posiciona o cursor no final para não sobrescrever o primeiro dígito
                 const val = e.target.value;
-                e.target.value = '';
+                e.target.value = "";
                 e.target.value = val;
                 setIsKeystrokeEdit(false);
               } else {
                 e.target.select();
               }
             }}
-            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${cellStyle} ${isDarkMode ? (isRemota ? 'bg-[#fff700] text-[#524f4f]' : 'bg-slate-900 shadow-inner') : (isRemota ? 'bg-[#fff700] text-[#524f4f]' : 'bg-white font-black text-slate-900')}`}
+            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${cellStyle} ${isDarkMode ? (isRemota ? "bg-[#fff700] text-[#524f4f]" : "bg-slate-900 shadow-inner") : isRemota ? "bg-[#fff700] text-[#524f4f]" : "bg-white font-black text-slate-900"}`}
             value={value}
             onChange={(e) => handleFieldChange(row.id, colKey, e.target.value)}
             onBlur={() => handleFinishEdit(row.id, colKey as string)}
-            onKeyDown={(e) => handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)}
+            onKeyDown={(e) =>
+              handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)
+            }
           />
         ) : (
-          <div 
+          <div
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
@@ -1186,18 +1751,27 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 setEditingCell(null);
                 const target = e.currentTarget;
                 setTimeout(() => {
-                   (target as HTMLElement).focus();
+                  (target as HTMLElement).focus();
                 }, 0);
               }
             }}
-            onKeyDown={(e) => handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)}
-            className={`w-full h-full px-1 flex items-center relative ${colKey === 'airlineCode' ? 'justify-start ml-2' : 'justify-center'} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? 'ring-2 ring-indigo-500 ring-inset z-20 shadow-xl ' + (editable ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-500/10') : ''} ${cellStyle} ${isRemota && !isFocused ? 'bg-[#fff700] text-[#524f4f]' : ''}`}
+            onKeyDown={(e) =>
+              handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)
+            }
+            className={`w-full h-full px-1 flex items-center relative ${colKey === "airlineCode" ? "justify-start ml-2" : "justify-center"} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? "ring-2 ring-indigo-500 ring-inset z-20 shadow-xl " + (editable ? "bg-indigo-600 text-white shadow-indigo-500/20" : "bg-slate-500/10") : ""} ${cellStyle} ${isRemota && !isFocused ? "bg-[#fff700] text-[#524f4f]" : ""}`}
           >
             {extraLabel}
-            {colKey === 'airlineCode' ? (
-              <AirlineLogo airlineCode={row.airlineCode || row.airline} className={isFocused && editable && isDarkMode ? 'invert brightness-200 justify-start' : 'justify-start'} />
+            {colKey === "airlineCode" ? (
+              <AirlineLogo
+                airlineCode={row.airlineCode || row.airline}
+                className={
+                  isFocused && editable && isDarkMode
+                    ? "invert brightness-200 justify-start"
+                    : "justify-start"
+                }
+              />
             ) : (
-              value || '--'
+              value || "--"
             )}
           </div>
         )}
@@ -1207,69 +1781,77 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const sortedData = useMemo(() => {
     let data = [...filteredData];
-    
+
     // Default sort by isPinned
     const calculateSorted = (list: FlightData[]) => {
       if (!sortConfig.key || !sortConfig.direction) {
-          return [...list].sort((a, b) => {
-              if (a.isReforco && !b.isReforco) return -1;
-              if (!a.isReforco && b.isReforco) return 1;
-              
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              
-              if (activeTab === 'FILA') {
-                  const aMin = getMinutesDiff(a.etd, a.date);
-                  const bMin = getMinutesDiff(b.etd, b.date);
-                  const aSevere = aMin <= -60;
-                  const bSevere = bMin <= -60;
-                  if (aSevere && !bSevere) return 1;
-                  if (!aSevere && bSevere) return -1;
-                  return aMin - bMin;
-              }
-              
-              if (activeTab === 'GERAL') {
-                  const aInactive = a.status === FlightStatus.FINALIZADO || a.status === FlightStatus.CANCELADO;
-                  const bInactive = b.status === FlightStatus.FINALIZADO || b.status === FlightStatus.CANCELADO;
-                  if (aInactive && !bInactive) return 1;
-                  if (!aInactive && bInactive) return -1;
-                  
-                  const aMin = getMinutesDiff(a.etd, a.date);
-                  const bMin = getMinutesDiff(b.etd, b.date);
-                  return aMin - bMin;
-              }
-              
-              return 0;
-          });
-      }
-      
-      return [...list].sort((a, b) => {
-        if (a.isReforco && !b.isReforco) return -1;
-        if (!a.isReforco && b.isReforco) return 1;
+        return [...list].sort((a, b) => {
+          if (a.isReforco && !b.isReforco) return -1;
+          if (!a.isReforco && b.isReforco) return 1;
 
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        
-        if (activeTab === 'FILA') {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+
+          if (activeTab === "FILA") {
             const aMin = getMinutesDiff(a.etd, a.date);
             const bMin = getMinutesDiff(b.etd, b.date);
             const aSevere = aMin <= -60;
             const bSevere = bMin <= -60;
             if (aSevere && !bSevere) return 1;
             if (!aSevere && bSevere) return -1;
-        }
-        
-        if (activeTab === 'GERAL') {
-            const aInactive = a.status === FlightStatus.FINALIZADO || a.status === FlightStatus.CANCELADO;
-            const bInactive = b.status === FlightStatus.FINALIZADO || b.status === FlightStatus.CANCELADO;
+            return aMin - bMin;
+          }
+
+          if (activeTab === "GERAL") {
+            const aInactive =
+              a.status === FlightStatus.FINALIZADO ||
+              a.status === FlightStatus.CANCELADO;
+            const bInactive =
+              b.status === FlightStatus.FINALIZADO ||
+              b.status === FlightStatus.CANCELADO;
             if (aInactive && !bInactive) return 1;
             if (!aInactive && bInactive) return -1;
+
+            const aMin = getMinutesDiff(a.etd, a.date);
+            const bMin = getMinutesDiff(b.etd, b.date);
+            return aMin - bMin;
+          }
+
+          return 0;
+        });
+      }
+
+      return [...list].sort((a, b) => {
+        if (a.isReforco && !b.isReforco) return -1;
+        if (!a.isReforco && b.isReforco) return 1;
+
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+
+        if (activeTab === "FILA") {
+          const aMin = getMinutesDiff(a.etd, a.date);
+          const bMin = getMinutesDiff(b.etd, b.date);
+          const aSevere = aMin <= -60;
+          const bSevere = bMin <= -60;
+          if (aSevere && !bSevere) return 1;
+          if (!aSevere && bSevere) return -1;
         }
-        
-        const aValue = (a[sortConfig.key!] ?? '').toString();
-        const bValue = (b[sortConfig.key!] ?? '').toString();
-        return sortConfig.direction === 'asc' 
-          ? aValue.localeCompare(bValue) 
+
+        if (activeTab === "GERAL") {
+          const aInactive =
+            a.status === FlightStatus.FINALIZADO ||
+            a.status === FlightStatus.CANCELADO;
+          const bInactive =
+            b.status === FlightStatus.FINALIZADO ||
+            b.status === FlightStatus.CANCELADO;
+          if (aInactive && !bInactive) return 1;
+          if (!aInactive && bInactive) return -1;
+        }
+
+        const aValue = (a[sortConfig.key!] ?? "").toString();
+        const bValue = (b[sortConfig.key!] ?? "").toString();
+        return sortConfig.direction === "asc"
+          ? aValue.localeCompare(bValue)
           : bValue.localeCompare(aValue);
       });
     };
@@ -1281,434 +1863,658 @@ export const GridOps: React.FC<GridOpsProps> = ({
       return freshSorted;
     }
 
-    const freshIds = new Set(freshSorted.map(f => f.id));
+    const freshIds = new Set(freshSorted.map((f) => f.id));
     return lastStableFlightsRef.current
-      .filter(f => {
-        const existsInDatabase = flights.some(gf => gf.id === f.id);
+      .filter((f) => {
+        const existsInDatabase = flights.some((gf) => gf.id === f.id);
         const isBeingEdited = f.id === editingCell.rowId;
         return existsInDatabase && (freshIds.has(f.id) || isBeingEdited);
       })
-      .map(f => {
-        const latest = flights.find(gf => gf.id === f.id);
+      .map((f) => {
+        const latest = flights.find((gf) => gf.id === f.id);
         return latest || f;
       });
   }, [filteredData, sortConfig, editingCell, flights, activeTab]);
 
   // --- ACTIONS HANDLERS (ATUALIZANDO ESTADO GLOBAL) ---
   const handleMoveToQueue = (flight: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      
-      // TRAVA LÓGICA: Se tem operador, não pode ir para fila.
-      if (flight.operator) {
-          addToast('AÇÃO NEGADA', 'Voo com operador designado não pode ir para a fila.', 'warning');
-          return;
-      }
+    e.stopPropagation();
 
-      const newLog = createNewLog('MANUAL', 'Voo movido para FILA manualmente.', 'GESTOR_MESA');
-      logAudit('MOVE_TO_QUEUE', flight, 'status', flight.status, 'FILA');
-      
-      const updated = { 
-        ...flight, 
-        status: FlightStatus.FILA,
-        logs: [...(flight.logs || []), newLog]
-      };
-      
-      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? updated : f));
-      upsertFlight(updated).catch(err => console.error('Error persisting status change:', err));
-      
-      addToast('VOO NA FILA', `Voo ${flight.flightNumber} adicionado à fila de prioridade.`, 'success');
+    // TRAVA LÓGICA: Se tem operador, não pode ir para fila.
+    if (flight.operator) {
+      addToast(
+        "AÇÃO NEGADA",
+        "Voo com operador designado não pode ir para a fila.",
+        "warning",
+      );
+      return;
+    }
+
+    const newLog = createNewLog(
+      "MANUAL",
+      "Voo movido para FILA manualmente.",
+      "GESTOR_MESA",
+    );
+    logAudit("MOVE_TO_QUEUE", flight, "status", flight.status, "FILA");
+
+    const updated = {
+      ...flight,
+      status: FlightStatus.FILA,
+      logs: [...(flight.logs || []), newLog],
+    };
+
+    onUpdateFlights((prev) =>
+      prev.map((f) => (f.id === flight.id ? updated : f)),
+    );
+    upsertFlight(updated).catch((err) =>
+      console.error("Error persisting status change:", err),
+    );
+
+    addToast(
+      "VOO NA FILA",
+      `Voo ${flight.flightNumber} adicionado à fila de prioridade.`,
+      "success",
+    );
   };
 
-  const handleManualStart = (id: string, e: React.MouseEvent, startTime?: Date) => {
-      e.stopPropagation();
-      const flight = flights.find(f => f.id === id);
-      const start = startTime || new Date();
-      const timeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const newLog = createNewLog('SISTEMA', `Início de abastecimento confirmado às ${timeStr}.`, 'GESTOR_MESA');
-      
-      if (flight) {
-        logAudit('START_FLIGHT', flight, 'status', flight.status, 'ABASTECENDO');
-        const updated = { 
-          ...flight, 
-          status: FlightStatus.ABASTECENDO, 
-          startTime: start,
-          logs: [...(flight.logs || []), newLog]
-        };
-        onUpdateFlights(prev => prev.map(f => f.id === id ? updated : f));
-        upsertFlight(updated).catch(err => console.error('Error persisting manual start:', err));
-      }
+  const handleManualStart = (
+    id: string,
+    e: React.MouseEvent,
+    startTime?: Date,
+  ) => {
+    e.stopPropagation();
+    const flight = flights.find((f) => f.id === id);
+    const start = startTime || new Date();
+    const timeStr = start.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const newLog = createNewLog(
+      "SISTEMA",
+      `Início de abastecimento confirmado às ${timeStr}.`,
+      "GESTOR_MESA",
+    );
+
+    if (flight) {
+      logAudit("START_FLIGHT", flight, "status", flight.status, "ABASTECENDO");
+      const updated = {
+        ...flight,
+        status: FlightStatus.ABASTECENDO,
+        startTime: start,
+        logs: [...(flight.logs || []), newLog],
+      };
+      onUpdateFlights((prev) => prev.map((f) => (f.id === id ? updated : f)));
+      upsertFlight(updated).catch((err) =>
+        console.error("Error persisting manual start:", err),
+      );
+    }
   };
 
   const handleManualFinish = (flight: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const minutesToETD = getMinutesDiff(flight.etd, flight.date);
-      if (minutesToETD < 0) {
-          setDelayModalFlightId(flight.id);
-          setDelayReasonCode('');
-          setDelayReasonDetail('');
-          return;
-      }
-      confirmFinish(flight.id, flight.flightNumber);
+    e.stopPropagation();
+    const minutesToETD = getMinutesDiff(flight.etd, flight.date);
+    if (minutesToETD < 0) {
+      setDelayModalFlightId(flight.id);
+      setDelayReasonCode("");
+      setDelayReasonDetail("");
+      return;
+    }
+    confirmFinish(flight.id, flight.flightNumber);
   };
 
   const handleCancelFlight = (flight: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      setCancelModalFlight(flight);
-      setOpenMenuId(null);
+    e.stopPropagation();
+    setCancelModalFlight(flight);
+    setOpenMenuId(null);
   };
 
   const handleDeleteFlight = (flight: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      setDeleteModalFlight(flight);
-      setOpenMenuId(null);
+    e.stopPropagation();
+    setDeleteModalFlight(flight);
+    setOpenMenuId(null);
   };
 
   const confirmDeleteFlight = () => {
-      if (!deleteModalFlight) return;
-      
-      logAudit('DELETE_FLIGHT', deleteModalFlight);
-      
-      onUpdateFlights(prev => prev.filter(f => f.id !== deleteModalFlight.id));
-      deleteFlight(deleteModalFlight.id).catch(err => console.error('Error deleting from DB:', err));
-      
-      addToast('VOO EXCLUÍDO', `Voo ${deleteModalFlight.flightNumber || deleteModalFlight.departureFlightNumber} foi removido do sistema.`, 'info');
-      setDeleteModalFlight(null);
+    if (!deleteModalFlight) return;
+
+    logAudit("DELETE_FLIGHT", deleteModalFlight);
+
+    onUpdateFlights((prev) =>
+      prev.filter((f) => f.id !== deleteModalFlight.id),
+    );
+    deleteFlight(deleteModalFlight.id).catch((err) =>
+      console.error("Error deleting from DB:", err),
+    );
+
+    addToast(
+      "VOO EXCLUÍDO",
+      `Voo ${deleteModalFlight.flightNumber || deleteModalFlight.departureFlightNumber} foi removido do sistema.`,
+      "info",
+    );
+    setDeleteModalFlight(null);
   };
 
   const confirmCancelFlight = () => {
-      if (!cancelModalFlight) return;
-      
-      const newLog = createNewLog('MANUAL', 'Voo CANCELADO manualmente pelo gestor.', 'GESTOR_MESA');
-      logAudit('CANCEL_FLIGHT', cancelModalFlight, 'status', cancelModalFlight.status, 'CANCELADO');
-      
-      const updated = { 
-          ...cancelModalFlight, 
-          status: FlightStatus.CANCELADO,
-          logs: [...(cancelModalFlight.logs || []), newLog]
-      };
-      
-      onUpdateFlights(prev => prev.map(f => f.id === cancelModalFlight.id ? updated : f));
-      upsertFlight(updated).catch(err => console.error('Error persisting cancel:', err));
-      
-      addToast('VOO CANCELADO', `Voo ${cancelModalFlight.flightNumber} foi cancelado.`, 'info');
-      setCancelModalFlight(null);
+    if (!cancelModalFlight) return;
+
+    const newLog = createNewLog(
+      "MANUAL",
+      "Voo CANCELADO manualmente pelo gestor.",
+      "GESTOR_MESA",
+    );
+    logAudit(
+      "CANCEL_FLIGHT",
+      cancelModalFlight,
+      "status",
+      cancelModalFlight.status,
+      "CANCELADO",
+    );
+
+    const updated = {
+      ...cancelModalFlight,
+      status: FlightStatus.CANCELADO,
+      logs: [...(cancelModalFlight.logs || []), newLog],
+    };
+
+    onUpdateFlights((prev) =>
+      prev.map((f) => (f.id === cancelModalFlight.id ? updated : f)),
+    );
+    upsertFlight(updated).catch((err) =>
+      console.error("Error persisting cancel:", err),
+    );
+
+    addToast(
+      "VOO CANCELADO",
+      `Voo ${cancelModalFlight.flightNumber} foi cancelado.`,
+      "info",
+    );
+    setCancelModalFlight(null);
   };
 
   const handleReportCalco = (flight: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const newLog = createNewLog('MANUAL', 'Calço reportado manualmente pelo gestor.', 'GESTOR_MESA');
-      const updated = { 
-          ...flight, 
-          isOnGround: true,
-          logs: [...(flight.logs || []), newLog]
-      };
-      
-      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? updated : f));
-      upsertFlight(updated).catch(err => console.error('Error persisting calco:', err));
-      
-      addToast('CALÇO REPORTADO', `Aeronave ${flight.registration} (Voo ${flight.flightNumber}) em calço.`, 'success');
-      setOpenMenuId(null);
+    e.stopPropagation();
+    const newLog = createNewLog(
+      "MANUAL",
+      "Calço reportado manualmente pelo gestor.",
+      "GESTOR_MESA",
+    );
+    const updated = {
+      ...flight,
+      isOnGround: true,
+      logs: [...(flight.logs || []), newLog],
+    };
+
+    onUpdateFlights((prev) =>
+      prev.map((f) => (f.id === flight.id ? updated : f)),
+    );
+    upsertFlight(updated).catch((err) =>
+      console.error("Error persisting calco:", err),
+    );
+
+    addToast(
+      "CALÇO REPORTADO",
+      `Aeronave ${flight.registration} (Voo ${flight.flightNumber}) em calço.`,
+      "success",
+    );
+    setOpenMenuId(null);
   };
 
-  const confirmFinish = (id: string, flightNumber: string, delayJustification?: string) => {
-      let newLog: FlightLog;
-      const flight = flights.find(f => f.id === id);
-      
-      if (delayJustification) {
-          newLog = createNewLog('ATRASO', `Finalizado com ATRASO. Justificativa: ${delayJustification}`, 'GESTOR_MESA');
-      } else {
-          newLog = createNewLog('SISTEMA', 'Abastecimento finalizado no horário.', 'GESTOR_MESA');
-      }
-      
-      if (flight) {
-          logAudit('FINISH_FLIGHT', flight, 'status', flight.status, 'FINALIZADO', { 
-            delayJustification,
-            hasDelay: !!delayJustification 
-          });
-      }
+  const confirmFinish = (
+    id: string,
+    flightNumber: string,
+    delayJustification?: string,
+  ) => {
+    let newLog: FlightLog;
+    const flight = flights.find((f) => f.id === id);
 
-      const updated = { 
-          ...flight, 
-          status: FlightStatus.FINALIZADO, 
-          endTime: new Date(),
-          delayJustification: delayJustification,
-          logs: [...(flight.logs || []), newLog]
-      };
-
-      onUpdateFlights(prev => prev.map(f => f.id === id ? updated : f));
-      upsertFlight(updated).catch(err => console.error('Error persisting finish:', err));
-
-      addToast(
-          delayJustification ? 'ATRASO REGISTRADO' : 'OPERAÇÃO CONCLUÍDA', 
-          `Voo ${flightNumber} finalizado${delayJustification ? ' com relatório de atraso' : ''}.`, 
-          delayJustification ? 'warning' : 'success'
+    if (delayJustification) {
+      newLog = createNewLog(
+        "ATRASO",
+        `Finalizado com ATRASO. Justificativa: ${delayJustification}`,
+        "GESTOR_MESA",
       );
-      setDelayModalFlightId(null);
+    } else {
+      newLog = createNewLog(
+        "SISTEMA",
+        "Abastecimento finalizado no horário.",
+        "GESTOR_MESA",
+      );
+    }
+
+    if (flight) {
+      logAudit("FINISH_FLIGHT", flight, "status", flight.status, "FINALIZADO", {
+        delayJustification,
+        hasDelay: !!delayJustification,
+      });
+    }
+
+    const updated = {
+      ...flight,
+      status: FlightStatus.FINALIZADO,
+      endTime: new Date(),
+      delayJustification: delayJustification,
+      logs: [...(flight.logs || []), newLog],
+    };
+
+    onUpdateFlights((prev) => prev.map((f) => (f.id === id ? updated : f)));
+    upsertFlight(updated).catch((err) =>
+      console.error("Error persisting finish:", err),
+    );
+
+    addToast(
+      delayJustification ? "ATRASO REGISTRADO" : "OPERAÇÃO CONCLUÍDA",
+      `Voo ${flightNumber} finalizado${delayJustification ? " com relatório de atraso" : ""}.`,
+      delayJustification ? "warning" : "success",
+    );
+    setDelayModalFlightId(null);
   };
 
   const handleSubmitDelay = (finalCode?: string, finalDetail?: string) => {
-      const code = typeof finalCode === 'string' ? finalCode : delayReasonCode;
-      const detail = typeof finalDetail === 'string' ? finalDetail : delayReasonDetail;
-      
-      if (delayModalFlightId && code) {
-          const flight = flights.find(f => f.id === delayModalFlightId);
-          if (flight) {
-              const justification = `${code}${detail ? ` - ${detail}` : ''}`;
-              confirmFinish(delayModalFlightId, flight.flightNumber, justification);
-          }
+    const code = typeof finalCode === "string" ? finalCode : delayReasonCode;
+    const detail =
+      typeof finalDetail === "string" ? finalDetail : delayReasonDetail;
+
+    if (delayModalFlightId && code) {
+      const flight = flights.find((f) => f.id === delayModalFlightId);
+      if (flight) {
+        const justification = `${code}${detail ? ` - ${detail}` : ""}`;
+        confirmFinish(delayModalFlightId, flight.flightNumber, justification);
       }
-  };
-  
-  const handleRemoveStandby = (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const newLog = createNewLog('MANUAL', 'Removido de Standby. Retomando prioridade.', 'GESTOR_MESA');
-      onUpdateFlights(prev => prev.map(f => {
-          if (f.id === id) {
-              const updated = { 
-                  ...f, 
-                  isStandby: false, 
-                  standbyReason: undefined,
-                  logs: [...(f.logs || []), newLog]
-              };
-              upsertFlight(updated).catch(err => console.error('Error persisting standby removal:', err));
-              return updated;
-          }
-          return f;
-      }));
+    }
   };
 
-  const handleConfirmVisual = (id: string, flightNumber: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      setArchivedIds(prev => new Set(prev).add(id));
-      
-      const newLog = createNewLog('MANUAL', 'Voo arquivado da visão geral pelo gestor.', 'GESTOR_MESA');
-      onUpdateFlights(prev => prev.map(f => f.id === id ? {
-          ...f,
-          isHiddenFromGrid: true,
-          logs: [...(f.logs || []), newLog]
-      } : f));
-      
-      addToast('ARQUIVADO', `Voo ${flightNumber} movido para histórico.`, 'info');
+  const handleRemoveStandby = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newLog = createNewLog(
+      "MANUAL",
+      "Removido de Standby. Retomando prioridade.",
+      "GESTOR_MESA",
+    );
+    onUpdateFlights((prev) =>
+      prev.map((f) => {
+        if (f.id === id) {
+          const updated = {
+            ...f,
+            isStandby: false,
+            standbyReason: undefined,
+            logs: [...(f.logs || []), newLog],
+          };
+          upsertFlight(updated).catch((err) =>
+            console.error("Error persisting standby removal:", err),
+          );
+          return updated;
+        }
+        return f;
+      }),
+    );
+  };
+
+  const handleConfirmVisual = (
+    id: string,
+    flightNumber: string,
+    e: React.MouseEvent,
+  ) => {
+    e.stopPropagation();
+    setArchivedIds((prev) => new Set(prev).add(id));
+
+    const newLog = createNewLog(
+      "MANUAL",
+      "Voo arquivado da visão geral pelo gestor.",
+      "GESTOR_MESA",
+    );
+    onUpdateFlights((prev) =>
+      prev.map((f) =>
+        f.id === id
+          ? {
+              ...f,
+              isHiddenFromGrid: true,
+              logs: [...(f.logs || []), newLog],
+            }
+          : f,
+      ),
+    );
+
+    addToast("ARQUIVADO", `Voo ${flightNumber} movido para histórico.`, "info");
   };
 
   const handleClearFinished = () => {
-      onUpdateFlights(prev => prev.map(f => 
-          (f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO) 
-              ? { ...f, isHiddenFromGrid: true } 
-              : f
-      ));
-      addToast('HISTÓRICO LIMPO', 'Voos finalizados e cancelados foram arquivados.', 'success');
+    onUpdateFlights((prev) =>
+      prev.map((f) =>
+        f.status === FlightStatus.FINALIZADO ||
+        f.status === FlightStatus.CANCELADO
+          ? { ...f, isHiddenFromGrid: true }
+          : f,
+      ),
+    );
+    addToast(
+      "HISTÓRICO LIMPO",
+      "Voos finalizados e cancelados foram arquivados.",
+      "success",
+    );
   };
 
   const handlePinFlight = (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      onUpdateFlights(prev => prev.map(f => {
-          if (f.id === id) {
-              const newLog = createNewLog('MANUAL', f.isPinned ? 'Voo desfixado do topo pelo gestor.' : 'Voo fixado no topo pelo gestor.', 'GESTOR_MESA');
-              const updated = { ...f, isPinned: !f.isPinned, logs: [...(f.logs || []), newLog] };
-              upsertFlight(updated).catch(err => console.error('Error persisting pin:', err));
-              return updated;
-          }
-          return f;
-      }));
-      setOpenMenuId(null);
+    e.stopPropagation();
+    onUpdateFlights((prev) =>
+      prev.map((f) => {
+        if (f.id === id) {
+          const newLog = createNewLog(
+            "MANUAL",
+            f.isPinned
+              ? "Voo desfixado do topo pelo gestor."
+              : "Voo fixado no topo pelo gestor.",
+            "GESTOR_MESA",
+          );
+          const updated = {
+            ...f,
+            isPinned: !f.isPinned,
+            logs: [...(f.logs || []), newLog],
+          };
+          upsertFlight(updated).catch((err) =>
+            console.error("Error persisting pin:", err),
+          );
+          return updated;
+        }
+        return f;
+      }),
+    );
+    setOpenMenuId(null);
   };
 
   const handleReforco = (flight: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const newLog = createNewLog('MANUAL', 'Voo redirecionado para REFORÇO (Fila).', 'GESTOR_MESA');
-      
-      const updated = { 
-          ...flight, 
-          status: FlightStatus.FILA,
-          isReforco: true,
-          operator: undefined,
-          operatorId: undefined,
-          supportOperator: undefined,
-          supportOperatorId: undefined,
-          designationTime: undefined,
-          logs: [...(flight.logs || []), newLog]
-      };
-      
-      onUpdateFlights(prev => prev.map(f => f.id === flight.id ? updated : f));
-      upsertFlight(updated).catch(err => console.error('Error persisting reforco status:', err));
-      
-      addToast('REFORÇO', `Voo ${flight.flightNumber} retornado para a fila.`, 'success');
-      setOpenMenuId(null);
+    e.stopPropagation();
+    const newLog = createNewLog(
+      "MANUAL",
+      "Voo redirecionado para REFORÇO (Fila).",
+      "GESTOR_MESA",
+    );
+
+    const updated = {
+      ...flight,
+      status: FlightStatus.FILA,
+      isReforco: true,
+      operator: undefined,
+      operatorId: undefined,
+      supportOperator: undefined,
+      supportOperatorId: undefined,
+      designationTime: undefined,
+      logs: [...(flight.logs || []), newLog],
+    };
+
+    onUpdateFlights((prev) =>
+      prev.map((f) => (f.id === flight.id ? updated : f)),
+    );
+    upsertFlight(updated).catch((err) =>
+      console.error("Error persisting reforco status:", err),
+    );
+
+    addToast(
+      "REFORÇO",
+      `Voo ${flight.flightNumber} retornado para a fila.`,
+      "success",
+    );
+    setOpenMenuId(null);
   };
 
   const handleIntentStart = (row: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const pos = row.positionId?.trim();
-      if (!pos || pos === '?' || pos === '-') {
-          setMissingPositionModalFlight(row);
-      } else {
-          setConfirmStartModalFlight(row);
-      }
-      setOpenMenuId(null);
+    e.stopPropagation();
+    const pos = row.positionId?.trim();
+    if (!pos || pos === "?" || pos === "-") {
+      setMissingPositionModalFlight(row);
+    } else {
+      setConfirmStartModalFlight(row);
+    }
+    setOpenMenuId(null);
   };
 
   const handleConfirmStart = (data?: { startTime?: Date }) => {
-      if (!confirmStartModalFlight) return;
-      handleManualStart(confirmStartModalFlight.id, { stopPropagation: () => {} } as React.MouseEvent, data?.startTime);
-      addToast('ABASTECIMENTO INICIADO', `Voo ${confirmStartModalFlight.flightNumber} em abastecimento.`, 'success');
-      setConfirmStartModalFlight(null);
+    if (!confirmStartModalFlight) return;
+    handleManualStart(
+      confirmStartModalFlight.id,
+      { stopPropagation: () => {} } as React.MouseEvent,
+      data?.startTime,
+    );
+    addToast(
+      "ABASTECIMENTO INICIADO",
+      `Voo ${confirmStartModalFlight.flightNumber} em abastecimento.`,
+      "success",
+    );
+    setConfirmStartModalFlight(null);
   };
 
   const handleConfirmRemoveOperator = () => {
-      if (!confirmRemoveOperatorFlight) return;
-      const newLog = createNewLog('MANUAL', 'Operador removido. Voo retornou para a fila.', 'GESTOR_MESA');
-      
-      const updated = { 
-          ...confirmRemoveOperatorFlight, 
-          status: FlightStatus.FILA,
-          operator: undefined,
-          operatorId: undefined,
-          supportOperator: undefined,
-          supportOperatorId: undefined,
-          designationTime: undefined,
-          logs: [...(confirmRemoveOperatorFlight.logs || []), newLog]
-      };
+    if (!confirmRemoveOperatorFlight) return;
+    const newLog = createNewLog(
+      "MANUAL",
+      "Operador removido. Voo retornou para a fila.",
+      "GESTOR_MESA",
+    );
 
-      onUpdateFlights(prev => prev.map(f => f.id === confirmRemoveOperatorFlight.id ? updated : f));
-      upsertFlight(updated).catch(err => console.error('Error persisting operator removal:', err));
-      
-      addToast('OPERADOR REMOVIDO', `Operador removido do voo ${confirmRemoveOperatorFlight.flightNumber}.`, 'info');
-      setConfirmRemoveOperatorFlight(null);
+    const updated = {
+      ...confirmRemoveOperatorFlight,
+      status: FlightStatus.FILA,
+      operator: undefined,
+      operatorId: undefined,
+      supportOperator: undefined,
+      supportOperatorId: undefined,
+      designationTime: undefined,
+      logs: [...(confirmRemoveOperatorFlight.logs || []), newLog],
+    };
+
+    onUpdateFlights((prev) =>
+      prev.map((f) => (f.id === confirmRemoveOperatorFlight.id ? updated : f)),
+    );
+    upsertFlight(updated).catch((err) =>
+      console.error("Error persisting operator removal:", err),
+    );
+
+    addToast(
+      "OPERADOR REMOVIDO",
+      `Operador removido do voo ${confirmRemoveOperatorFlight.flightNumber}.`,
+      "info",
+    );
+    setConfirmRemoveOperatorFlight(null);
   };
 
   const handleConfirmFinish = () => {
-      if (!confirmFinishModalFlight) return;
-      handleManualFinish(confirmFinishModalFlight, { stopPropagation: () => {} } as React.MouseEvent);
-      setConfirmFinishModalFlight(null);
+    if (!confirmFinishModalFlight) return;
+    handleManualFinish(confirmFinishModalFlight, {
+      stopPropagation: () => {},
+    } as React.MouseEvent);
+    setConfirmFinishModalFlight(null);
   };
 
   // --- ASSIGNMENT LOGIC ---
   const openAssignModal = (flight: FlightData, e: React.MouseEvent) => {
-      e.stopPropagation();
-      setAssignModalFlight(flight);
-      setSelectedOperatorId(null);
+    e.stopPropagation();
+    setAssignModalFlight(flight);
+    setSelectedOperatorId(null);
   };
 
   const confirmAssignment = (opId?: string) => {
-      const idToUse = opId || selectedOperatorId;
-      if (assignModalFlight && idToUse) {
-          const operator = operators.find(op => op.id === idToUse);
-          if (!operator) return;
+    const idToUse = opId || selectedOperatorId;
+    if (assignModalFlight && idToUse) {
+      const operator = operators.find((op) => op.id === idToUse);
+      if (!operator) return;
 
-          const newLog = createNewLog('MANUAL', `Operador ${operator.warName} designado manualmente.`, 'GESTOR_MESA');
-          
-          logAudit('ASSIGN_OPERATOR', assignModalFlight, 'operator', assignModalFlight.operator, operator.warName, { 
-              fleet: operator.assignedVehicle, 
-              assigned_by: ltName 
-          });
+      const newLog = createNewLog(
+        "MANUAL",
+        `Operador ${operator.warName} designado manualmente.`,
+        "GESTOR_MESA",
+      );
 
-          let derivedFleetType: 'SRV' | 'CTA' | undefined;
-          if (operator.assignedVehicle) {
-              if (operator.assignedVehicle.startsWith('CTA')) derivedFleetType = 'CTA';
-              else if (operator.assignedVehicle.startsWith('SRV')) derivedFleetType = 'SRV';
-              else {
-                  const cleanv = operator.assignedVehicle.replace(/[^0-9A-Z]/ig, '');
-                  const vMatch = vehicles.find(v => String(v.id).replace(/[^0-9A-Z]/ig, '') === cleanv);
-                  if (vMatch) derivedFleetType = vMatch.type === 'SERVIDOR' ? 'SRV' : 'CTA';
-              }
-          }
+      logAudit(
+        "ASSIGN_OPERATOR",
+        assignModalFlight,
+        "operator",
+        assignModalFlight.operator,
+        operator.warName,
+        {
+          fleet: operator.assignedVehicle,
+          assigned_by: ltName,
+        },
+      );
 
-          const updated = { 
-              ...assignModalFlight, 
-              status: FlightStatus.DESIGNADO, 
-              operator: operator.warName,
-              operatorId: operator.id,
-              fleet: operator.assignedVehicle,
-              fleetType: derivedFleetType,
-              designationTime: new Date(),
-              assignmentTime: new Date(),
-              assignedByLt: ltName,
-              logs: [...(assignModalFlight.logs || []), newLog]
-          };
-
-          onUpdateFlights(prev => prev.map(f => f.id === assignModalFlight.id ? updated : f));
-          upsertFlight(updated).catch(err => console.error('Error persisting operator assignment:', err));
-
-          addToast('DESIGNADO', `Operador ${operator.warName} assumiu voo ${assignModalFlight.flightNumber}.`, 'success');
-          setAssignModalFlight(null);
-          setSelectedOperatorId(null);
+      let derivedFleetType: "SRV" | "CTA" | undefined;
+      if (operator.assignedVehicle) {
+        if (operator.assignedVehicle.startsWith("CTA"))
+          derivedFleetType = "CTA";
+        else if (operator.assignedVehicle.startsWith("SRV"))
+          derivedFleetType = "SRV";
+        else {
+          const cleanv = operator.assignedVehicle.replace(/[^0-9A-Z]/gi, "");
+          const vMatch = vehicles.find(
+            (v) => String(v.id).replace(/[^0-9A-Z]/gi, "") === cleanv,
+          );
+          if (vMatch)
+            derivedFleetType = vMatch.type === "SERVIDOR" ? "SRV" : "CTA";
+        }
       }
+
+      const updated = {
+        ...assignModalFlight,
+        status: FlightStatus.DESIGNADO,
+        operator: operator.warName,
+        operatorId: operator.id,
+        fleet: operator.assignedVehicle,
+        fleetType: derivedFleetType,
+        designationTime: new Date(),
+        assignmentTime: new Date(),
+        assignedByLt: ltName,
+        logs: [...(assignModalFlight.logs || []), newLog],
+      };
+
+      onUpdateFlights((prev) =>
+        prev.map((f) => (f.id === assignModalFlight.id ? updated : f)),
+      );
+      upsertFlight(updated).catch((err) =>
+        console.error("Error persisting operator assignment:", err),
+      );
+
+      addToast(
+        "DESIGNADO",
+        `Operador ${operator.warName} assumiu voo ${assignModalFlight.flightNumber}.`,
+        "success",
+      );
+      setAssignModalFlight(null);
+      setSelectedOperatorId(null);
+    }
   };
 
-
   const confirmSupportAssignment = (opId?: string) => {
-      const idToUse = opId || selectedOperatorId;
-      if (assignSupportModalFlight && idToUse) {
-          const operator = operators.find(op => op.id === idToUse);
-          if (!operator) return;
+    const idToUse = opId || selectedOperatorId;
+    if (assignSupportModalFlight && idToUse) {
+      const operator = operators.find((op) => op.id === idToUse);
+      if (!operator) return;
 
-          const newLog = createNewLog('MANUAL', `Op. Apoio ${operator.warName} designado manualmente.`, 'GESTOR_MESA');
-          
-          logAudit('ASSIGN_SUPPORT_OPERATOR', assignSupportModalFlight, 'supportOperator', assignSupportModalFlight.supportOperator, operator.warName, { 
-              fleet: operator.assignedVehicle 
-          });
+      const newLog = createNewLog(
+        "MANUAL",
+        `Op. Apoio ${operator.warName} designado manualmente.`,
+        "GESTOR_MESA",
+      );
 
-          const updated = { 
-              ...assignSupportModalFlight, 
-              supportOperator: operator.warName,
-              supportOperatorId: operator.id,
-              logs: [...(assignSupportModalFlight.logs || []), newLog]
-          };
+      logAudit(
+        "ASSIGN_SUPPORT_OPERATOR",
+        assignSupportModalFlight,
+        "supportOperator",
+        assignSupportModalFlight.supportOperator,
+        operator.warName,
+        {
+          fleet: operator.assignedVehicle,
+        },
+      );
 
-          onUpdateFlights(prev => prev.map(f => f.id === assignSupportModalFlight.id ? updated : f));
-          upsertFlight(updated).catch(err => console.error('Error persisting support operator assignment:', err));
+      const updated = {
+        ...assignSupportModalFlight,
+        supportOperator: operator.warName,
+        supportOperatorId: operator.id,
+        logs: [...(assignSupportModalFlight.logs || []), newLog],
+      };
 
-          addToast('APOIO DESIGNADO', `Operador ${operator.warName} assumiu como apoio no voo ${assignSupportModalFlight.flightNumber}.`, 'success');
-          setAssignSupportModalFlight(null);
-          setSelectedOperatorId(null);
-      }
+      onUpdateFlights((prev) =>
+        prev.map((f) => (f.id === assignSupportModalFlight.id ? updated : f)),
+      );
+      upsertFlight(updated).catch((err) =>
+        console.error("Error persisting support operator assignment:", err),
+      );
+
+      addToast(
+        "APOIO DESIGNADO",
+        `Operador ${operator.warName} assumiu como apoio no voo ${assignSupportModalFlight.flightNumber}.`,
+        "success",
+      );
+      setAssignSupportModalFlight(null);
+      setSelectedOperatorId(null);
+    }
   };
 
   // Filters operators based on Vehicle Compatibility (SRV vs CTA)
-  const getEligibleOperators = (flight: FlightData, isSupport: boolean = false) => {
-      // Get all active missions to determine status
-      const activeMissions = flights.filter(f => f.status !== 'FINALIZADO' && f.status !== 'CANCELADO');
+  const getEligibleOperators = (
+    flight: FlightData,
+    isSupport: boolean = false,
+  ) => {
+    // Get all active missions to determine status
+    const activeMissions = flights.filter(
+      (f) => f.status !== "FINALIZADO" && f.status !== "CANCELADO",
+    );
 
-      return operators.map(op => {
-          // Find if operator has an active mission in ANOTHER flight
-          const mission = activeMissions.find(m => 
-              m.id !== flight.id && 
-              (m.operator?.toLowerCase() === op.warName.toLowerCase() || m.supportOperator?.toLowerCase() === op.warName.toLowerCase())
-          );
-          
-          let dynamicStatus = op.status;
-          if (mission) {
-              if (mission.status === 'ABASTECENDO') dynamicStatus = 'OCUPADO'; 
-              else if (mission.status === 'DESIGNADO') dynamicStatus = 'DESIGNADO';
-              else dynamicStatus = 'OCUPADO';
-          }
-          
-          return { ...op, status: dynamicStatus };
-      });
+    return operators.map((op) => {
+      // Find if operator has an active mission in ANOTHER flight
+      const mission = activeMissions.find(
+        (m) =>
+          m.id !== flight.id &&
+          (m.operator?.toLowerCase() === op.warName.toLowerCase() ||
+            m.supportOperator?.toLowerCase() === op.warName.toLowerCase()),
+      );
+
+      let dynamicStatus = op.status;
+      if (mission) {
+        if (mission.status === "ABASTECENDO") dynamicStatus = "OCUPADO";
+        else if (mission.status === "DESIGNADO") dynamicStatus = "DESIGNADO";
+        else dynamicStatus = "OCUPADO";
+      }
+
+      return { ...op, status: dynamicStatus };
+    });
   };
 
   // OBSERVATION HANDLERS
-  const handleOpenObservationModal = (flight: FlightData, e: React.MouseEvent) => {
+  const handleOpenObservationModal = (
+    flight: FlightData,
+    e: React.MouseEvent,
+  ) => {
     e.stopPropagation();
     setObservationModalFlight(flight);
-    setNewObservation(''); 
+    setNewObservation("");
     setOpenMenuId(null);
   };
 
   const handleSaveObservation = () => {
     if (observationModalFlight && newObservation.trim()) {
-      const newLog = createNewLog('OBSERVACAO', newObservation.trim(), 'GESTOR_MESA');
-      const updated = { ...observationModalFlight, logs: [...(observationModalFlight.logs || []), newLog] };
-      
-      onUpdateFlights(prev => prev.map(f => 
-        f.id === observationModalFlight.id ? updated : f
-      ));
-      upsertFlight(updated).catch(err => console.error('Error persisting observation:', err));
-      
-      addToast('OBSERVAÇÃO REGISTRADA', `Nota adicionada ao voo ${observationModalFlight.flightNumber}.`, 'success');
+      const newLog = createNewLog(
+        "OBSERVACAO",
+        newObservation.trim(),
+        "GESTOR_MESA",
+      );
+      const updated = {
+        ...observationModalFlight,
+        logs: [...(observationModalFlight.logs || []), newLog],
+      };
+
+      onUpdateFlights((prev) =>
+        prev.map((f) => (f.id === observationModalFlight.id ? updated : f)),
+      );
+      upsertFlight(updated).catch((err) =>
+        console.error("Error persisting observation:", err),
+      );
+
+      addToast(
+        "OBSERVAÇÃO REGISTRADA",
+        `Nota adicionada ao voo ${observationModalFlight.flightNumber}.`,
+        "success",
+      );
       setObservationModalFlight(null);
-      setNewObservation('');
+      setNewObservation("");
     }
   };
 
@@ -1717,1154 +2523,2316 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const minutesToETA = getMinutesDiff(f.eta, f.date);
     const minutesToETD = getMinutesDiff(f.etd, f.date);
 
-    if (f.status === FlightStatus.FINALIZADO || f.status === FlightStatus.CANCELADO) {
-        if (f.status === FlightStatus.CANCELADO) return { 
-            label: 'CANCELADO', 
-            color: isDarkMode ? 'text-red-400 bg-red-500/10 border-red-500/30' : 'text-red-600 bg-red-50 border-red-200' 
+    if (
+      f.status === FlightStatus.FINALIZADO ||
+      f.status === FlightStatus.CANCELADO
+    ) {
+      if (f.status === FlightStatus.CANCELADO)
+        return {
+          label: "CANCELADO",
+          color: isDarkMode
+            ? "text-red-400 bg-red-500/10 border-red-500/30"
+            : "text-red-600 bg-red-50 border-red-200",
         };
-        const hasSwap = f.logs.some(l => l.message.toLowerCase().includes('troca') || l.message.toLowerCase().includes('swap'));
-        if (hasSwap) return { 
-            label: 'COM TROCA', 
-            color: isDarkMode ? 'text-purple-400 bg-purple-500/10 border-purple-500/30' : 'text-purple-600 bg-purple-50 border-purple-200' 
+      const hasSwap = f.logs.some(
+        (l) =>
+          l.message.toLowerCase().includes("troca") ||
+          l.message.toLowerCase().includes("swap"),
+      );
+      if (hasSwap)
+        return {
+          label: "COM TROCA",
+          color: isDarkMode
+            ? "text-purple-400 bg-purple-500/10 border-purple-500/30"
+            : "text-purple-600 bg-purple-50 border-purple-200",
         };
-        if (checkIsDelayed(f) || f.delayJustification) return { 
-            label: 'COM ATRASO', 
-            color: isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500/30' : 'text-amber-600 bg-amber-50 border-amber-200' 
+      if (checkIsDelayed(f) || f.delayJustification)
+        return {
+          label: "COM ATRASO",
+          color: isDarkMode
+            ? "text-amber-500 bg-amber-500/10 border-amber-500/30"
+            : "text-amber-600 bg-amber-50 border-amber-200",
         };
-        return { 
-            label: 'COM SUCESSO', 
-            color: isDarkMode ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200' 
-        };
+      return {
+        label: "COM SUCESSO",
+        color: isDarkMode
+          ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+          : "text-emerald-600 bg-emerald-50 border-emerald-200",
+      };
     }
 
     if (f.status === FlightStatus.CHEGADA) {
-        if (f.isOnGround && f.positionId) return { 
-            label: 'CALÇADA', 
-            color: isDarkMode ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200' 
+      if (f.isOnGround && f.positionId)
+        return {
+          label: "CALÇADA",
+          color: isDarkMode
+            ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+            : "text-emerald-600 bg-emerald-50 border-emerald-200",
         };
-        if (f.isOnGround) return { 
-            label: 'SOLO', 
-            color: isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30' : 'text-indigo-600 bg-indigo-50 border-indigo-200' 
+      if (f.isOnGround)
+        return {
+          label: "SOLO",
+          color: isDarkMode
+            ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/30"
+            : "text-indigo-600 bg-indigo-50 border-indigo-200",
         };
-        if (minutesToETA < 10) return { 
-            label: 'APROXIMAÇÃO', 
-            color: isDarkMode ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-amber-600 bg-amber-50 border-amber-200' 
+      if (minutesToETA < 10)
+        return {
+          label: "APROXIMAÇÃO",
+          color: isDarkMode
+            ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
+            : "text-amber-600 bg-amber-50 border-amber-200",
         };
-        const h = Math.floor(minutesToETA / 60);
-        const m = Math.floor(minutesToETA % 60);
-        return { 
-            label: `${h}H ${m}M`, 
-            color: isDarkMode ? 'text-slate-400 bg-slate-800/50 border-slate-700' : 'text-slate-600 bg-slate-100 border-slate-300' 
-        };
+      const h = Math.floor(minutesToETA / 60);
+      const m = Math.floor(minutesToETA % 60);
+      return {
+        label: `${h}H ${m}M`,
+        color: isDarkMode
+          ? "text-slate-400 bg-slate-800/50 border-slate-700"
+          : "text-slate-600 bg-slate-100 border-slate-300",
+      };
     }
 
     if (f.status === FlightStatus.FILA) {
-        if (f.isReforco) return {
-            label: 'REFORÇO',
-            color: isDarkMode ? 'text-purple-400 bg-purple-500/10 border-purple-400/50' : 'text-purple-600 bg-purple-50 border-purple-200'
+      if (f.isReforco)
+        return {
+          label: "REFORÇO",
+          color: isDarkMode
+            ? "text-purple-400 bg-purple-500/10 border-purple-400/50"
+            : "text-purple-600 bg-purple-50 border-purple-200",
         };
-        if (f.isStandby) return { 
-            label: 'STAND-BY', 
-            color: isDarkMode ? 'text-slate-400 bg-slate-800 border-slate-600' : 'text-slate-600 bg-slate-100 border-slate-300' 
-        };
-        
-        const absMins = Math.abs(minutesToETD);
-        const h = Math.floor(absMins / 60);
-        const m = Math.floor(absMins % 60);
-        const displayTime = minutesToETD >= 60 || minutesToETD <= -60 ? `${h}h ${m}m${minutesToETD < 0 ? ' ATRASO' : ''}` : `${minutesToETD < 0 ? absMins + 'm ATRASO' : minutesToETD + ' min'}`;
-
-        if (minutesToETD <= -60) return {
-            label: 'RETIDO (+1H)',
-            subtitle: displayTime,
-            color: isDarkMode ? 'text-slate-500 bg-slate-900 border-slate-700/50' : 'text-slate-500 bg-slate-200 border-slate-300',
-            rowClass: isDarkMode ? '[&>td]:!bg-slate-900/40 [&>td]:!border-slate-800/50 [&>td]:opacity-60' : '[&>td]:!bg-slate-100 [&>td]:!border-slate-200 [&>td]:opacity-60'
+      if (f.isStandby)
+        return {
+          label: "STAND-BY",
+          color: isDarkMode
+            ? "text-slate-400 bg-slate-800 border-slate-600"
+            : "text-slate-600 bg-slate-100 border-slate-300",
         };
 
-        if (minutesToETD < 0) return {
-            label: 'ATRASADO',
-            subtitle: displayTime,
-            color: 'text-white bg-red-600 border-red-700',
-            rowClass: isDarkMode ? '[&>td]:!bg-red-950/60 [&>td]:!border-red-900/60' : '[&>td]:!bg-red-100 [&>td]:!border-red-400'
+      const absMins = Math.abs(minutesToETD);
+      const h = Math.floor(absMins / 60);
+      const m = Math.floor(absMins % 60);
+      const displayTime =
+        minutesToETD >= 60 || minutesToETD <= -60
+          ? `${h}h ${m}m${minutesToETD < 0 ? " ATRASO" : ""}`
+          : `${minutesToETD < 0 ? absMins + "m ATRASO" : minutesToETD + " min"}`;
+
+      if (minutesToETD <= -60)
+        return {
+          label: "RETIDO (+1H)",
+          subtitle: displayTime,
+          color: isDarkMode
+            ? "text-slate-500 bg-slate-900 border-slate-700/50"
+            : "text-slate-500 bg-slate-200 border-slate-300",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/40 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-800/50 [&>td]:opacity-60"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-100 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 [&>td]:opacity-60",
         };
 
-        if (minutesToETD < 20) return { 
-            label: 'PENALTY', 
-            subtitle: displayTime,
-            color: 'text-white bg-black border-red-500',
-            rowClass: isDarkMode ? '[&>td]:!bg-red-950/40 [&>td]:!border-red-900/50' : '[&>td]:!bg-red-100 [&>td]:!border-red-300'
+      if (minutesToETD < 0)
+        return {
+          label: "ATRASADO",
+          subtitle: displayTime,
+          color: isDarkMode
+            ? "text-white bg-[#4b4b4b] border-neutral-700 shadow-[0_0_8px_rgba(255,255,255,0.05)] font-bold"
+            : "text-white bg-[#4b4b4b] border-neutral-400 shadow-[0_0_8px_rgba(0,0,0,0.25)] font-black",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-[#1e1e1e] [&>td:not(.grid-ops-timerest-cell)]:!to-[#121212] [&>td:not(.grid-ops-timerest-cell)]:!border-neutral-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-neutral-100 [&>td:not(.grid-ops-timerest-cell)]:!to-neutral-50 [&>td:not(.grid-ops-timerest-cell)]:!border-neutral-200",
         };
-        if (minutesToETD < 30) return { 
-            label: 'ATRASANDO', 
-            subtitle: displayTime,
-            color: isDarkMode ? 'text-red-500 bg-red-900/50 border-red-500' : 'text-red-700 bg-red-100 border-red-500',
-            rowClass: isDarkMode ? '[&>td]:!bg-red-900/40 [&>td]:!border-red-800/30' : '[&>td]:!bg-red-50 [&>td]:!border-red-200'
+
+      if (minutesToETD < 20)
+        return {
+          label: "PENALTY",
+          subtitle: displayTime,
+          color: isDarkMode
+            ? "text-white bg-red-600/95 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-[pulse_1.5s_infinite] font-black"
+            : "text-white bg-red-600 border-red-700 shadow-[0_0_10px_rgba(220,38,38,0.4)] animate-[pulse_1.5s_infinite] font-black",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-[#2d0a0f] [&>td:not(.grid-ops-timerest-cell)]:!to-[#160407] [&>td:not(.grid-ops-timerest-cell)]:!border-red-50/10"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-red-50/60 [&>td:not(.grid-ops-timerest-cell)]:!to-orange-50/40 [&>td:not(.grid-ops-timerest-cell)]:!border-red-200",
         };
-        if (minutesToETD < 40) return { 
-            label: 'ATRASANDO', 
-            subtitle: displayTime,
-            color: isDarkMode ? 'text-amber-500 bg-amber-900/50 border-amber-500' : 'text-amber-800 bg-amber-100 border-amber-500',
-            rowClass: isDarkMode ? '[&>td]:!bg-amber-900/20 [&>td]:!border-amber-800/30' : '[&>td]:!bg-yellow-50 [&>td]:!border-yellow-200'
+      if (minutesToETD < 30)
+        return {
+          label: "ATRASANDO",
+          subtitle: displayTime,
+          color: isDarkMode
+            ? "text-yellow-400 bg-yellow-950/40 border-yellow-500/50"
+            : "text-yellow-900 bg-yellow-100 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.2)]",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-yellow-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-yellow-900/40"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-gradient-to-r [&>td:not(.grid-ops-timerest-cell)]:!from-yellow-50 [&>td:not(.grid-ops-timerest-cell)]:!to-amber-50/50 [&>td:not(.grid-ops-timerest-cell)]:!border-yellow-200",
         };
-        return { 
-            label: 'FILA', 
-            subtitle: displayTime,
-            color: isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400/50' : 'text-blue-600 bg-blue-50 border-blue-200' 
+      if (minutesToETD < 40)
+        return {
+          label: "ATRASANDO",
+          subtitle: displayTime,
+          color: isDarkMode
+            ? "text-yellow-400/80 bg-yellow-950/20 border-yellow-500/30"
+            : "text-yellow-800 bg-yellow-50 border-yellow-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-yellow-950/10 [&>td:not(.grid-ops-timerest-cell)]:!border-yellow-900/20"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-yellow-50/50 [&>td:not(.grid-ops-timerest-cell)]:!border-yellow-100",
         };
+      return {
+        label: "FILA",
+        subtitle: displayTime,
+        color: isDarkMode
+          ? "text-blue-400 bg-blue-500/10 border-blue-400/50"
+          : "text-blue-600 bg-blue-50 border-blue-200",
+      };
     }
 
     if (f.status === FlightStatus.PRÉ) {
-        if (!f.operator) return { 
-            label: 'PRÉ', 
-            color: isDarkMode ? 'text-blue-300 bg-blue-500/20 border-blue-400' : 'text-blue-700 bg-blue-50 border-blue-400' 
+      if (!f.operator)
+        return {
+          label: "PRÉ",
+          color: isDarkMode
+            ? "text-blue-300 bg-blue-500/20 border-blue-400"
+            : "text-blue-700 bg-blue-50 border-blue-400",
         };
-        
-        // Se tem operador, segue a mesma lógica de designado (A caminho, acoplando...)
-        const elapsed = f.designationTime ? (new Date().getTime() - new Date(f.designationTime).getTime()) / 60000 : 0;
-        const isDelayed = minutesToETD < 30; // Atraso ou Penalty
-        const delayedColor = isDarkMode ? 'text-red-500 bg-red-900/40 border-red-500/50' : 'text-red-700 bg-red-100 border-red-400';
-        const delayedRowClass = isDarkMode ? '[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40' : '[&>td]:!bg-red-50 [&>td]:!border-red-200';
-        
-        let targetLabel = 'A CAMINHO';
-        let targetColor = isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-400' : 'text-indigo-600 bg-indigo-50 border-indigo-200';
-        
-        const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
 
-        if (!hasPosition) {
-            if (elapsed > 5) {
-                targetLabel = 'AGUARDANDO';
-                targetColor = isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500' : 'text-amber-600 bg-amber-50 border-amber-200';
-            }
-        } else {
-            if (elapsed > 10) {
-                targetLabel = 'ACOPLADO';
-                targetColor = isDarkMode ? 'text-blue-500 bg-blue-900/40 border-blue-500' : 'text-blue-700 bg-blue-100 border-blue-300';
-            } else if (elapsed > 5) {
-                targetLabel = 'ACOPLANDO';
-                targetColor = isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200';
-            }
+      // Se tem operador, segue a mesma lógica de designado (A caminho, acoplando...)
+      const elapsed = f.designationTime
+        ? (new Date().getTime() - new Date(f.designationTime).getTime()) / 60000
+        : 0;
+      const isDelayed = minutesToETD < 30; // Atraso ou Penalty
+      const delayedColor = isDarkMode
+        ? "text-red-500 bg-red-900/40 border-red-500/50"
+        : "text-red-700 bg-red-100 border-red-400";
+      const delayedRowClass = isDarkMode
+        ? "[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40"
+        : "[&>td]:!bg-red-50 [&>td]:!border-red-200";
+
+      let targetLabel = "A CAMINHO";
+      let targetColor = isDarkMode
+        ? "text-indigo-400 bg-indigo-500/10 border-indigo-400"
+        : "text-indigo-600 bg-indigo-50 border-indigo-200";
+
+      const hasPosition =
+        f.positionId && f.positionId !== "?" && f.positionId.trim() !== "";
+
+      if (!hasPosition) {
+        if (elapsed > 5) {
+          targetLabel = "AGUARDANDO";
+          targetColor = isDarkMode
+            ? "text-amber-500 bg-amber-500/10 border-amber-500"
+            : "text-amber-600 bg-amber-50 border-amber-200";
         }
-        
-        return { 
-            label: targetLabel, 
-            color: isDelayed ? delayedColor : targetColor,
-            rowClass: isDelayed ? delayedRowClass : undefined
-        };
+      } else {
+        if (elapsed > 10) {
+          targetLabel = "ACOPLADO";
+          targetColor = isDarkMode
+            ? "text-blue-500 bg-blue-900/40 border-blue-500"
+            : "text-blue-700 bg-blue-100 border-blue-300";
+        } else if (elapsed > 5) {
+          targetLabel = "ACOPLANDO";
+          targetColor = isDarkMode
+            ? "text-blue-400 bg-blue-500/10 border-blue-400"
+            : "text-blue-600 bg-blue-50 border-blue-200";
+        }
+      }
+
+      return {
+        label: targetLabel,
+        color: isDelayed ? delayedColor : targetColor,
+        rowClass: isDelayed ? delayedRowClass : undefined,
+      };
     }
 
     if (f.status === FlightStatus.DESIGNADO) {
-        const elapsed = f.designationTime ? (new Date().getTime() - new Date(f.designationTime).getTime()) / 60000 : 0;
-        const isDelayed = minutesToETD < 30; // Atraso ou Penalty
-        const delayedColor = isDarkMode ? 'text-red-500 bg-red-900/40 border-red-500/50' : 'text-red-700 bg-red-100 border-red-400';
-        const delayedRowClass = isDarkMode ? '[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40' : '[&>td]:!bg-red-50 [&>td]:!border-red-200';
-        
-        let targetLabel = minutesToETD < 0 ? 'A CAM. (ATRASO)' : 'A CAMINHO';
-        let targetColor = isDarkMode ? 'text-indigo-400 bg-indigo-500/10 border-indigo-400' : 'text-indigo-600 bg-indigo-50 border-indigo-200';
-        
-        const hasPosition = f.positionId && f.positionId !== '?' && f.positionId.trim() !== '';
+      const elapsed = f.designationTime
+        ? (new Date().getTime() - new Date(f.designationTime).getTime()) / 60000
+        : 0;
+      const isDelayed = minutesToETD < 30; // Atraso ou Penalty
+      const delayedColor = isDarkMode
+        ? "text-red-500 bg-red-900/40 border-red-500/50"
+        : "text-red-700 bg-red-100 border-red-400";
+      const delayedRowClass = isDarkMode
+        ? "[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40"
+        : "[&>td]:!bg-red-50 [&>td]:!border-red-200";
 
-        if (!hasPosition) {
-            if (elapsed > 5) {
-                targetLabel = 'AGUARDANDO';
-                targetColor = isDarkMode ? 'text-amber-500 bg-amber-500/10 border-amber-500' : 'text-amber-600 bg-amber-50 border-amber-200';
-            }
-        } else {
-            if (elapsed > 10) {
-                targetLabel = 'ACOPLADO';
-                targetColor = isDarkMode ? 'text-blue-500 bg-blue-900/40 border-blue-500' : 'text-blue-700 bg-blue-100 border-blue-300';
-            } else if (elapsed > 5) {
-                targetLabel = 'ACOPLANDO';
-                targetColor = isDarkMode ? 'text-blue-400 bg-blue-500/10 border-blue-400' : 'text-blue-600 bg-blue-50 border-blue-200';
-            }
+      let targetLabel = minutesToETD < 0 ? "A CAM. (ATRASO)" : "A CAMINHO";
+      let targetColor = isDarkMode
+        ? "text-indigo-400 bg-indigo-500/10 border-indigo-400"
+        : "text-indigo-600 bg-indigo-50 border-indigo-200";
+
+      const hasPosition =
+        f.positionId && f.positionId !== "?" && f.positionId.trim() !== "";
+
+      if (!hasPosition) {
+        if (elapsed > 5) {
+          targetLabel = "AGUARDANDO";
+          targetColor = isDarkMode
+            ? "text-amber-500 bg-amber-500/10 border-amber-500"
+            : "text-amber-600 bg-amber-50 border-amber-200";
         }
-        
-        return { 
-            label: targetLabel, 
-            color: isDelayed ? delayedColor : targetColor,
-            rowClass: isDelayed ? delayedRowClass : undefined
-        };
+      } else {
+        if (elapsed > 10) {
+          targetLabel = "ACOPLADO";
+          targetColor = isDarkMode
+            ? "text-blue-500 bg-blue-900/40 border-blue-500"
+            : "text-blue-700 bg-blue-100 border-blue-300";
+        } else if (elapsed > 5) {
+          targetLabel = "ACOPLANDO";
+          targetColor = isDarkMode
+            ? "text-blue-400 bg-blue-500/10 border-blue-400"
+            : "text-blue-600 bg-blue-50 border-blue-200";
+        }
+      }
+
+      return {
+        label: targetLabel,
+        color: isDelayed ? delayedColor : targetColor,
+        rowClass: isDelayed ? delayedRowClass : undefined,
+      };
     }
 
     if (f.status === FlightStatus.ABASTECENDO) {
-        const isDelayed = minutesToETD <= 0;
-        
-        // Regra especial para voos PRÉ: 25 minutos de abastecimento -> CONFIRMAR
-        const isPreFlight = f.etd === 'PRÉ' || f.logs.some(l => l.message.includes('PRÉ'));
-        const startTime = f.startTime ? new Date(f.startTime).getTime() : 0;
-        const fuelingElapsed = startTime ? (new Date().getTime() - startTime) / 60000 : 0;
-        
-        if (isPreFlight && fuelingElapsed >= 25) {
-            return { 
-                label: 'CONFIRMAR', 
-                color: isDarkMode ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500 animate-bounce' : 'text-emerald-700 bg-emerald-50 border-emerald-500 animate-bounce' 
-            };
-        }
+      const isDelayed = minutesToETD <= 0;
 
-        // Finalizando se: faltam menos de 10 min OU se já passou de 90% do volume
-        const isFinalizando = (minutesToETD < 10 && minutesToETD > 0) || (f.fuelStatus > 90);
-        
-        let label = isDelayed ? 'ABASTECENDO (ATRASO)' : 'ABASTECENDO';
-        let color = isDarkMode ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200';
-        
-        if (isFinalizando) {
-            label = isDelayed ? 'FINALIZANDO (ATRASO)' : 'FINALIZANDO';
-            color = isDarkMode ? 'text-blue-300 bg-blue-500/20 border-blue-300' : 'text-blue-700 bg-blue-50 border-blue-300';
-        }
-        
-        if (isDelayed) {
-            color = isDarkMode ? 'text-white bg-red-600 border-red-500' : 'text-white bg-red-700 border-red-600';
-        }
-        
-        return { label, color };
+      // Regra especial para voos PRÉ: 25 minutos de abastecimento -> CONFIRMAR
+      const isPreFlight =
+        f.etd === "PRÉ" || f.logs.some((l) => l.message.includes("PRÉ"));
+      const startTime = f.startTime ? new Date(f.startTime).getTime() : 0;
+      const fuelingElapsed = startTime
+        ? (new Date().getTime() - startTime) / 60000
+        : 0;
+
+      if (isPreFlight && fuelingElapsed >= 25) {
+        return {
+          label: "CONFIRMAR",
+          color: isDarkMode
+            ? "text-emerald-400 bg-emerald-500/20 border-emerald-500 animate-bounce"
+            : "text-emerald-700 bg-emerald-50 border-emerald-500 animate-bounce",
+        };
+      }
+
+      // Finalizando se: faltam menos de 10 min OU se já passou de 90% do volume
+      const isFinalizando =
+        (minutesToETD < 10 && minutesToETD > 0) || f.fuelStatus > 90;
+
+      let label = isDelayed ? "ABASTECENDO (ATRASO)" : "ABASTECENDO";
+      let color = isDarkMode
+        ? "text-emerald-400 bg-emerald-500/20 border-emerald-500/30"
+        : "text-emerald-600 bg-emerald-50 border-emerald-200";
+
+      if (isFinalizando) {
+        label = isDelayed ? "FINALIZANDO (ATRASO)" : "FINALIZANDO";
+        color = isDarkMode
+          ? "text-blue-300 bg-blue-500/20 border-blue-300"
+          : "text-blue-700 bg-blue-50 border-blue-300";
+      }
+
+      if (isDelayed) {
+        color = isDarkMode
+          ? "text-white bg-red-600 border-red-500"
+          : "text-white bg-red-700 border-red-600";
+      }
+
+      return { label, color };
     }
 
     return null;
   };
 
-  const SortableHeader = ({ label, columnKey, className = "" }: { label: string, columnKey: keyof FlightData, className?: string }) => {
+  const getDesignarButtonClass = (row: FlightData) => {
+    const statusInfo = getDynamicStatus(row);
+    const label = statusInfo?.label;
+
+    if (label === "PENALTY") {
+      return "bg-gradient-to-r from-red-600 to-red-600 hover:from-red-700 hover:to-red-700 text-white shadow-[0_0_12px_rgba(239,68,68,0.5)] border border-red-500 font-black animate-[pulse_1.2s_infinite]";
+    }
+
+    if (
+      label === "ATRASADO" ||
+      label === "ATRASANDO" ||
+      label === "RETIDO (+1H)"
+    ) {
+      const minutesToETD = getMinutesDiff(row.etd, row.date);
+      if (minutesToETD < 0 || label === "ATRASADO") {
+        return "bg-[#4b4b4b] hover:bg-neutral-800 text-white shadow-neutral-900/30 border border-neutral-600 font-extrabold";
+      } else if (minutesToETD < 30) {
+        return "bg-yellow-500 hover:bg-yellow-600 text-neutral-950 shadow-yellow-600/20 border border-yellow-400 font-black";
+      } else if (minutesToETD < 40) {
+        return "bg-yellow-500 hover:bg-yellow-600 text-neutral-950 shadow-yellow-600/20 border border-yellow-400 font-black";
+      } else if (label === "RETIDO (+1H)") {
+        return "bg-slate-500 hover:bg-slate-600 text-white shadow-slate-600/20 border border-slate-400";
+      }
+    }
+
+    return "bg-[#8b9ae6] hover:bg-indigo-500 text-white shadow-indigo-600/20";
+  };
+
+  const renderDesignarButtonContent = (row: FlightData) => {
+    return (
+      <>
+        <UserPlus size={11} className="shrink-0" />
+        <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
+          Designar
+        </span>
+      </>
+    );
+  };
+
+  const SortableHeader = ({
+    label,
+    columnKey,
+    className = "",
+  }: {
+    label: string;
+    columnKey: keyof FlightData;
+    className?: string;
+  }) => {
     const isActive = sortConfig.key === columnKey;
     return (
-      <th 
-        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-[40] grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} ${className}`}
+      <th
+        className={`px-1 py-1.5 sticky top-0 cursor-pointer select-none transition-all group z-[40] grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} ${className}`}
         onClick={() => handleSort(columnKey)}
       >
-        <div className={`flex items-center gap-1 ${className.includes('text-center') ? 'justify-center' : 'justify-start'}`}>
-          <span className={`font-black text-[9px] uppercase tracking-wider transition-colors ${isActive ? (isDarkMode ? 'text-emerald-400' : 'text-slate-100') : (isDarkMode ? 'text-white' : 'text-white')}`}>
+        <div
+          className={`flex items-center gap-1 ${className.includes("text-center") ? "justify-center" : "justify-start"}`}
+        >
+          <span
+            className={`font-black text-[9px] uppercase tracking-wider transition-colors ${isActive ? (isDarkMode ? "text-emerald-400" : "text-slate-100") : isDarkMode ? "text-white" : "text-white"}`}
+          >
             {label}
           </span>
           <div className="flex items-center justify-center transition-all">
             {isActive ? (
-                sortConfig.direction === 'asc' ? <ArrowUp size={10} className={isDarkMode ? "text-emerald-500" : "text-slate-100"} /> : <ArrowDown size={10} className={isDarkMode ? "text-emerald-500" : "text-slate-100"} />
-            ) : <ArrowUpDown size={8} className={isDarkMode ? "text-white/20 group-hover:text-white/60" : "text-slate-200 group-hover:text-white"} />}
+              sortConfig.direction === "asc" ? (
+                <ArrowUp
+                  size={10}
+                  className={isDarkMode ? "text-emerald-500" : "text-slate-100"}
+                />
+              ) : (
+                <ArrowDown
+                  size={10}
+                  className={isDarkMode ? "text-emerald-500" : "text-slate-100"}
+                />
+              )
+            ) : (
+              <ArrowUpDown
+                size={8}
+                className={
+                  isDarkMode
+                    ? "text-white/20 group-hover:text-white/60"
+                    : "text-slate-200 group-hover:text-white"
+                }
+              />
+            )}
           </div>
         </div>
       </th>
     );
   };
 
+  const TimeRestCell = ({
+    row,
+    isDarkMode,
+  }: {
+    row: FlightData;
+    isDarkMode: boolean;
+  }) => {
+    const [, setTick] = useState(0);
+    useEffect(() => {
+      const interval = setInterval(() => setTick((t) => t + 1), 60000);
+      return () => clearInterval(interval);
+    }, []);
+
+    const etd = row.etd;
+    const dateStr = row.date;
+
+    if (!etd || etd === "?" || etd === "PRÉ") {
+      return (
+        <td className="grid-ops-timerest-cell px-2 border-y border-slate-200 dark:border-slate-700/50 text-center align-middle">
+          <span
+            className={`text-[11px] font-mono font-bold opacity-30 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+          >
+            -
+          </span>
+        </td>
+      );
+    }
+
+    const mins = getMinutesDiff(etd, dateStr);
+    const dynamicStatus = getDynamicStatus(row);
+    const label = dynamicStatus?.label;
+
+    let text = "";
+    if (mins >= 0) {
+      text = mins > 60 ? ">1h" : `${mins}m`;
+    } else {
+      text = mins <= -60 ? "+1h" : `+${Math.abs(mins)}m`;
+    }
+
+    let bgStyle = "";
+    let textStyle = "";
+
+    if (label === "PENALTY") {
+      bgStyle = "bg-[#E7000B] !bg-[#E7000B]";
+      textStyle = "text-white !text-white font-extrabold tracking-wider";
+    } else if (label === "ATRASADO") {
+      bgStyle = "bg-[#000000] !bg-[#000000]";
+      textStyle = "text-white !text-white font-extrabold tracking-wider";
+    } else if (label === "ATRASANDO") {
+      bgStyle = "bg-[#EAB308] !bg-[#EAB308]";
+      textStyle = "text-black !text-black font-extrabold tracking-wider";
+    } else {
+      // Outros estados: herda o fundo da linha e usa cor do texto preta (no light mode) ou off-white (no dark mode).
+      textStyle = isDarkMode ? "text-slate-100 font-bold" : "text-[#000000] font-bold";
+    }
+
+    return (
+      <td
+        className={`grid-ops-timerest-cell px-2 border-y border-slate-200 dark:border-slate-700/50 text-center align-middle transition-colors ${bgStyle}`}
+      >
+        <span className={`text-[11px] font-mono ${textStyle}`}>
+          {text}
+        </span>
+      </td>
+    );
+  };
+
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [optionsPortalTarget, setOptionsPortalTarget] = useState<HTMLElement | null>(null);
+  const [optionsPortalTarget, setOptionsPortalTarget] =
+    useState<HTMLElement | null>(null);
   useEffect(() => {
-    setPortalTarget(document.getElementById('subheader-portal-target'));
-    setOptionsPortalTarget(document.getElementById('header-options-portal-target'));
+    setPortalTarget(document.getElementById("subheader-portal-target"));
+    setOptionsPortalTarget(
+      document.getElementById("header-options-portal-target"),
+    );
   }, []);
 
   useEffect(() => {
-      if (pendingAction === 'CREATE') {
-          setIsCreateModalOpen(true);
-          if (setPendingAction) setPendingAction(null);
-      } else if (pendingAction === 'IMPORT') {
-          setIsImportModalOpen(true);
-          if (setPendingAction) setPendingAction(null);
-      }
+    if (pendingAction === "CREATE") {
+      setIsCreateModalOpen(true);
+      if (setPendingAction) setPendingAction(null);
+    } else if (pendingAction === "IMPORT") {
+      setIsImportModalOpen(true);
+      if (setPendingAction) setPendingAction(null);
+    }
   }, [pendingAction, setPendingAction]);
 
   // Animação de sincronização removida a pedido do usuário
 
   const optionsDropdownContent = (
     <div className="relative" ref={optionsMenuRef}>
-        <button 
-            onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setOptionsMenuRect(rect);
-                setShowOptionsDropdown(!showOptionsDropdown);
-            }}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md border border-[#FEDC00] transition-all font-bold uppercase tracking-wider text-[11px] bg-[#FEDC00] text-[#4e4141] hover:bg-[#e5c600] shadow-sm`}
-        >
-            <span>Opções</span>
-            <Settings size={14} />
-        </button>
+      <button
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          setOptionsMenuRect(rect);
+          setShowOptionsDropdown(!showOptionsDropdown);
+        }}
+        className={`flex items-center gap-2 px-6 py-2 rounded-md border border-[#FEDC00] transition-all font-bold uppercase tracking-wider text-[11px] bg-[#FEDC00] text-[#4e4141] hover:bg-[#e5c600] shadow-sm`}
+      >
+        <span>Opções</span>
+        <Settings size={14} />
+      </button>
 
-        {showOptionsDropdown && optionsMenuRect && createPortal(
-            <div 
-                ref={optionsMenuRef}
-                style={{ top: optionsMenuRect.bottom + 8, left: optionsMenuRect.right - 224 }}
-                className={`fixed w-56 ${isDarkMode ? "bg-slate-900 border-emerald-500/30 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-emerald-500/30 shadow-xl"} border rounded-xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2`}
-            >
-                <div className="p-1.5 space-y-0.5">
-                    <div className="px-3 py-2 border-b border-white/5 mb-1">
-                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Ações da Malha</span>
-                    </div>
-                    <button 
-                        onClick={() => {
-                            if (onUpdateFlights && meshFlights) {
-                                onUpdateFlights(prev => {
-                                    // Manter voos existentes que já foram processados
-                                    const existingIds = new Set(prev.map(f => f.id));
-                                    const newFlights = meshFlights
-                                        .filter(m => !m.disabled) // Pular voos desativados
-                                        .map(m => {
-                                        if (existingIds.has(m.id)) return prev.find(f => f.id === m.id)!;
-                                        return {
-                                            id: m.id,
-                                            flightNumber: '--',
-                                            departureFlightNumber: m.departureFlightNumber,
-                                            airline: m.airline,
-                                            airlineCode: m.airlineCode,
-                                            model: m.model || '',
-                                            registration: m.registration || '',
-                                            origin: '',
-                                            destination: m.destination,
-                                            eta: m.eta || '--:--',
-                                            etd: m.etd,
-                                            actualArrivalTime: m.actualArrivalTime,
-                                            positionId: m.positionId || '',
-                                            status: FlightStatus.CHEGADA,
-                                            logs: []
-                                        };
-                                    });
-                                    return newFlights as any[]; // Type cast handled by external context
-                                });
-                                addToast('SINCRONIZAÇÃO', 'Voos da Malha Base sincronizados!', 'success');
-                            }
-                            setShowOptionsDropdown(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400' : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'}`}
-                    >
-                        <RefreshCw size={14} />
-                        Sincronizar Dados
-                    </button>
-                    <button 
-                        onClick={() => {
-                            const dateStr = getDisplayDate(activeDateOffset);
-                            const headers = ['COMP', 'V.SAIDA', 'ICAO', 'CID', 'PREFIXO', 'POS', 'ETD', 'CALCO', 'ETA', 'OPERADOR', 'FROTA', 'FRT.TIPO', 'STATUS', 'VOLUME'];
-                            const rows = visibleFlights.map(f => [
-                                f.airline || '', f.departureFlightNumber || '', f.destination || '', getCityName(f.destination || '', destinosDB),
-                                f.registration || '', f.positionId || '', f.etd || '', f.actualArrivalTime || '?', f.eta || '?',
-                                f.operator || '', f.fleet || '', f.fleetType || '', f.status || '', f.volume || ''
-                            ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','));
-                            const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + '\n' + rows.join('\n');
-                            const encodedUri = encodeURI(csvContent);
-                            const link = document.createElement("a");
-                            link.setAttribute("href", encodedUri);
-                            link.setAttribute("download", `malha_${dateStr.replace(/\s+/g, '_')}.csv`);
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            setShowOptionsDropdown(false);
-                            addToast('EXPORTAÇÃO', 'Exportação para CSV iniciada com sucesso.', 'success');
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-600 hover:bg-emerald-200'}`}
-                    >
-                        <FileBarChart size={14} />
-                        Exportar Malha (CSV)
-                    </button>
-                    <button 
-                        onClick={() => {
-                            handleClearFinished();
-                            setShowOptionsDropdown(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-red-500/10 hover:text-red-400' : 'text-slate-600 hover:bg-red-50 hover:text-red-400'}`}
-                    >
-                        <Archive size={14} />
-                        Arquivar Finalizados
-                    </button>
-                    <button 
-                        onClick={() => {
-                            setShowClearAllConfirm(true);
-                            setShowOptionsDropdown(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300' : 'text-red-600 hover:bg-red-50 hover:text-red-700'}`}
-                    >
-                        <Trash2 size={14} />
-                        Limpar Malha Oper.
-                    </button>
-                </div>
-            </div>,
-            document.body
+      {showOptionsDropdown &&
+        optionsMenuRect &&
+        createPortal(
+          <div
+            ref={optionsMenuRef}
+            style={{
+              top: optionsMenuRect.bottom + 8,
+              left: optionsMenuRect.right - 224,
+            }}
+            className={`fixed w-56 ${isDarkMode ? "bg-slate-900 border-emerald-500/30 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]" : "bg-white border-emerald-500/30 shadow-xl"} border rounded-xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2`}
+          >
+            <div className="p-1.5 space-y-0.5">
+              <div className="px-3 py-2 border-b border-white/5 mb-1">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  Ações da Malha
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  if (onUpdateFlights && meshFlights) {
+                    onUpdateFlights((prev) => {
+                      // Manter voos existentes que já foram processados
+                      const existingIds = new Set(prev.map((f) => f.id));
+                      const newFlights = meshFlights
+                        .filter((m) => !m.disabled) // Pular voos desativados
+                        .map((m) => {
+                          if (existingIds.has(m.id))
+                            return prev.find((f) => f.id === m.id)!;
+                          return {
+                            id: m.id,
+                            flightNumber: "--",
+                            departureFlightNumber: m.departureFlightNumber,
+                            airline: m.airline,
+                            airlineCode: m.airlineCode,
+                            model: m.model || "",
+                            registration: m.registration || "",
+                            origin: "",
+                            destination: m.destination,
+                            eta: m.eta || "--:--",
+                            etd: m.etd,
+                            actualArrivalTime: m.actualArrivalTime,
+                            positionId: m.positionId || "",
+                            status: FlightStatus.CHEGADA,
+                            logs: [],
+                          };
+                        });
+                      return newFlights as any[]; // Type cast handled by external context
+                    });
+                    addToast(
+                      "SINCRONIZAÇÃO",
+                      "Voos da Malha Base sincronizados!",
+                      "success",
+                    );
+                  }
+                  setShowOptionsDropdown(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"}`}
+              >
+                <RefreshCw size={14} />
+                Sincronizar Dados
+              </button>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(true);
+                  setShowOptionsDropdown(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"}`}
+              >
+                <Upload size={14} />
+                Importar Malha
+              </button>
+              <button
+                onClick={() => {
+                  const dateStr = getDisplayDate(activeDateOffset);
+                  const headers = [
+                    "COMP",
+                    "V.SAIDA",
+                    "ICAO",
+                    "CID",
+                    "PREFIXO",
+                    "POS",
+                    "ETD",
+                    "CALCO",
+                    "ETA",
+                    "OPERADOR",
+                    "FROTA",
+                    "FRT.TIPO",
+                    "STATUS",
+                    "VOLUME",
+                  ];
+                  const rows = visibleFlights.map((f) =>
+                    [
+                      f.airline || "",
+                      f.departureFlightNumber || "",
+                      f.destination || "",
+                      getCityName(f.destination || "", destinosDB),
+                      f.registration || "",
+                      f.positionId || "",
+                      f.etd || "",
+                      f.actualArrivalTime || "?",
+                      f.eta || "?",
+                      f.operator || "",
+                      f.fleet || "",
+                      f.fleetType || "",
+                      f.status || "",
+                      f.volume || "",
+                    ]
+                      .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+                      .join(","),
+                  );
+                  const csvContent =
+                    "data:text/csv;charset=utf-8," +
+                    headers.join(",") +
+                    "\n" +
+                    rows.join("\n");
+                  const encodedUri = encodeURI(csvContent);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", encodedUri);
+                  link.setAttribute(
+                    "download",
+                    `malha_${dateStr.replace(/\s+/g, "_")}.csv`,
+                  );
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setShowOptionsDropdown(false);
+                  addToast(
+                    "EXPORTAÇÃO",
+                    "Exportação para CSV iniciada com sucesso.",
+                    "success",
+                  );
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-emerald-200"}`}
+              >
+                <FileBarChart size={14} />
+                Exportar Malha (CSV)
+              </button>
+              <button
+                onClick={() => {
+                  handleClearFinished();
+                  setShowOptionsDropdown(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-red-500/10 hover:text-red-400" : "text-slate-600 hover:bg-red-50 hover:text-red-400"}`}
+              >
+                <Archive size={14} />
+                Arquivar Finalizados
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearAllConfirm(true);
+                  setShowOptionsDropdown(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-red-400 hover:bg-red-500/10 hover:text-red-300" : "text-red-600 hover:bg-red-50 hover:text-red-700"}`}
+              >
+                <Trash2 size={14} />
+                Limpar Malha Oper.
+              </button>
+            </div>
+          </div>,
+          document.body,
         )}
     </div>
   );
 
   const subheaderContent = (
-      <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} z-20 w-full`}>
-        <div className="flex items-center gap-6 h-full">
-            <div className="flex items-center gap-3">
-                <div>
-                  <h2 className="text-sm font-black text-white tracking-tighter uppercase leading-none">MALHA OPER.</h2>
-                </div>
-            </div>
-
-            <div className="flex items-center ml-2 bg-black/20 p-0.5 rounded border border-white/10 h-8">
-                <button 
-                  onClick={() => setActiveDateOffset(prev => prev - 1)}
-                  className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
-                >
-                    <ChevronLeft size={14} strokeWidth={2.5} />
-                </button>
-                <div className="px-2 flex items-center gap-1.5 relative overflow-visible group hover:bg-white/5 rounded cursor-pointer transition-colors h-full">
-                    <div 
-                      className="flex items-center gap-1.5 w-full h-full"
-                      onClick={() => setShowCalendar(!showCalendar)}
-                    >
-                      <CalendarDays size={13} className="text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap text-center group-hover:text-emerald-50 transition-colors">
-                          {getDisplayDate(activeDateOffset)}
-                      </span>
-                    </div>
-                    {showCalendar && (
-                      <InlineCalendar 
-                        currentOffset={activeDateOffset}
-                        onSelectOffset={(offset) => {
-                          setActiveDateOffset(offset);
-                          setShowCalendar(false);
-                        }}
-                        onClose={() => setShowCalendar(false)}
-                        isDarkMode={isDarkMode}
-                      />
-                    )}
-                </div>
-                <button 
-                  onClick={() => setActiveDateOffset(prev => prev + 1)}
-                  className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
-                >
-                    <ChevronRight size={14} strokeWidth={2.5} />
-                </button>
-            </div>
-
-            <div className="flex items-center gap-2 ml-4 bg-black/20 p-1 rounded border border-white/10 w-[270px] h-10">
-                {(['TODOS', 'MANHA', 'TARDE', 'NOITE'] as MeshShift[]).map(shift => (
-                    <button
-                        key={shift}
-                        onClick={() => setActiveShift(shift)}
-                        className={`px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-all h-full ${activeShift === shift ? 'bg-emerald-500 text-white flex-1' : 'text-emerald-100/50 hover:text-white flex-1'}`}
-                    >
-                        {shift}
-                    </button>
-                ))}
-            </div>
+    <div
+      className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-[#3CA317] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} z-20 w-full`}
+    >
+      <div className="flex items-center gap-6 h-full">
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-sm font-black text-white tracking-tighter uppercase leading-none">
+              MALHA OPER.
+            </h2>
           </div>
+        </div>
 
-          <div className="flex items-center gap-4 mr-6">
-              <div className="relative w-[280px] h-9">
-                <div className={`absolute inset-0 ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-white/20 text-slate-900'} shadow-sm border rounded flex items-center transition-all`}>
-                    <Search size={14} className={`shrink-0 ml-3 ${isDarkMode ? 'text-slate-400' : 'text-slate-400'}`} />
-                    <input 
-                        type="text" 
-                        placeholder="Pesquise..." 
-                        className={`bg-transparent border-none outline-none text-[10px] ${isDarkMode ? 'text-slate-200 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'} font-mono uppercase w-full px-3 transition-all h-full rounded`}
-                        value={globalSearchTerm}
-                        onChange={(e) => onUpdateSearch && onUpdateSearch(e.target.value)}
-                    />
-                    {globalSearchTerm && (
-                        <button 
-                            onClick={() => onUpdateSearch && onUpdateSearch('')}
-                            className={`p-1.5 mr-1 rounded-full transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-400 hover:text-slate-200' : 'hover:bg-emerald-200 text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <X size={12} />
-                        </button>
-                    )}
-                </div>
+        <div className="flex items-center ml-2 bg-black/20 p-0.5 rounded border border-white/10 h-8">
+          <button
+            onClick={() => setActiveDateOffset((prev) => prev - 1)}
+            className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
+          >
+            <ChevronLeft size={14} strokeWidth={2.5} />
+          </button>
+          <div className="px-2 flex items-center gap-1.5 relative overflow-visible group hover:bg-white/5 rounded cursor-pointer transition-colors h-full">
+            <div
+              className="flex items-center gap-1.5 w-full h-full"
+              onClick={() => setShowCalendar(!showCalendar)}
+            >
+              <CalendarDays
+                size={13}
+                className="text-emerald-400 group-hover:text-emerald-300 transition-colors"
+              />
+              <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap text-center group-hover:text-emerald-50 transition-colors">
+                {getDisplayDate(activeDateOffset)}
+              </span>
             </div>
-            {optionsDropdownContent}
+            {showCalendar && (
+              <InlineCalendar
+                currentOffset={activeDateOffset}
+                onSelectOffset={(offset) => {
+                  setActiveDateOffset(offset);
+                  setShowCalendar(false);
+                }}
+                onClose={() => setShowCalendar(false)}
+                isDarkMode={isDarkMode}
+              />
+            )}
+          </div>
+          <button
+            onClick={() => setActiveDateOffset((prev) => prev + 1)}
+            className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
+          >
+            <ChevronRight size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+
+         <div className="flex items-center gap-2 ml-[4px] pb-[4px] mr-0 mt-0 bg-black/20 p-1 rounded border border-white/10 w-[280px] h-10">
+          {(["TODOS", "MANHA", "TARDE", "NOITE"] as MeshShift[]).map(
+            (shift) => (
+              <button
+                key={shift}
+                onClick={() => setActiveShift(shift)}
+                className={`px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-all h-full ${shift === "NOITE" ? "ml-0 mr-0 mt-0 mb-0 w-[65px] flex-none" : "flex-1"} ${activeShift === shift ? "bg-emerald-500 text-white" : "text-emerald-100/50 hover:text-white"}`}
+              >
+                {shift}
+              </button>
+            ),
+          )}
         </div>
       </div>
+
+      <div className="flex items-center gap-4 mr-6">
+        <div className="relative w-[280px] h-9">
+          <div
+            className={`absolute inset-0 ${isDarkMode ? "bg-slate-900 border-slate-700 text-slate-200" : "bg-white border-white/20 text-slate-900"} shadow-sm border rounded flex items-center transition-all`}
+          >
+            <Search
+              size={14}
+              className={`shrink-0 ml-3 ${isDarkMode ? "text-slate-400" : "text-slate-400"}`}
+            />
+            <input
+              type="text"
+              placeholder="Pesquise..."
+              className={`bg-transparent border-none outline-none text-[10px] ${isDarkMode ? "text-slate-200 placeholder:text-slate-500" : "text-slate-900 placeholder:text-slate-400"} font-mono uppercase w-full px-3 transition-all h-full rounded`}
+              value={globalSearchTerm}
+              onChange={(e) => onUpdateSearch && onUpdateSearch(e.target.value)}
+            />
+            {globalSearchTerm && (
+              <button
+                onClick={() => onUpdateSearch && onUpdateSearch("")}
+                className={`p-1.5 mr-1 rounded-full transition-colors ${isDarkMode ? "hover:bg-slate-800 text-slate-400 hover:text-slate-200" : "hover:bg-emerald-200 text-slate-400 hover:text-slate-600"}`}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+        {optionsDropdownContent}
+      </div>
+    </div>
   );
 
   return (
-    <div className={`w-full h-full flex flex-col ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'} overflow-hidden selection:bg-emerald-500/30 font-sans relative`}>
-      
+    <div
+      className={`w-full h-full flex flex-col ${isDarkMode ? "bg-slate-950" : "bg-slate-50"} overflow-hidden selection:bg-emerald-500/30 font-sans relative`}
+    >
       {/* HEADER E TABS */}
-      {portalTarget ? createPortal(subheaderContent, portalTarget) : subheaderContent}
-      <div className={`h-12 shrink-0 flex border-b ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'} z-30 overflow-hidden`}>
+      {portalTarget
+        ? createPortal(subheaderContent, portalTarget)
+        : subheaderContent}
+      <div
+        className={`h-12 shrink-0 flex border-b ${isDarkMode ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"} z-30 overflow-hidden`}
+      >
         <nav className="flex w-full">
-                {tabs.map((tab) => {
-                    const isActive = activeTab === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            data-active={isActive ? "true" : "false"}
-                            className={`
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                data-active={isActive ? "true" : "false"}
+                className={`
                                 table-tab-btn
-                                flex-1 h-full px-2 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? 'border-slate-950/20' : 'border-slate-200'} last:border-r-0
-                                ${isActive 
-                                    ? (isDarkMode ? 'bg-slate-950 text-emerald-400 border-b-2 border-emerald-500' : 'bg-[#329858] text-white border-b-0')
-                                    : (isDarkMode ? 'text-slate-500 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-emerald-200 hover:text-slate-900')}
+                                flex-1 h-full px-2 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? "border-slate-950/20" : "border-slate-200"} last:border-r-0
+                                ${
+                                  isActive
+                                    ? isDarkMode
+                                      ? "bg-slate-950 text-emerald-400 border-b-2 border-emerald-500"
+                                      : "bg-[#329858] text-white border-b-0"
+                                    : isDarkMode
+                                      ? "text-slate-500 hover:bg-slate-800 hover:text-white"
+                                      : "text-slate-600 hover:bg-emerald-200 hover:text-slate-900"
+                                }
                             `}
-                        >
-                            {tab.label}
-                            {tab.count !== undefined && (
-                                <span className={`flex items-center justify-center px-1.5 min-w-[18px] h-4 text-[9px] font-black rounded-sm ${isActive ? (isDarkMode ? 'bg-emerald-500 text-slate-950' : 'bg-white text-[#2D8E48]') : (isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')}`}>
-                                    {tab.count}
-                                </span>
-                            )}
-                        </button>
-                    );
-                })}
-            </nav>
-          </div>
+              >
+                {tab.label}
+                {tab.count !== undefined && (
+                  <span
+                    className={`flex items-center justify-center px-1.5 min-w-[18px] h-4 text-[9px] font-black rounded-sm ${isActive ? (isDarkMode ? "bg-emerald-500 text-slate-950" : "bg-white text-[#2D8E48]") : isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"}`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* GRID CONTAINER */}
-      <div className={`flex-1 min-w-0 overflow-hidden relative ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
-            <div className="w-full h-full overflow-auto min-w-0 custom-scrollbar relative">
-              <table ref={tableRef} className="w-full text-left border-separate border-spacing-0 grid-ops-table">
-                  <thead className={`grid-ops-thead sticky top-0 z-40 shadow-sm ${isDarkMode ? 'bg-slate-950' : 'bg-[#2D8E48]'}`}>
-                      <tr id="grid-header-container" className="h-10">
-                    {/* LAYOUT CONDICIONAL DE COLUNAS */}
-                    {activeTab === 'FILA' ? (
-                        <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
-                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
-                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
-                            <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
-                            <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
-                            <SortableHeader label="ETA" columnKey="eta" className="text-center w-16" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
-                            <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
-                        </>
-                    ) : isStreamlinedView ? (
-                        <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
-                            <SortableHeader label="MODELO" columnKey="model" className="text-center w-16" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
-                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
-                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
-                            <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
-                            <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
-                            <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
-                                <div className="flex items-center justify-center gap-1.5">
-                                    <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
-                                        REPORT
-                                    </span>
-                                </div>
-                            </th>
-                            {activeTab === 'DESIGNADOS' && (
-                                <>
-                                    <SortableHeader label="HR.D" columnKey="assignmentTime" className="text-center w-16" />
-                                    <SortableHeader label="LT" columnKey="assignedByLt" className="text-left pl-2 w-28" />
-                                </>
-                            )}
-
-                        </>
-                    ) : isFinishedView ? (
-                        <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
-                            <SortableHeader label="MODELO" columnKey="model" className="text-center w-16" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
-                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
-                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
-                            <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
-                            <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
-                            <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
-                                <div className="flex items-center justify-center gap-1.5">
-                                    <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
-                                        REPORT
-                                    </span>
-                                </div>
-                            </th>
-                            <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} w-16`}>
-                                <div className="flex items-center justify-center gap-1.5">
-                                    <span className={`font-black text-[9px] uppercase tracking-wider text-white`}>
-                                        TAB
-                                    </span>
-                                </div>
-                            </th>
-
-                        </>
-                    ) : (
-                        <>
-                            <SortableHeader label="COMP." columnKey="airlineCode" className="text-center w-16" />
-                            <SortableHeader label="PREFIXO" columnKey="registration" className="text-center w-20" />
-                            <SortableHeader label="MODELO" columnKey="model" className="text-center w-16" />
-                            <SortableHeader label="V.CHEG" columnKey="flightNumber" className="text-center w-20" />
-                            <SortableHeader label="ETA" columnKey="eta" className="text-center w-16" />
-                            <SortableHeader label="V.SAÍDA" columnKey="departureFlightNumber" className="text-center w-20" />
-                            <SortableHeader label="ICAO" columnKey="destination" className="text-center w-16" />
-                            <SortableHeader label="CID" columnKey="destination" className="text-center w-20" />
-                            <SortableHeader label="POS" columnKey="positionId" className="text-center w-16" />
-                            <SortableHeader label="CALÇO" columnKey="actualArrivalTime" className="text-center w-16" />
-                            <SortableHeader label="ETD" columnKey="etd" className="text-center w-16" />
-                            <SortableHeader label="OPERADOR" columnKey="operator" className="text-left pl-2 w-32" />
-                            <SortableHeader label="FROTA" columnKey="fleet" className="text-center w-16" />
-                            <SortableHeader label="FRT.TIPO" columnKey="fleet" className="text-center w-20" />
-
-                        </>
+      <div
+        className={`flex-1 min-w-0 overflow-hidden relative ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
+      >
+        <div className="w-full h-full overflow-auto min-w-0 custom-scrollbar relative">
+          <table
+            ref={tableRef}
+            className="w-full text-left border-separate border-spacing-0 grid-ops-table"
+          >
+            <thead
+              className={`grid-ops-thead sticky top-0 z-40 shadow-sm ${isDarkMode ? "bg-slate-950" : "bg-[#2D8E48]"}`}
+            >
+              <tr id="grid-header-container" className="h-10">
+                {/* LAYOUT CONDICIONAL DE COLUNAS */}
+                {activeTab === "FILA" ? (
+                  <>
+                    <SortableHeader
+                      label="COMP."
+                      columnKey="airlineCode"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="V.SAÍDA"
+                      columnKey="departureFlightNumber"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="ICAO"
+                      columnKey="destination"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CID"
+                      columnKey="destination"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="PREFIXO"
+                      columnKey="registration"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="POS"
+                      columnKey="positionId"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="ETD"
+                      columnKey="etd"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CALÇO"
+                      columnKey="actualArrivalTime"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="ETA"
+                      columnKey="eta"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="T. REST"
+                      columnKey="etd"
+                      className="text-center w-14"
+                    />
+                    <SortableHeader
+                      label="OPERADOR"
+                      columnKey="operator"
+                      className="text-left pl-2 w-32"
+                    />
+                    <SortableHeader
+                      label="FROTA"
+                      columnKey="fleet"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="F.TIPO"
+                      columnKey="fleet"
+                      className="text-center w-14"
+                    />
+                  </>
+                ) : isStreamlinedView ? (
+                  <>
+                    <SortableHeader
+                      label="COMP."
+                      columnKey="airlineCode"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="PREFIXO"
+                      columnKey="registration"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="MODELO"
+                      columnKey="model"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="V.SAÍDA"
+                      columnKey="departureFlightNumber"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="ICAO"
+                      columnKey="destination"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CID"
+                      columnKey="destination"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="POS"
+                      columnKey="positionId"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CALÇO"
+                      columnKey="actualArrivalTime"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="ETD"
+                      columnKey="etd"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="T. REST"
+                      columnKey="etd"
+                      className="text-center w-14"
+                    />
+                    <SortableHeader
+                      label="OPERADOR"
+                      columnKey="operator"
+                      className="text-left pl-2 w-32"
+                    />
+                    <SortableHeader
+                      label="FROTA"
+                      columnKey="fleet"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="F.TIPO"
+                      columnKey="fleet"
+                      className="text-center w-14"
+                    />
+                    <th
+                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          className={`font-black text-[9px] uppercase tracking-wider text-white`}
+                        >
+                          REPORT
+                        </span>
+                      </div>
+                    </th>
+                    {activeTab === "DESIGNADOS" && (
+                      <>
+                        <SortableHeader
+                          label="HR.D"
+                          columnKey="assignmentTime"
+                          className="text-center w-16"
+                        />
+                        <SortableHeader
+                          label="LT"
+                          columnKey="assignedByLt"
+                          className="text-left pl-2 w-28"
+                        />
+                      </>
                     )}
-                      
-                      {activeTab === 'DESIGNADOS' ? (
-                        <SortableHeader label="STATUS" columnKey="status" className="text-center w-36" />
-                      ) : (
-                        <SortableHeader label="STATUS" columnKey="status" className="text-center w-24" />
-                      )}
+                  </>
+                ) : isFinishedView ? (
+                  <>
+                    <SortableHeader
+                      label="COMP."
+                      columnKey="airlineCode"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="PREFIXO"
+                      columnKey="registration"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="MODELO"
+                      columnKey="model"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="V.SAÍDA"
+                      columnKey="departureFlightNumber"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="ICAO"
+                      columnKey="destination"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CID"
+                      columnKey="destination"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="POS"
+                      columnKey="positionId"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CALÇO"
+                      columnKey="actualArrivalTime"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="ETD"
+                      columnKey="etd"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="T. REST"
+                      columnKey="etd"
+                      className="text-center w-14"
+                    />
+                    <SortableHeader
+                      label="OPERADOR"
+                      columnKey="operator"
+                      className="text-left pl-2 w-32"
+                    />
+                    <SortableHeader
+                      label="FROTA"
+                      columnKey="fleet"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="F.TIPO"
+                      columnKey="fleet"
+                      className="text-center w-14"
+                    />
+                    <th
+                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          className={`font-black text-[9px] uppercase tracking-wider text-white`}
+                        >
+                          REPORT
+                        </span>
+                      </div>
+                    </th>
+                    <th
+                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          className={`font-black text-[9px] uppercase tracking-wider text-white`}
+                        >
+                          TAB
+                        </span>
+                      </div>
+                    </th>
+                  </>
+                ) : (
+                  <>
+                    <SortableHeader
+                      label="COMP."
+                      columnKey="airlineCode"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="PREFIXO"
+                      columnKey="registration"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="MODELO"
+                      columnKey="model"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="V.CHEG"
+                      columnKey="flightNumber"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="ETA"
+                      columnKey="eta"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="V.SAÍDA"
+                      columnKey="departureFlightNumber"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="ICAO"
+                      columnKey="destination"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CID"
+                      columnKey="destination"
+                      className="text-center w-20"
+                    />
+                    <SortableHeader
+                      label="POS"
+                      columnKey="positionId"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="CALÇO"
+                      columnKey="actualArrivalTime"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="ETD"
+                      columnKey="etd"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="T. REST"
+                      columnKey="etd"
+                      className="text-center w-14"
+                    />
+                    <SortableHeader
+                      label="OPERADOR"
+                      columnKey="operator"
+                      className="text-left pl-2 w-32"
+                    />
+                    <SortableHeader
+                      label="FROTA"
+                      columnKey="fleet"
+                      className="text-center w-16"
+                    />
+                    <SortableHeader
+                      label="F.TIPO"
+                      columnKey="fleet"
+                      className="text-center w-14"
+                    />
+                  </>
+                )}
 
-                      <th className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? 'bg-slate-950 border-slate-700/50 shadow-sm' : 'bg-[#2D8E48] border-[#29824a] text-white shadow-none'} group w-16`}>
-                        <div className="flex items-center justify-center gap-1.5">
-                          <span className={`font-black text-[9px] uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-white'}`}>
-                            AÇÕES
-                          </span>
-                        </div>
-                      </th>
-                  </tr>
-              </thead>
-              <tbody className="text-[11px] font-bold">
-                  {sortedData.map((row, rowIndex) => {
-                      const dynamicStatus = getDynamicStatus(row);
-                      const isInactiveRow = row.status === FlightStatus.FINALIZADO || row.status === FlightStatus.CANCELADO;
-                      
-                      const renderReportCell = (flight: FlightData) => {
-                          const latest = getLatestReportItem(flight);
-                          if (!latest) {
-                              return (
-                                  <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center`}>
-                                      <span className="text-slate-300">-</span>
-                                  </td>
-                              );
-                          }
-                          return (
-                              <td 
-                                className={`px-1 py-1 border-y border-l cursor-pointer ${isDarkMode ? 'border-slate-700/50 hover:bg-slate-700 bg-gradient-to-b from-slate-800/50 to-slate-900/80' : 'border-slate-200 hover:bg-emerald-200 bg-white'} transition-all text-center`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (onOpenReport) {
-                                        onOpenReport(flight);
-                                    }
-                                }}
-                                title="Ver Relatório"
-                              >
-                                  <div className={`inline-flex flex-col items-center justify-center rounded px-1.5 py-[2px] ${latest.bg}`}>
-                                      <span className={`text-[8px] font-black tracking-widest ${latest.color} leading-none`}>{latest.label}</span>
-                                      <span className={`text-[10px] font-mono font-bold ${latest.color} leading-tight mb-0.5`}>{latest.time}</span>
-                                  </div>
-                              </td>
-                          );
-                      };
+                {activeTab === "DESIGNADOS" ? (
+                  <SortableHeader
+                    label="STATUS"
+                    columnKey="status"
+                    className="text-center w-36"
+                  />
+                ) : (
+                  <SortableHeader
+                    label="STATUS"
+                    columnKey="status"
+                    className="text-center w-24"
+                  />
+                )}
 
-                      return (
-                      <tr 
-                          key={row.id} 
-                          data-rowindex={rowIndex}
-                          onClickCapture={(e) => { 
-                              const target = e.target as HTMLElement;
-                              // Consider interactive if it's an explicit input/button, OR if it has a click handler/button-like nature
-                              const closestCursor = target.closest('.cursor-pointer');
-                              const isInteractive = target.closest('input, button, a, [role="button"], [data-interactive="true"]') || (closestCursor && closestCursor !== e.currentTarget);
-                              if (isInteractive) {
-                                  setClickedRowId(row.id);
-                              } else {
-                                  setClickedRowId((prev) => prev === row.id ? null : row.id);
-                              }
-                          }}
-                          onContextMenu={(e) => {
-                              e.preventDefault();
-                              setSelectedFlight(row);
-                          }}
-                          className={`h-10 cursor-pointer transition-all active:scale-[0.99] group shadow-sm rounded-[4px] ${isInactiveRow ? 'opacity-40 grayscale' : ''} ${dynamicStatus?.rowClass ? dynamicStatus.rowClass : (isDarkMode ? (row.id === clickedRowId ? 'bg-emerald-900/60' : 'hover:bg-emerald-900/30') : (row.id === clickedRowId ? 'bg-emerald-300' : 'hover:bg-emerald-200'))}`}
+                <th
+                  className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} group w-16`}
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span
+                      className={`font-black text-[9px] uppercase tracking-wider ${isDarkMode ? "text-white" : "text-white"}`}
+                    >
+                      AÇÕES
+                    </span>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="text-[11px] font-bold">
+              {sortedData.map((row, rowIndex) => {
+                const dynamicStatus = getDynamicStatus(row);
+                const isInactiveRow =
+                  row.status === FlightStatus.FINALIZADO ||
+                  row.status === FlightStatus.CANCELADO;
+                const isRowDelayed =
+                  dynamicStatus?.label === "ATRASADO" ||
+                  dynamicStatus?.label === "ATRASANDO" ||
+                  dynamicStatus?.label === "PENALTY" ||
+                  dynamicStatus?.label === "RETIDO (+1H)";
+
+                const renderReportCell = (flight: FlightData) => {
+                  const latest = getLatestReportItem(flight);
+                  if (!latest) {
+                    return (
+                      <td
+                        className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center`}
                       >
-                          {/* AIRLINE */}
-                          {renderEditableCell(row, 'airlineCode', row.airlineCode, "justify-start text-left first:rounded-l-[4px]", rowIndex, 0, false)}
-
-                          {/* RENDERIZAÇÃO CONDICIONAL DAS CÉLULAS */}
-                          {activeTab === 'FILA' ? (
-                            <>
-                                {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 1, true)}
-
-                                {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 2, true)}
-
-                                {/* CITY */}
-                                <td className={`px-1 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
-                                    {getCityName(row.destination || '', destinosDB)}
-                                </td>
-
-                                {/* REGISTRATION */}
-                                {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 3)}
-
-                                {/* POSITION */}
-                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 4)}
-
-                                {/* ETD */}
-                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 6)}
-
-                                {/* CALÇO (ATA) */}
-                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 5)}
-
-                                {/* ETA */}
-                                {renderEditableCell(row, 'eta', row.eta || '', "text-center font-mono text-emerald-400 font-black tracking-widest", rowIndex, 99)}
-
-                                {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-left align-middle overflow-visible`}>
-                                    <div className="relative w-full h-full flex flex-col justify-center">
-                                      {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
-                                              <OperatorCell operatorName={row.operator} operators={operators} />
-                                          </div>
-                                      ) : (
-                                          <button 
-                                              onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}
-                                              className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
-                                          >
-                                              <UserPlus size={12} />
-                                              <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
-                                          </button>
-                                      )}
-                                    </div>
-                                </td>
-
-                                {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 7, false)}
-
-                                {/* FLEET TYPE */}
-                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
-                            </>
-                          ) : isStreamlinedView ? (
-                            <>
-                                {/* FLIGHT OUT (Moved later) */}
-
-                                {/* REGISTRATION */}
-                                {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 1)}
-
-                                {/* MODEL */}
-                                {renderEditableCell(row, 'model', row.model, "text-center font-mono text-[10px] font-bold", rowIndex, 2, false)}
-
-                                {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 3, true)}
-
-                                {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 4, true)}
-
-                                {/* CITY (Not directly editable, derived from destination) */}
-                                <td className={`px-1 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
-                                    {getCityName(row.destination || '', destinosDB)}
-                                </td>
-
-                                {/* POSITION */}
-                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 5)}
-
-                                {/* CALÇO (ATA) */}
-                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 6)}
-
-                                {/* ETD */}
-                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 7)}
-
-                                {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-left align-middle overflow-visible`}>
-                                    <div className="relative w-full h-full flex flex-col justify-center">
-                                      {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
-                                              <OperatorCell operatorName={row.operator} operators={operators} />
-                                          </div>
-                                      ) : (
-                                          <button 
-                                              onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}
-                                              className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
-                                          >
-                                              <UserPlus size={12} />
-                                              <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
-                                          </button>
-                                      )}
-                                    </div>
-                                </td>
-
-                                {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
-
-                                {/* FLEET TYPE */}
-                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 9, false)}
-
-                                {/* REPORT */}
-                                {renderReportCell(row)}
-
-                                {activeTab === 'DESIGNADOS' && (
-                                    <>
-                                        {/* HR.D */}
-                                        {renderEditableCell(
-                                            row, 
-                                            'assignmentTime' as any, 
-                                            row.assignmentTime ? new Date(row.assignmentTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', 'H') : '--', 
-                                            "text-center font-mono text-emerald-400 tracking-tighter", 
-                                            rowIndex, 
-                                            9, 
-                                            false
-                                        )}
-                                        {/* LT */}
-                                        <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-left font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight overflow-hidden truncate`}>
-                                            {row.assignedByLt || '--'}
-                                        </td>
-                                    </>
-                                )}
-
-
-                            </>
-                          ) : isFinishedView ? (
-                            <>
-                                {/* REGISTRATION */}
-                                {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 1)}
-
-                                {/* MODEL */}
-                                {renderEditableCell(row, 'model', row.model, "text-center font-mono text-[10px] font-bold", rowIndex, 2, false)}
-
-                                {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 3, true)}
-
-                                {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 4, true)}
-
-                                {/* CITY */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
-                                    {getCityName(row.destination || '', destinosDB)}
-                                </td>
-
-                                {/* POSITION */}
-                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 5)}
-
-                                {/* CALÇO (ATA) */}
-                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 6)}
-
-                                {/* ETD */}
-                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 7)}
-                                
-                                {/* OPERATOR (WITH ASSIGN BUTTON & MESSAGE DOT) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-left align-middle overflow-visible truncate`}>
-                                    <div className="relative w-full h-full flex flex-col justify-center">
-                                      {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
-                                              <OperatorCell operatorName={row.operator} operators={operators} />
-                                          </div>
-                                      ) : (
-                                          <span className={`${isDarkMode ? 'text-slate-700' : 'text-slate-400'} italic uppercase text-[9px] pl-2 cursor-pointer`} onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>--</span>
-                                      )}
-                                    </div>
-                                </td>
-
-                                {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 8, false)}
-
-                                {/* FLEET TYPE */}
-                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 9, false)}
-
-                                {/* REPORT */}
-                                {renderReportCell(row)}
-
-                                {/* TAB (Exclusivo Finalizados) - Not directly editable as it's calculated */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center font-mono ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    {calculateTAB(row)}
-                                </td>
-
-
-                            </>
-                          ) : (
-                            <>
-                                {/* REGISTRATION */}
-                                {renderEditableCell(row, 'registration', row.registration, "text-center font-mono text-emerald-500 tracking-tighter uppercase", rowIndex, 1)}
-
-                                {/* MODEL */}
-                                {renderEditableCell(row, 'model', row.model, "text-center font-mono text-[10px] font-bold", rowIndex, 2, false)}
-
-                                {/* FLIGHT IN */}
-                                {renderEditableCell(row, 'flightNumber', row.flightNumber, "text-center font-mono tracking-tighter", rowIndex, 3)}
-
-                                {/* ETA (POUSO ESTIMADO) - Derived from eta, but maybe let them edit eta */}
-                                {renderEditableCell(row, 'eta', row.eta, "text-center font-mono", rowIndex, 4)}
-
-                                {/* FLIGHT OUT */}
-                                {renderEditableCell(row, 'departureFlightNumber', row.departureFlightNumber || '', "text-center font-mono tracking-tighter", rowIndex, 5, true)}
-
-                                {/* ICAO */}
-                                {renderEditableCell(row, 'destination', row.destination, `text-center font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} font-bold text-[10px]`, rowIndex, 6, true)}
-
-                                {/* CITY */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-center font-black text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} uppercase tracking-tight`}>
-                                    {getCityName(row.destination || '', destinosDB)}
-                                </td>
-
-                                {/* POSITION */}
-                                {renderEditableCell(row, 'positionId', row.positionId, "text-center font-mono text-[12px]", rowIndex, 7)}
-
-                                {/* CALÇO (ATA) */}
-                                {renderEditableCell(row, 'actualArrivalTime', row.actualArrivalTime || '', "text-center font-mono font-black", rowIndex, 8)}
-
-                                {/* ETD */}
-                                {renderEditableCell(row, 'etd', row.etd, "text-center font-mono text-emerald-400", rowIndex, 9)}
-
-                                {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                                <td className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all text-left align-middle overflow-visible`}>
-                                    <div className="relative w-full h-full flex flex-col justify-center">
-                                      {row.operator ? (
-                                          <div className="flex items-center justify-start w-full cursor-pointer" onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}>
-                                              <OperatorCell operatorName={row.operator} operators={operators} />
-                                          </div>
-                                      ) : (
-                                          <button 
-                                              onClick={(e) => { e.stopPropagation(); setAssignModalFlight(row); }}
-                                              className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1.5 rounded shadow-lg shadow-indigo-600/20 transition-all active:scale-95 w-full mx-auto"
-                                          >
-                                              <UserPlus size={12} />
-                                              <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Designar</span>
-                                          </button>
-                                      )}
-                                    </div>
-                                </td>
-
-                                {/* FLEET */}
-                                {renderEditableCell(row, 'fleet', row.fleet ? row.fleet.replace('CTA-', '').replace('SRV-', '') : '', "text-center font-mono text-[10px]", rowIndex, 10, false)}
-
-                                {/* FLEET TYPE */}
-                                {renderEditableCell(row, 'fleetType', row.fleetType || '', "text-center font-mono text-[10px]", rowIndex, 11, false)}
-
-
-                            </>
-                          )}
-                          
-                          {/* STATUS (PILL DESIGN RESTORED) */}
-                          <td className={`px-1.5 py-1 text-center border-y border-l ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all`}>
-                              {dynamicStatus ? (
-                                  <div className="flex flex-col items-center justify-center gap-0.5 w-full">
-                                      <div className={`flex items-center justify-center w-full min-h-[28px] px-2 rounded text-[9px] leading-[10px] py-1 font-black uppercase tracking-[0.1em] border ${dynamicStatus.color}`}>
-                                          {dynamicStatus.label}
-                                      </div>
-                                      {dynamicStatus.subtitle && (
-                                          <span className={`block text-[8px] font-black uppercase tracking-widest mt-0.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                                              {dynamicStatus.subtitle}
-                                          </span>
-                                      )}
-                                  </div>
-                              ) : (
-                                  <StatusBadge status={row.status} isDarkMode={isDarkMode} />
-                              )}
-                              {row.isStandby && (
-                                  <span className="block text-[7px] text-amber-500 uppercase mt-1 text-center font-bold tracking-widest">{row.standbyReason}</span>
-                              )}
-                          </td>
-                          
-                          <td className={`px-1.5 text-center last:rounded-r-[4px] border-y border-l border-r ${isDarkMode ? (row.id === clickedRowId ? 'border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60' : 'border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30') : (row.id === clickedRowId ? 'border-emerald-400 bg-emerald-300' : 'border-slate-200 bg-white group-hover:bg-emerald-200')} transition-all`}>
-                              <div className="relative">
-                                  <>
-                                      <button onClick={(e) => { 
-                                          e.stopPropagation(); 
-                                          if (openMenuId === row.id) {
-                                              setOpenMenuId(null);
-                                          } else {
-                                              const rect = e.currentTarget.getBoundingClientRect();
-                                              setMenuPosition({ top: rect.bottom, left: rect.right - 224 });
-                                              setOpenMenuId(row.id);
-                                          }
-                                      }} className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-all btn-action-menu shadow-lg shadow-indigo-600/20 active:scale-95">
-                                          <MoreVertical size={16} />
-                                      </button>
-
-                                          {openMenuId === row.id && menuPosition && createPortal(
-                                              <div 
-                                                  ref={actionMenuRef} 
-                                                  style={{ top: menuPosition.top, left: menuPosition.left }}
-                                                  className={`fixed mt-1 w-56 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border rounded-md shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2`}
-                                              >
-                                                  <div className={`p-2 border-b ${isDarkMode ? 'border-slate-800 bg-slate-950/50' : 'border-slate-100 bg-slate-50/50'}`}>
-                                                      <p className={`text-[10px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} font-bold uppercase tracking-wider`}>Ações - Voo {row.flightNumber}</p>
-                                                  </div>
-                                                  <div className="flex flex-col text-xs p-1">
-                                                      {(() => {
-                                                          const btnClass = `w-full text-left px-3 py-2 ${isDarkMode ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-emerald-200 hover:text-slate-900'} rounded flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`;
-                                                          const cancelBtnClass = "w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
-                                                          const separator = <div className={`h-px ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'} my-1`} />;
-
-                                                          const obsBtn = (
-                                                              <button onClick={(e) => handleOpenObservationModal(row, e)} className={btnClass}>
-                                                                  <Pen size={14} /> Observações
-                                                              </button>
-                                                          );
-
-                                                          const cancelBtn = (
-                                                              <button onClick={(e) => handleCancelFlight(row, e)} className={cancelBtnClass}>
-                                                                  <XCircle size={14} /> Cancelar Voo
-                                                              </button>
-                                                          );
-
-                                                          const delBtn = (
-                                                              <button onClick={(e) => handleDeleteFlight(row, e)} className={cancelBtnClass}>
-                                                                  <XCircle size={14} /> Excluir Voo
-                                                              </button>
-                                                          );
-
-                                                          const pinBtn = (
-                                                              <button onClick={(e) => handlePinFlight(row.id, e)} className={btnClass}>
-                                                                  <Anchor size={14} /> {row.isPinned ? 'Desfixar do topo' : 'Fixar no topo'}
-                                                              </button>
-                                                          );
-
-                                                          const moveToQueueBtn = (
-                                                              <button onClick={(e) => handleMoveToQueue(row, e)} className={btnClass} disabled={!!row.operator}>
-                                                                  <ListOrdered size={14} /> Mover para Fila
-                                                              </button>
-                                                          );
-
-                                                          const inputReportBtn = (
-                                                              <button onClick={(e) => { 
-                                                                  e.stopPropagation(); 
-                                                                  setReportInputFlight(row);
-                                                                  setOpenMenuId(null);
-                                                              }} className={btnClass}>
-                                                                  <FileText size={14} /> Lançar Relatório
-                                                              </button>
-                                                          );
-
-                                                          const viewReportBtn = hasReport(row) ? (
-                                                              <button onClick={(e) => { 
-                                                                  e.stopPropagation(); 
-                                                                  if (onOpenReport) {
-                                                                      onOpenReport(row);
-                                                                  }
-                                                                  setOpenMenuId(null);
-                                                              }} className={btnClass}>
-                                                                  <FileBarChart size={14} /> Ver Relatório
-                                                              </button>
-                                                          ) : null;
-
-                                                          if (activeTab === 'GERAL') {
-                                                              return (
-                                                                  <>
-                                                                      {moveToQueueBtn}
-                                                                      {pinBtn}
-                                                                      <button 
-                                                                          onClick={(e) => { handleConfirmVisual(row.id, row.flightNumber, e); setOpenMenuId(null); }} 
-                                                                          className={btnClass} 
-                                                                          disabled={row.status !== FlightStatus.FINALIZADO && row.status !== FlightStatus.CANCELADO}
-                                                                      >
-                                                                          <CheckCheck size={14} /> Limpar da Lista
-                                                                      </button>
-                                                                      {cancelBtn}
-                                                                      {obsBtn}
-                                                                  </>
-                                                              );
-                                                          }
-
-                                                          if (activeTab === 'CHEGADA') {
-                                                              return (
-                                                                  <>
-                                                                      {moveToQueueBtn}
-                                                                      {pinBtn}
-                                                                      {cancelBtn}
-                                                                      {obsBtn}
-                                                                  </>
-                                                              );
-                                                          }
-
-                                                          if (activeTab === 'FILA') {
-                                                              return (
-                                                                  <>
-                                                                      {pinBtn}
-                                                                      {cancelBtn}
-                                                                      {delBtn}
-                                                                      {obsBtn}
-                                                                  </>
-                                                              );
-                                                          }
-
-                                                          if (activeTab === 'DESIGNADOS') {
-                                                              return (
-                                                                  <>
-                                                                      <button 
-                                                                          onClick={(e) => handleIntentStart(row, e)} 
-                                                                          className={btnClass}
-                                                                      >
-                                                                          <Play size={14} className="text-emerald-500" /> Iniciar Abastecimento
-                                                                      </button>
-                                                                      <button onClick={(e) => { e.stopPropagation(); setConfirmRemoveOperatorFlight(row); setOpenMenuId(null); }} className={btnClass}>
-                                                                          <UserCheck size={14} /> Cancelar Designação
-                                                                      </button>
-                                                                      {inputReportBtn}
-                                                                      {viewReportBtn}
-                                                                      {obsBtn}
-                                                                      {cancelBtn}
-                                                                  </>
-                                                              );
-                                                          }
-
-                                                          if (activeTab === 'ABASTECENDO') {
-                                                              return (
-                                                                  <>
-                                                                      {pinBtn}
-                                                                      <button onClick={(e) => { e.stopPropagation(); setConfirmFinishModalFlight(row); setOpenMenuId(null); }} className={btnClass}>
-                                                                          <CheckCircle size={14} className="text-emerald-500" /> Finalizar
-                                                                      </button>
-                                                                      {inputReportBtn}
-                                                                      {viewReportBtn}
-                                                                      {obsBtn}
-                                                                  </>
-                                                              );
-                                                          }
-
-                                                          if (activeTab === 'FINALIZADO') {
-                                                              return (
-                                                                  <>
-                                                                      <button onClick={(e) => handleReforco(row, e)} className={btnClass}>
-                                                                          <History size={14} /> Reforço
-                                                                      </button>
-                                                                      {inputReportBtn}
-                                                                      {viewReportBtn}
-                                                                      {obsBtn}
-                                                                  </>
-                                                              );
-                                                          }
-
-                                                          return null;
-                                                      })()}
-                                                  </div>
-                                              </div>
-                                          , document.body)}
-                                  </>
+                        <span className="text-slate-300">-</span>
+                      </td>
+                    );
+                  }
+                  return (
+                    <td
+                      className={`px-1 py-1 border-y border-l cursor-pointer ${isDarkMode ? "border-slate-700/50 hover:bg-slate-700 bg-gradient-to-b from-slate-800/50 to-slate-900/80" : "border-slate-200 hover:bg-emerald-200 bg-white"} transition-all text-center`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onOpenReport) {
+                          onOpenReport(flight);
+                        }
+                      }}
+                      title="Ver Relatório"
+                    >
+                      <div
+                        className={`inline-flex flex-col items-center justify-center rounded px-1.5 py-[2px] ${latest.bg}`}
+                      >
+                        <span
+                          className={`text-[8px] font-black tracking-widest ${latest.color} leading-none`}
+                        >
+                          {latest.label}
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono font-bold ${latest.color} leading-tight mb-0.5`}
+                        >
+                          {latest.time}
+                        </span>
+                      </div>
+                    </td>
+                  );
+                };
+
+                return (
+                  <tr
+                    key={row.id}
+                    data-rowindex={rowIndex}
+                    onClickCapture={(e) => {
+                      const target = e.target as HTMLElement;
+                      // Consider interactive if it's an explicit input/button, OR if it has a click handler/button-like nature
+                      const closestCursor = target.closest(".cursor-pointer");
+                      const isInteractive =
+                        target.closest(
+                          'input, button, a, [role="button"], [data-interactive="true"]',
+                        ) ||
+                        (closestCursor && closestCursor !== e.currentTarget);
+                      if (isInteractive) {
+                        setClickedRowId(row.id);
+                      } else {
+                        setClickedRowId((prev) =>
+                          prev === row.id ? null : row.id,
+                        );
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setSelectedFlight(row);
+                    }}
+                    className={`h-10 cursor-pointer transition-all active:scale-[0.99] group shadow-sm rounded-[4px] ${isInactiveRow ? "opacity-40 grayscale" : ""} ${dynamicStatus?.rowClass ? dynamicStatus.rowClass : isDarkMode ? (row.id === clickedRowId ? "bg-emerald-900/60" : "hover:bg-emerald-900/30") : row.id === clickedRowId ? "bg-emerald-300" : "hover:bg-emerald-200"}`}
+                  >
+                    {/* AIRLINE */}
+                    {renderEditableCell(
+                      row,
+                      "airlineCode",
+                      row.airlineCode,
+                      "justify-start text-left first:rounded-l-[4px]",
+                      rowIndex,
+                      0,
+                      false,
+                    )}
+
+                    {/* RENDERIZAÇÃO CONDICIONAL DAS CÉLULAS */}
+                    {activeTab === "FILA" ? (
+                      <>
+                        {/* FLIGHT OUT */}
+                        {renderEditableCell(
+                          row,
+                          "departureFlightNumber",
+                          row.departureFlightNumber || "",
+                          "text-center font-mono tracking-tighter",
+                          rowIndex,
+                          1,
+                          true,
+                        )}
+
+                        {/* ICAO */}
+                        {renderEditableCell(
+                          row,
+                          "destination",
+                          row.destination,
+                          `text-center font-mono ${isDarkMode ? "text-slate-400" : "text-slate-600"} font-bold text-[10px]`,
+                          rowIndex,
+                          2,
+                          true,
+                        )}
+
+                        {/* CITY */}
+                        <td
+                          className={`px-1 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                        >
+                          {getCityName(row.destination || "", destinosDB)}
+                        </td>
+
+                        {/* REGISTRATION */}
+                        {renderEditableCell(
+                          row,
+                          "registration",
+                          row.registration,
+                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
+                          rowIndex,
+                          3,
+                        )}
+
+                        {/* POSITION */}
+                        {renderEditableCell(
+                          row,
+                          "positionId",
+                          row.positionId,
+                          "text-center font-mono text-[12px]",
+                          rowIndex,
+                          4,
+                        )}
+
+                        {/* ETD */}
+                        {renderEditableCell(
+                          row,
+                          "etd",
+                          row.etd,
+                          "text-center font-mono text-emerald-400",
+                          rowIndex,
+                          6,
+                        )}
+
+                        {/* CALÇO (ATA) */}
+                        {renderEditableCell(
+                          row,
+                          "actualArrivalTime",
+                          row.actualArrivalTime || "",
+                          "text-center font-mono font-black",
+                          rowIndex,
+                          5,
+                        )}
+
+                        {/* ETA */}
+                        {renderEditableCell(
+                          row,
+                          "eta",
+                          row.eta || "",
+                          "text-center font-mono text-emerald-400 font-black tracking-widest",
+                          rowIndex,
+                          99,
+                        )}
+
+                        {/* T. REST */}
+                        <TimeRestCell
+                          row={row}
+                          isDarkMode={isDarkMode}
+                        />
+
+                        {/* OPERATOR (WITH ASSIGN BUTTON) */}
+                        <td
+                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible`}
+                        >
+                          <div className="relative w-full h-full flex flex-col justify-center">
+                            {row.operator ? (
+                              <div
+                                className="flex items-center justify-start w-full cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                              >
+                                <OperatorCell
+                                  operatorName={row.operator}
+                                  operators={operators}
+                                  isDarkMode={isDarkMode}
+                                />
                               </div>
-                          </td>
-                      </tr>
-                  )})}
-              </tbody>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                                className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
+                              >
+                                {renderDesignarButtonContent(row)}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* FLEET */}
+                        {renderEditableCell(
+                          row,
+                          "fleet",
+                          row.fleet
+                            ? row.fleet.replace("CTA-", "").replace("SRV-", "")
+                            : "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          7,
+                          false,
+                        )}
+
+                        {/* FLEET TYPE */}
+                        {renderEditableCell(
+                          row,
+                          "fleetType",
+                          row.fleetType || "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          8,
+                          false,
+                        )}
+                      </>
+                    ) : isStreamlinedView ? (
+                      <>
+                        {/* FLIGHT OUT (Moved later) */}
+
+                        {/* REGISTRATION */}
+                        {renderEditableCell(
+                          row,
+                          "registration",
+                          row.registration,
+                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
+                          rowIndex,
+                          1,
+                        )}
+
+                        {/* MODEL */}
+                        {renderEditableCell(
+                          row,
+                          "model",
+                          row.model,
+                          "text-center font-mono text-[10px] font-bold",
+                          rowIndex,
+                          2,
+                          false,
+                        )}
+
+                        {/* FLIGHT OUT */}
+                        {renderEditableCell(
+                          row,
+                          "departureFlightNumber",
+                          row.departureFlightNumber || "",
+                          "text-center font-mono tracking-tighter",
+                          rowIndex,
+                          3,
+                          true,
+                        )}
+
+                        {/* ICAO */}
+                        {renderEditableCell(
+                          row,
+                          "destination",
+                          row.destination,
+                          `text-center font-mono ${isDarkMode ? "text-slate-400" : "text-slate-600"} font-bold text-[10px]`,
+                          rowIndex,
+                          4,
+                          true,
+                        )}
+
+                        {/* CITY (Not directly editable, derived from destination) */}
+                        <td
+                          className={`px-1 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                        >
+                          {getCityName(row.destination || "", destinosDB)}
+                        </td>
+
+                        {/* POSITION */}
+                        {renderEditableCell(
+                          row,
+                          "positionId",
+                          row.positionId,
+                          "text-center font-mono text-[12px]",
+                          rowIndex,
+                          5,
+                        )}
+
+                        {/* CALÇO (ATA) */}
+                        {renderEditableCell(
+                          row,
+                          "actualArrivalTime",
+                          row.actualArrivalTime || "",
+                          "text-center font-mono font-black",
+                          rowIndex,
+                          6,
+                        )}
+
+                        {/* ETD */}
+                        {renderEditableCell(
+                          row,
+                          "etd",
+                          row.etd,
+                          "text-center font-mono text-emerald-400",
+                          rowIndex,
+                          7,
+                        )}
+
+                        {/* T. REST */}
+                        <TimeRestCell
+                          row={row}
+                          isDarkMode={isDarkMode}
+                        />
+
+                        {/* OPERATOR (WITH ASSIGN BUTTON) */}
+                        <td
+                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible`}
+                        >
+                          <div className="relative w-full h-full flex flex-col justify-center">
+                            {row.operator ? (
+                              <div
+                                className="flex items-center justify-start w-full cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                              >
+                                <OperatorCell
+                                  operatorName={row.operator}
+                                  operators={operators}
+                                  isDarkMode={isDarkMode}
+                                />
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                                className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
+                              >
+                                {renderDesignarButtonContent(row)}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* FLEET */}
+                        {renderEditableCell(
+                          row,
+                          "fleet",
+                          row.fleet
+                            ? row.fleet.replace("CTA-", "").replace("SRV-", "")
+                            : "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          8,
+                          false,
+                        )}
+
+                        {/* FLEET TYPE */}
+                        {renderEditableCell(
+                          row,
+                          "fleetType",
+                          row.fleetType || "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          9,
+                          false,
+                        )}
+
+                        {/* REPORT */}
+                        {renderReportCell(row)}
+
+                        {activeTab === "DESIGNADOS" && (
+                          <>
+                            {/* HR.D */}
+                            {renderEditableCell(
+                              row,
+                              "assignmentTime" as any,
+                              row.assignmentTime
+                                ? new Date(row.assignmentTime)
+                                    .toLocaleTimeString("pt-BR", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      hour12: false,
+                                    })
+                                    .replace(":", "H")
+                                : "--",
+                              "text-center font-mono text-emerald-400 tracking-tighter",
+                              rowIndex,
+                              9,
+                              false,
+                            )}
+                            {/* LT */}
+                            <td
+                              className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left font-black text-[9px] ${isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight overflow-hidden truncate`}
+                            >
+                              {row.assignedByLt || "--"}
+                            </td>
+                          </>
+                        )}
+                      </>
+                    ) : isFinishedView ? (
+                      <>
+                        {/* REGISTRATION */}
+                        {renderEditableCell(
+                          row,
+                          "registration",
+                          row.registration,
+                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
+                          rowIndex,
+                          1,
+                        )}
+
+                        {/* MODEL */}
+                        {renderEditableCell(
+                          row,
+                          "model",
+                          row.model,
+                          "text-center font-mono text-[10px] font-bold",
+                          rowIndex,
+                          2,
+                          false,
+                        )}
+
+                        {/* FLIGHT OUT */}
+                        {renderEditableCell(
+                          row,
+                          "departureFlightNumber",
+                          row.departureFlightNumber || "",
+                          "text-center font-mono tracking-tighter",
+                          rowIndex,
+                          3,
+                          true,
+                        )}
+
+                        {/* ICAO */}
+                        {renderEditableCell(
+                          row,
+                          "destination",
+                          row.destination,
+                          `text-center font-mono ${isDarkMode ? "text-slate-400" : "text-slate-600"} font-bold text-[10px]`,
+                          rowIndex,
+                          4,
+                          true,
+                        )}
+
+                        {/* CITY */}
+                        <td
+                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                        >
+                          {getCityName(row.destination || "", destinosDB)}
+                        </td>
+
+                        {/* POSITION */}
+                        {renderEditableCell(
+                          row,
+                          "positionId",
+                          row.positionId,
+                          "text-center font-mono text-[12px]",
+                          rowIndex,
+                          5,
+                        )}
+
+                        {/* CALÇO (ATA) */}
+                        {renderEditableCell(
+                          row,
+                          "actualArrivalTime",
+                          row.actualArrivalTime || "",
+                          "text-center font-mono font-black",
+                          rowIndex,
+                          6,
+                        )}
+
+                        {/* ETD */}
+                        {renderEditableCell(
+                          row,
+                          "etd",
+                          row.etd,
+                          "text-center font-mono text-emerald-400",
+                          rowIndex,
+                          7,
+                        )}
+
+                        {/* T. REST */}
+                        <TimeRestCell
+                          row={row}
+                          isDarkMode={isDarkMode}
+                        />
+
+                        {/* OPERATOR (WITH ASSIGN BUTTON & MESSAGE DOT) */}
+                        <td
+                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible truncate`}
+                        >
+                          <div className="relative w-full h-full flex flex-col justify-center">
+                            {row.operator ? (
+                              <div
+                                className="flex items-center justify-start w-full cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                              >
+                                <OperatorCell
+                                  operatorName={row.operator}
+                                  operators={operators}
+                                />
+                              </div>
+                            ) : (
+                              <span
+                                className={`${isDarkMode ? "text-slate-700" : "text-slate-400"} italic uppercase text-[9px] pl-2 cursor-pointer`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                              >
+                                --
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* FLEET */}
+                        {renderEditableCell(
+                          row,
+                          "fleet",
+                          row.fleet
+                            ? row.fleet.replace("CTA-", "").replace("SRV-", "")
+                            : "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          8,
+                          false,
+                        )}
+
+                        {/* FLEET TYPE */}
+                        {renderEditableCell(
+                          row,
+                          "fleetType",
+                          row.fleetType || "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          9,
+                          false,
+                        )}
+
+                        {/* REPORT */}
+                        {renderReportCell(row)}
+
+                        {/* TAB (Exclusivo Finalizados) - Not directly editable as it's calculated */}
+                        <td
+                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-mono ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
+                        >
+                          {calculateTAB(row)}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        {/* REGISTRATION */}
+                        {renderEditableCell(
+                          row,
+                          "registration",
+                          row.registration,
+                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
+                          rowIndex,
+                          1,
+                        )}
+
+                        {/* MODEL */}
+                        {renderEditableCell(
+                          row,
+                          "model",
+                          row.model,
+                          "text-center font-mono text-[10px] font-bold",
+                          rowIndex,
+                          2,
+                          false,
+                        )}
+
+                        {/* FLIGHT IN */}
+                        {renderEditableCell(
+                          row,
+                          "flightNumber",
+                          row.flightNumber,
+                          "text-center font-mono tracking-tighter",
+                          rowIndex,
+                          3,
+                        )}
+
+                        {/* ETA (POUSO ESTIMADO) - Derived from eta, but maybe let them edit eta */}
+                        {renderEditableCell(
+                          row,
+                          "eta",
+                          row.eta,
+                          "text-center font-mono",
+                          rowIndex,
+                          4,
+                        )}
+
+                        {/* FLIGHT OUT */}
+                        {renderEditableCell(
+                          row,
+                          "departureFlightNumber",
+                          row.departureFlightNumber || "",
+                          "text-center font-mono tracking-tighter",
+                          rowIndex,
+                          5,
+                          true,
+                        )}
+
+                        {/* ICAO */}
+                        {renderEditableCell(
+                          row,
+                          "destination",
+                          row.destination,
+                          `text-center font-mono ${isDarkMode ? "text-slate-400" : "text-slate-600"} font-bold text-[10px]`,
+                          rowIndex,
+                          6,
+                          true,
+                        )}
+
+                        {/* CITY */}
+                        <td
+                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                        >
+                          {getCityName(row.destination || "", destinosDB)}
+                        </td>
+
+                        {/* POSITION */}
+                        {renderEditableCell(
+                          row,
+                          "positionId",
+                          row.positionId,
+                          "text-center font-mono text-[12px]",
+                          rowIndex,
+                          7,
+                        )}
+
+                        {/* CALÇO (ATA) */}
+                        {renderEditableCell(
+                          row,
+                          "actualArrivalTime",
+                          row.actualArrivalTime || "",
+                          "text-center font-mono font-black",
+                          rowIndex,
+                          8,
+                        )}
+
+                        {/* ETD */}
+                        {renderEditableCell(
+                          row,
+                          "etd",
+                          row.etd,
+                          "text-center font-mono text-emerald-400",
+                          rowIndex,
+                          9,
+                        )}
+
+                        {/* T. REST */}
+                        <TimeRestCell
+                          row={row}
+                          isDarkMode={isDarkMode}
+                        />
+
+                        {/* OPERATOR (WITH ASSIGN BUTTON) */}
+                        <td
+                          className={`px-2 border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all text-left align-middle overflow-visible`}
+                        >
+                          <div className="relative w-full h-full flex flex-col justify-center">
+                            {row.operator ? (
+                              <div
+                                className="flex items-center justify-start w-full cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                              >
+                                <OperatorCell
+                                  operatorName={row.operator}
+                                  operators={operators}
+                                  isDarkMode={isDarkMode}
+                                />
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalFlight(row);
+                                }}
+                                className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
+                              >
+                                {renderDesignarButtonContent(row)}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* FLEET */}
+                        {renderEditableCell(
+                          row,
+                          "fleet",
+                          row.fleet
+                            ? row.fleet.replace("CTA-", "").replace("SRV-", "")
+                            : "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          10,
+                          false,
+                        )}
+
+                        {/* FLEET TYPE */}
+                        {renderEditableCell(
+                          row,
+                          "fleetType",
+                          row.fleetType || "",
+                          "text-center font-mono text-[10px]",
+                          rowIndex,
+                          11,
+                          false,
+                        )}
+                      </>
+                    )}
+
+                    {/* STATUS (PILL DESIGN RESTORED) */}
+                    <td
+                      className={`px-1.5 py-1 text-center border-y border-l ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all`}
+                    >
+                      {dynamicStatus ? (
+                        <div className="flex flex-col items-center justify-center gap-0.5 w-full">
+                          <div
+                            className={`flex items-center justify-center w-full min-h-[28px] px-2 rounded text-[9px] leading-[10px] py-1 font-black uppercase tracking-[0.1em] border ${dynamicStatus.color}`}
+                          >
+                            {dynamicStatus.label === "PENALTY" && (
+                              <AlertTriangle size={11} className="mr-1 text-white shrink-0 animate-bounce" />
+                            )}
+                            {dynamicStatus.label}
+                          </div>
+                          {dynamicStatus.subtitle && (
+                            <span
+                              className={`block text-[8px] font-black uppercase tracking-widest mt-0.5 ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
+                            >
+                              {dynamicStatus.subtitle}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <StatusBadge
+                          status={row.status}
+                          isDarkMode={isDarkMode}
+                        />
+                      )}
+                      {row.isStandby && (
+                        <span className="block text-[7px] text-amber-500 uppercase mt-1 text-center font-bold tracking-widest">
+                          {row.standbyReason}
+                        </span>
+                      )}
+                    </td>
+
+                    <td
+                      className={`px-1.5 text-center last:rounded-r-[4px] border-y border-l border-r ${isDarkMode ? (row.id === clickedRowId ? "border-emerald-500/80 bg-gradient-to-b from-emerald-900/60 to-emerald-800/60" : "border-slate-700/50 bg-gradient-to-b from-slate-800/50 to-slate-900/80 group-hover:from-emerald-900/30 group-hover:to-emerald-800/30 group-hover:border-emerald-500/30") : row.id === clickedRowId ? "border-emerald-400 bg-emerald-300" : "border-slate-200 bg-white group-hover:bg-emerald-200"} transition-all`}
+                    >
+                      <div className="relative">
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (openMenuId === row.id) {
+                                setOpenMenuId(null);
+                              } else {
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                setMenuPosition({
+                                  top: rect.bottom,
+                                  left: rect.right - 224,
+                                });
+                                setOpenMenuId(row.id);
+                              }
+                            }}
+                            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-all btn-action-menu shadow-lg shadow-indigo-600/20 active:scale-95"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+
+                          {openMenuId === row.id &&
+                            menuPosition &&
+                            createPortal(
+                              <div
+                                ref={actionMenuRef}
+                                style={{
+                                  top: menuPosition.top,
+                                  left: menuPosition.left,
+                                }}
+                                className={`fixed mt-1 w-56 ${isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} border rounded-md shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2`}
+                              >
+                                <div
+                                  className={`p-2 border-b ${isDarkMode ? "border-slate-800 bg-slate-950/50" : "border-slate-100 bg-slate-50/50"}`}
+                                >
+                                  <p
+                                    className={`text-[10px] ${isDarkMode ? "text-slate-400" : "text-slate-500"} font-bold uppercase tracking-wider`}
+                                  >
+                                    Ações - Voo {row.flightNumber}
+                                  </p>
+                                </div>
+                                <div className="flex flex-col text-xs p-1">
+                                  {(() => {
+                                    const btnClass = `w-full text-left px-3 py-2 ${isDarkMode ? "text-slate-300 hover:bg-slate-800 hover:text-white" : "text-slate-600 hover:bg-emerald-200 hover:text-slate-900"} rounded flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`;
+                                    const cancelBtnClass =
+                                      "w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+                                    const separator = (
+                                      <div
+                                        className={`h-px ${isDarkMode ? "bg-slate-800" : "bg-slate-100"} my-1`}
+                                      />
+                                    );
+
+                                    const obsBtn = (
+                                      <button
+                                        onClick={(e) =>
+                                          handleOpenObservationModal(row, e)
+                                        }
+                                        className={btnClass}
+                                      >
+                                        <Pen size={14} /> Observações
+                                      </button>
+                                    );
+
+                                    const cancelBtn = (
+                                      <button
+                                        onClick={(e) =>
+                                          handleCancelFlight(row, e)
+                                        }
+                                        className={cancelBtnClass}
+                                      >
+                                        <XCircle size={14} /> Cancelar Voo
+                                      </button>
+                                    );
+
+                                    const delBtn = (
+                                      <button
+                                        onClick={(e) =>
+                                          handleDeleteFlight(row, e)
+                                        }
+                                        className={cancelBtnClass}
+                                      >
+                                        <XCircle size={14} /> Excluir Voo
+                                      </button>
+                                    );
+
+                                    const pinBtn = (
+                                      <button
+                                        onClick={(e) =>
+                                          handlePinFlight(row.id, e)
+                                        }
+                                        className={btnClass}
+                                      >
+                                        <Anchor size={14} />{" "}
+                                        {row.isPinned
+                                          ? "Desfixar do topo"
+                                          : "Fixar no topo"}
+                                      </button>
+                                    );
+
+                                    const moveToQueueBtn = (
+                                      <button
+                                        onClick={(e) =>
+                                          handleMoveToQueue(row, e)
+                                        }
+                                        className={btnClass}
+                                        disabled={!!row.operator}
+                                      >
+                                        <ListOrdered size={14} /> Mover para
+                                        Fila
+                                      </button>
+                                    );
+
+                                    const inputReportBtn = (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setReportInputFlight(row);
+                                          setOpenMenuId(null);
+                                        }}
+                                        className={btnClass}
+                                      >
+                                        <FileText size={14} /> Lançar Relatório
+                                      </button>
+                                    );
+
+                                    const viewReportBtn = hasReport(row) ? (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (onOpenReport) {
+                                            onOpenReport(row);
+                                          }
+                                          setOpenMenuId(null);
+                                        }}
+                                        className={btnClass}
+                                      >
+                                        <FileBarChart size={14} /> Ver Relatório
+                                      </button>
+                                    ) : null;
+
+                                    if (activeTab === "GERAL") {
+                                      return (
+                                        <>
+                                          {moveToQueueBtn}
+                                          {pinBtn}
+                                          <button
+                                            onClick={(e) => {
+                                              handleConfirmVisual(
+                                                row.id,
+                                                row.flightNumber,
+                                                e,
+                                              );
+                                              setOpenMenuId(null);
+                                            }}
+                                            className={btnClass}
+                                            disabled={
+                                              row.status !==
+                                                FlightStatus.FINALIZADO &&
+                                              row.status !==
+                                                FlightStatus.CANCELADO
+                                            }
+                                          >
+                                            <CheckCheck size={14} /> Limpar da
+                                            Lista
+                                          </button>
+                                          {cancelBtn}
+                                          {obsBtn}
+                                        </>
+                                      );
+                                    }
+
+                                    if (activeTab === "CHEGADA") {
+                                      return (
+                                        <>
+                                          {moveToQueueBtn}
+                                          {pinBtn}
+                                          {cancelBtn}
+                                          {obsBtn}
+                                        </>
+                                      );
+                                    }
+
+                                    if (activeTab === "FILA") {
+                                      return (
+                                        <>
+                                          {pinBtn}
+                                          {cancelBtn}
+                                          {delBtn}
+                                          {obsBtn}
+                                        </>
+                                      );
+                                    }
+
+                                    if (activeTab === "DESIGNADOS") {
+                                      return (
+                                        <>
+                                          <button
+                                            onClick={(e) =>
+                                              handleIntentStart(row, e)
+                                            }
+                                            className={btnClass}
+                                          >
+                                            <Play
+                                              size={14}
+                                              className="text-emerald-500"
+                                            />{" "}
+                                            Iniciar Abastecimento
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setConfirmRemoveOperatorFlight(
+                                                row,
+                                              );
+                                              setOpenMenuId(null);
+                                            }}
+                                            className={btnClass}
+                                          >
+                                            <UserCheck size={14} /> Cancelar
+                                            Designação
+                                          </button>
+                                          {inputReportBtn}
+                                          {viewReportBtn}
+                                          {obsBtn}
+                                          {cancelBtn}
+                                        </>
+                                      );
+                                    }
+
+                                    if (activeTab === "ABASTECENDO") {
+                                      return (
+                                        <>
+                                          {pinBtn}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setConfirmFinishModalFlight(row);
+                                              setOpenMenuId(null);
+                                            }}
+                                            className={btnClass}
+                                          >
+                                            <CheckCircle
+                                              size={14}
+                                              className="text-emerald-500"
+                                            />{" "}
+                                            Finalizar
+                                          </button>
+                                          {inputReportBtn}
+                                          {viewReportBtn}
+                                          {obsBtn}
+                                        </>
+                                      );
+                                    }
+
+                                    if (activeTab === "FINALIZADO") {
+                                      return (
+                                        <>
+                                          <button
+                                            onClick={(e) =>
+                                              handleReforco(row, e)
+                                            }
+                                            className={btnClass}
+                                          >
+                                            <History size={14} /> Reforço
+                                          </button>
+                                          {inputReportBtn}
+                                          {viewReportBtn}
+                                          {obsBtn}
+                                        </>
+                                      );
+                                    }
+
+                                    return null;
+                                  })()}
+                                </div>
+                              </div>,
+                              document.body,
+                            )}
+                        </>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         </div>
       </div>
 
       {/* TOAST NOTIFICATION CONTAINER */}
       <div className="absolute bottom-6 right-6 z-[60] flex flex-col gap-2 pointer-events-none">
-          {toasts.map(toast => (
-              <div 
-                  key={toast.id}
-                  className={`pointer-events-auto min-w-[300px] bg-slate-900 border-l-4 p-4 rounded-md shadow-2xl animate-in slide-in-from-right duration-300 flex items-start gap-3 ${
-                      toast.type === 'success' ? 'border-emerald-500' :
-                      toast.type === 'info' ? 'border-blue-500' :
-                      'border-amber-500'
-                  }`}
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto min-w-[300px] bg-slate-900 border-l-4 p-4 rounded-md shadow-2xl animate-in slide-in-from-right duration-300 flex items-start gap-3 ${
+              toast.type === "success"
+                ? "border-emerald-500"
+                : toast.type === "info"
+                  ? "border-blue-500"
+                  : "border-amber-500"
+            }`}
+          >
+            <div
+              className={`p-1.5 rounded-full shrink-0 ${
+                toast.type === "success"
+                  ? "bg-emerald-500/20 text-emerald-500"
+                  : toast.type === "info"
+                    ? "bg-blue-500/20 text-blue-500"
+                    : "bg-amber-500/20 text-amber-500"
+              }`}
+            >
+              {toast.type === "success" ? (
+                <CheckCircle size={16} />
+              ) : (
+                <Eye size={16} />
+              )}
+            </div>
+            <div className="flex-1">
+              <h4
+                className={`text-xs font-black uppercase tracking-widest mb-1 ${
+                  toast.type === "success"
+                    ? "text-emerald-500"
+                    : toast.type === "info"
+                      ? "text-blue-500"
+                      : "text-amber-500"
+                }`}
               >
-                  <div className={`p-1.5 rounded-full shrink-0 ${
-                      toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-500' :
-                      toast.type === 'info' ? 'bg-blue-500/20 text-blue-500' :
-                      'bg-amber-500/20 text-amber-500'
-                  }`}>
-                      {toast.type === 'success' ? <CheckCircle size={16} /> : <Eye size={16} />}
-                  </div>
-                  <div className="flex-1">
-                      <h4 className={`text-xs font-black uppercase tracking-widest mb-1 ${
-                          toast.type === 'success' ? 'text-emerald-500' :
-                          toast.type === 'info' ? 'text-blue-500' :
-                          'text-amber-500'
-                      }`}>
-                          {toast.title}
-                      </h4>
-                      <p className="text-[11px] text-slate-300 leading-tight">{toast.message}</p>
-                  </div>
-                  <button onClick={() => removeToast(toast.id)} className="text-slate-500 hover:text-white transition-colors">
-                      <X size={14} />
-                  </button>
-              </div>
-          ))}
+                {toast.title}
+              </h4>
+              <p className="text-[11px] text-slate-300 leading-tight">
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="text-slate-500 hover:text-white transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
       </div>
 
       {selectedFlight && (
-        <FlightDetailsModal 
-          flight={selectedFlight} 
-          onClose={() => setSelectedFlight(null)} 
+        <FlightDetailsModal
+          flight={selectedFlight}
+          onClose={() => setSelectedFlight(null)}
           onUpdate={syncFlight}
           vehicles={vehicles}
           operators={getEligibleOperators(selectedFlight)}
@@ -2874,12 +4842,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
       {reportInputFlight && (
         <FlightReportInputModal
-            flight={reportInputFlight}
-            onClose={() => setReportInputFlight(null)}
-            onUpdate={syncFlight}
+          flight={reportInputFlight}
+          onClose={() => setReportInputFlight(null)}
+          onUpdate={syncFlight}
         />
       )}
-
 
       {/* Observation Modal */}
       {observationModalFlight && (
@@ -2893,25 +4860,39 @@ export const GridOps: React.FC<GridOpsProps> = ({
       )}
 
       {/* MODAL DE DESIGNAÇÃO DE OPERADOR */}
-      <DesigOpr 
-          isOpen={!!assignModalFlight}
-          onClose={() => { setAssignModalFlight(null); setSelectedOperatorId(null); }}
-          flight={assignModalFlight}
-          operators={assignModalFlight ? getEligibleOperators(assignModalFlight, false) : []}
-          onConfirm={(operatorId) => {
-              confirmAssignment(operatorId);
-          }}
+      <DesigOpr
+        isOpen={!!assignModalFlight}
+        onClose={() => {
+          setAssignModalFlight(null);
+          setSelectedOperatorId(null);
+        }}
+        flight={assignModalFlight}
+        operators={
+          assignModalFlight
+            ? getEligibleOperators(assignModalFlight, false)
+            : []
+        }
+        onConfirm={(operatorId) => {
+          confirmAssignment(operatorId);
+        }}
       />
 
       {/* MODAL DE DESIGNAÇÃO DE APOIO */}
-      <DesigOpr 
-          isOpen={!!assignSupportModalFlight}
-          onClose={() => { setAssignSupportModalFlight(null); setSelectedOperatorId(null); }}
-          flight={assignSupportModalFlight}
-          operators={assignSupportModalFlight ? getEligibleOperators(assignSupportModalFlight, true) : []}
-          onConfirm={(operatorId) => {
-              confirmSupportAssignment(operatorId);
-          }}
+      <DesigOpr
+        isOpen={!!assignSupportModalFlight}
+        onClose={() => {
+          setAssignSupportModalFlight(null);
+          setSelectedOperatorId(null);
+        }}
+        flight={assignSupportModalFlight}
+        operators={
+          assignSupportModalFlight
+            ? getEligibleOperators(assignSupportModalFlight, true)
+            : []
+        }
+        onConfirm={(operatorId) => {
+          confirmSupportAssignment(operatorId);
+        }}
       />
 
       {/* MODAL DE JUSTIFICATIVA DE ATRASO (SLA COMPLIANCE) */}
@@ -2927,74 +4908,96 @@ export const GridOps: React.FC<GridOpsProps> = ({
       )}
 
       {/* CALÇO CONFIRMATION MODAL */}
-      {calcoModalFlight && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div 
-            className={`${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'} border rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`px-4 py-3 border-b ${isDarkMode ? 'border-white/5 bg-slate-800/50' : 'border-slate-100 bg-slate-50'} flex justify-between items-center`}>
-              <div className="flex items-center gap-2 text-yellow-500">
-                <Plane size={16} className="transform rotate-45" />
-                <h3 className="font-black text-[11px] uppercase tracking-widest">Confirmar Calço</h3>
-              </div>
-              <button 
-                onClick={() => setCalcoModalFlight(null)}
-                className={`p-1.5 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-400 hover:text-white' : 'hover:bg-emerald-200 text-slate-500 hover:text-slate-900'}`}
+      {calcoModalFlight &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <div
+              className={`${isDarkMode ? "bg-slate-900 border-white/10" : "bg-white border-slate-200"} border rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className={`px-4 py-3 border-b ${isDarkMode ? "border-white/5 bg-slate-800/50" : "border-slate-100 bg-slate-50"} flex justify-between items-center`}
               >
-                <X size={14} />
-              </button>
-            </div>
-            
-            <div className="p-4 space-y-4">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center font-black text-xs ${isDarkMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900'}`}>
-                  {calcoModalFlight.registration || '--'}
+                <div className="flex items-center gap-2 text-yellow-500">
+                  <Plane size={16} className="transform rotate-45" />
+                  <h3 className="font-black text-[11px] uppercase tracking-widest">
+                    Confirmar Calço
+                  </h3>
                 </div>
-                <div>
-                  <div className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Voo {calcoModalFlight.airlineCode} {calcoModalFlight.departureFlightNumber}
+                <button
+                  onClick={() => setCalcoModalFlight(null)}
+                  className={`p-1.5 rounded-md transition-colors ${isDarkMode ? "hover:bg-slate-700 text-slate-400 hover:text-white" : "hover:bg-emerald-200 text-slate-500 hover:text-slate-900"}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center font-black text-xs ${isDarkMode ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-900"}`}
+                  >
+                    {calcoModalFlight.registration || "--"}
                   </div>
-                  <div className={`text-xs font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                    Destino: {calcoModalFlight.destination}
+                  <div>
+                    <div
+                      className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                    >
+                      Voo {calcoModalFlight.airlineCode}{" "}
+                      {calcoModalFlight.departureFlightNumber}
+                    </div>
+                    <div
+                      className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
+                    >
+                      Destino: {calcoModalFlight.destination}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="flex-1 space-y-1.5">
+                    <label
+                      className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                    >
+                      Confirmar Posição
+                    </label>
+                    <input
+                      type="text"
+                      value={calcoModalPosition}
+                      onChange={(e) =>
+                        setCalcoModalPosition(e.target.value.toUpperCase())
+                      }
+                      className={`w-full px-3 py-2.5 rounded-lg text-lg font-black uppercase ${isDarkMode ? "bg-slate-800 border-slate-700 text-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500" : "bg-white border-slate-300 text-slate-900 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500"} border transition-all outline-none`}
+                      placeholder="EX: 104"
+                      autoFocus
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <div className="flex-1 space-y-1.5">
-                  <label className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Confirmar Posição 
+              <div
+                className={`px-4 py-3 border-t ${isDarkMode ? "border-white/5 bg-slate-800/30" : "border-slate-100 bg-slate-50"} flex justify-between items-center gap-4`}
+              >
+                <div className="flex items-center gap-2">
+                  <label
+                    className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
+                  >
+                    Hora
                   </label>
                   <input
-                    type="text"
-                    value={calcoModalPosition}
-                    onChange={(e) => setCalcoModalPosition(e.target.value.toUpperCase())}
-                    className={`w-full px-3 py-2.5 rounded-lg text-lg font-black uppercase ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500' : 'bg-white border-slate-300 text-slate-900 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500'} border transition-all outline-none`}
-                    placeholder="EX: 104"
-                    autoFocus
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-white/5 bg-slate-800/30' : 'border-slate-100 bg-slate-50'} flex justify-between items-center gap-4`}>
-              <div className="flex items-center gap-2">
-                 <label className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Hora</label>
-                 <input
                     type="time"
                     value={calcoModalTime}
                     onChange={(e) => setCalcoModalTime(e.target.value)}
-                    className={`w-28 px-2 py-1.5 rounded-md text-sm font-bold font-mono ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500' : 'bg-white border-slate-300 text-slate-900 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500'} border transition-all outline-none`}
+                    className={`w-28 px-2 py-1.5 rounded-md text-sm font-bold font-mono ${isDarkMode ? "bg-slate-800 border-slate-700 text-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500" : "bg-white border-slate-300 text-slate-900 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500"} border transition-all outline-none`}
                   />
-              </div>
-              <div className="flex gap-2">
+                </div>
+                <div className="flex gap-2">
                   <button
                     onClick={() => {
                       syncFlight({
                         ...calcoModalFlight,
                         positionId: calcoModalPosition,
-                        actualArrivalTime: calcoModalTime
+                        actualArrivalTime: calcoModalTime,
                       });
                       setCalcoModalFlight(null);
                     }}
@@ -3002,16 +5005,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   >
                     Calçar Agora
                   </button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
 
       {/* CREATE FLIGHT MODAL */}
       {isCreateModalOpen && (
-        <CreateFlightModal 
+        <CreateFlightModal
           onClose={() => setIsCreateModalOpen(false)}
           onCreate={handleCreateFlight}
         />
@@ -3026,9 +5029,56 @@ export const GridOps: React.FC<GridOpsProps> = ({
             setIsLoading(true);
             setIsImportModalOpen(false);
             setTimeout(() => {
-                setIsLoading(false);
-                addToast(`Arquivo ${file.name} importado com sucesso!`, 'success');
+              setIsLoading(false);
+              addToast(
+                `Arquivo ${file.name} importado com sucesso!`,
+                "success",
+              );
             }, 1500);
+          }}
+          onImportGoogleSheet={(data: any[][]) => {
+            if (data.length <= 1) {
+              addToast("Planilha vazia ou sem dados válidos.", "error");
+              return;
+            }
+            const [headers, ...rows] = data;
+
+            const newFlights: MeshFlight[] = [];
+            rows.forEach((row, idx) => {
+              if (!row || row.length === 0) return;
+
+              // Simple mapper assuming common column names or indices
+              // Assuming: 0=Cia, 1=Voo, 2=Destino, 3=Prefixo, 4=Eqp, 5=Pos, 6=ETA, 7=ETD
+              const airline = String(row[0] || "").trim();
+              if (!airline) return;
+
+              const fv = {
+                id: crypto.randomUUID(),
+                airline: airline,
+                airlineCode: String(airline).substring(0, 2).toUpperCase(),
+                departureFlightNumber: String(row[1] || ""),
+                flightNumber: String(row[1] || ""), // Same for simplicity, unless specified
+                destination: String(row[2] || ""),
+                registration: String(row[3] || ""),
+                model: String(row[4] || ""),
+                positionId: String(row[5] || ""),
+                eta: String(row[6] || ""),
+                etd: String(row[7] || ""),
+                actualArrivalTime: "",
+                date: currentMeshDate,
+              };
+              newFlights.push(fv);
+            });
+
+            if (newFlights.length > 0) {
+              setMeshFlights((prev) => [...prev, ...newFlights]);
+              addToast(
+                `${newFlights.length} voos importados da Planilha Google!`,
+                "success",
+              );
+            } else {
+              addToast("Nenhum dado válido extraído da planilha.", "error");
+            }
           }}
         />
       )}
@@ -3061,12 +5111,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
           type="missingPositionVIP"
           flightNumber={missingPositionModalFlight.flightNumber}
           onConfirm={() => {
-              const f = missingPositionModalFlight;
-              setMissingPositionModalFlight(null);
-              onUpdateFlights(prev => prev.map(flight => 
-                  flight.id === f.id ? { ...flight, positionId: 'PÁTIO VIP' } : flight
-              ));
-              setConfirmStartModalFlight({ ...f, positionId: 'PÁTIO VIP' });
+            const f = missingPositionModalFlight;
+            setMissingPositionModalFlight(null);
+            onUpdateFlights((prev) =>
+              prev.map((flight) =>
+                flight.id === f.id
+                  ? { ...flight, positionId: "PÁTIO VIP" }
+                  : flight,
+              ),
+            );
+            setConfirmStartModalFlight({ ...f, positionId: "PÁTIO VIP" });
           }}
           onClose={() => setMissingPositionModalFlight(null)}
         />
@@ -3103,39 +5157,59 @@ export const GridOps: React.FC<GridOpsProps> = ({
       )}
 
       {showClearAllConfirm && (
-        <ConfirmActionModal 
+        <ConfirmActionModal
           type="clearMesh"
           message="Isso irá limpar voos da malha operacional. Você deseja um reset total (apagar tudo) ou o 'Smart Clear' (manter apenas voos com designação ou operação viva)?"
           onConfirm={(data) => {
-            const clearMode = data?.clearMode || 'all';
-            import('../services/supabaseService').then(({ deleteAllFlightsByDate, deleteInactiveFlightsByDate }) => {
+            const clearMode = data?.clearMode || "all";
+            import("../services/supabaseService").then(
+              ({ deleteAllFlightsByDate, deleteInactiveFlightsByDate }) => {
                 const targetDate = new Date();
                 targetDate.setDate(targetDate.getDate() + activeDateOffset);
                 const activeDateStr = getLocalDateStr(targetDate);
-                
-                const deleteAction = clearMode === 'all' 
+
+                const deleteAction =
+                  clearMode === "all"
                     ? deleteAllFlightsByDate(activeDateStr)
                     : deleteInactiveFlightsByDate(activeDateStr);
 
                 deleteAction
-                    .then(() => {
-                        if (clearMode === 'all') {
-                            onUpdateFlights([]);
-                            addToast('MALHA OPER.', 'Toda a malha operacional da data selecionada foi removida.', 'warning');
-                        } else {
-                            // Smart Clear: Filtramos localmente para manter os que têm operador ou status avançado
-                            onUpdateFlights(prev => prev.filter(f => 
-                                (f.operatorId || f.operator) || // Tem operador
-                                (f.status !== FlightStatus.CHEGADA && f.status !== FlightStatus.FILA) // Status avançado
-                            ));
-                            addToast('MALHA OPER.', 'Voos sem designação foram removidos. Operação mantida.', 'info');
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Erro ao limpar banco:', err);
-                        addToast('ERRO', 'Falha ao sincronizar limpeza com o servidor.', 'warning');
-                    });
-            });
+                  .then(() => {
+                    if (clearMode === "all") {
+                      onUpdateFlights([]);
+                      addToast(
+                        "MALHA OPER.",
+                        "Toda a malha operacional da data selecionada foi removida.",
+                        "warning",
+                      );
+                    } else {
+                      // Smart Clear: Filtramos localmente para manter os que têm operador ou status avançado
+                      onUpdateFlights((prev) =>
+                        prev.filter(
+                          (f) =>
+                            f.operatorId ||
+                            f.operator || // Tem operador
+                            (f.status !== FlightStatus.CHEGADA &&
+                              f.status !== FlightStatus.FILA), // Status avançado
+                        ),
+                      );
+                      addToast(
+                        "MALHA OPER.",
+                        "Voos sem designação foram removidos. Operação mantida.",
+                        "info",
+                      );
+                    }
+                  })
+                  .catch((err) => {
+                    console.error("Erro ao limpar banco:", err);
+                    addToast(
+                      "ERRO",
+                      "Falha ao sincronizar limpeza com o servidor.",
+                      "warning",
+                    );
+                  });
+              },
+            );
 
             setShowClearAllConfirm(false);
           }}
@@ -3143,45 +5217,54 @@ export const GridOps: React.FC<GridOpsProps> = ({
         />
       )}
       {timeConflictData && (
-        <TimeConflictModal 
-            timeStr={timeConflictData.newEtd}
-            isDarkMode={isDarkMode}
-            onConfirmToday={() => {
-                const flight = flights.find(f => f.id === timeConflictData.rowId);
-                if (flight) {
-                    confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
-                }
-                setTimeConflictData(null);
-            }}
-            onConfirmTomorrow={() => {
-                const flight = flights.find(f => f.id === timeConflictData.rowId);
-                if (flight) {
-                    confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
-                    let baseDate = new Date();
-                    if (flight.date) {
-                        const [y, m, d] = flight.date.split('-').map(Number);
-                        baseDate = new Date(y, m - 1, d);
-                    }
-                    baseDate.setDate(baseDate.getDate() + 1);
-                    const newDateStr = getLocalDateStr(baseDate);
-                    onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { ...f, date: newDateStr } : f));
-                }
-                setTimeConflictData(null);
-            }}
-            onCorrect={() => {
-                setTimeConflictData(null);
-                setEditingCell({ rowId: timeConflictData.rowId, col: 'etd' });
-            }}
-            onDiscard={() => {
-                const flight = flights.find(f => f.id === timeConflictData.rowId);
-                if (flight) {
-                    onUpdateFlights(prev => prev.map(f => f.id === flight.id ? { ...f, etd: timeConflictData.oldEtd } : f));
-                }
-                setTimeConflictData(null);
-            }}
+        <TimeConflictModal
+          timeStr={timeConflictData.newEtd}
+          isDarkMode={isDarkMode}
+          onConfirmToday={() => {
+            const flight = flights.find((f) => f.id === timeConflictData.rowId);
+            if (flight) {
+              confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
+            }
+            setTimeConflictData(null);
+          }}
+          onConfirmTomorrow={() => {
+            const flight = flights.find((f) => f.id === timeConflictData.rowId);
+            if (flight) {
+              confirmedConflictsRef.current.add(`${flight.id}-${flight.etd}`);
+              let baseDate = new Date();
+              if (flight.date) {
+                const [y, m, d] = flight.date.split("-").map(Number);
+                baseDate = new Date(y, m - 1, d);
+              }
+              baseDate.setDate(baseDate.getDate() + 1);
+              const newDateStr = getLocalDateStr(baseDate);
+              onUpdateFlights((prev) =>
+                prev.map((f) =>
+                  f.id === flight.id ? { ...f, date: newDateStr } : f,
+                ),
+              );
+            }
+            setTimeConflictData(null);
+          }}
+          onCorrect={() => {
+            setTimeConflictData(null);
+            setEditingCell({ rowId: timeConflictData.rowId, col: "etd" });
+          }}
+          onDiscard={() => {
+            const flight = flights.find((f) => f.id === timeConflictData.rowId);
+            if (flight) {
+              onUpdateFlights((prev) =>
+                prev.map((f) =>
+                  f.id === flight.id
+                    ? { ...f, etd: timeConflictData.oldEtd }
+                    : f,
+                ),
+              );
+            }
+            setTimeConflictData(null);
+          }}
         />
       )}
-
     </div>
   );
 };

@@ -1187,8 +1187,8 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                           if (idxVoo === -1) idxVoo = headers.findIndex(h => h.includes('voo') || h.includes('vôo') || h.includes('flight'));
                           let idxDestino = headers.findIndex(h => h.includes('dest'));
                           let idxEtd = headers.findIndex(h => h === 'etd' || h.includes('partida') || h === 'std' || h.includes('saida') || h.includes('saída'));
-                          let idxPrefixo = headers.findIndex(h => h.includes('prefixo') || h.includes('reg') || h.includes('matricula'));
-                          let idxModelo = headers.findIndex(h => h.includes('modelo') || h.includes('eqp') || h.includes('equipamento'));
+                          let idxPrefixo = headers.findIndex(h => h.includes('prefixo') || h.includes('reg') || h.includes('matricula') || h.includes('acft') || h.includes('aeronave') || h.includes('aeron') || h === 'tail');
+                          let idxModelo = headers.findIndex(h => h.includes('modelo') || h.includes('eqp') || h.includes('equipamento') || h.includes('tipo'));
                           // In the user's Excel, "ESTIMADO" means ETA.
                           let idxEta = headers.findIndex(h => h === 'eta' || h.includes('chegada') && h.includes('estimado') || h === 'sta' || h === 'estimado');
                           let idxPosicao = headers.findIndex(h => h.includes('posi') || h.includes('gate') || h.includes('berco') || h.includes('berço'));
@@ -1282,7 +1282,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                             let reg = getCol(cols, idxPrefixo).trim().toUpperCase();
                             let model = getCol(cols, idxModelo).trim().toUpperCase();
                             
-                            if ((!model || model === '--') && reg) {
+                            if (reg) {
                                 const cleanReg = reg.replace(/[^A-Z0-9]/ig, '');
                                 let attemptMatch;
                                 if (cleanReg.length >= 3) {
@@ -1294,8 +1294,14 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                                 if (!attemptMatch) {
                                     attemptMatch = aircraftsDB.find(a => a.prefix.toUpperCase() === reg);
                                 }
-                                if (attemptMatch && attemptMatch.model && attemptMatch.model !== '--') {
-                                    model = attemptMatch.model;
+                                if (attemptMatch) {
+                                    // Utiliza o prefixo exato do banco de dados (corrige digitações parciais ou hífens)
+                                    reg = attemptMatch.prefix;
+                                    if (!model || model === '--') {
+                                        if (attemptMatch.model && attemptMatch.model !== '--') {
+                                            model = attemptMatch.model;
+                                        }
+                                    }
                                 }
                             }
 

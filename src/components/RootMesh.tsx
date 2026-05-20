@@ -297,6 +297,9 @@ export const RootMesh: React.FC<RootMeshProps> = ({
 
     // Auto-fill model based on registration
     let autoModel: string | undefined;
+    let autoDestination: string | undefined;
+    let autoAirline: string | undefined;
+
     if (field === 'registration') {
         const cleanInput = newValue.replace(/[^A-Z0-9]/g, '');
         let attemptMatch: AircraftType | undefined;
@@ -324,9 +327,6 @@ export const RootMesh: React.FC<RootMeshProps> = ({
     }
     
     // Auto-fill Destination and Airline based on V.Saída / V.Cheg
-    let autoDestination: string | undefined;
-    let autoAirline: string | undefined;
-
     if (field === 'flightNumber' || field === 'departureFlightNumber') {
         const normalizedInput = String(newValue || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
         const match = destinosDB.find(d => {
@@ -1002,8 +1002,8 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                           if (idxVoo === -1) idxVoo = headers.findIndex(h => h.includes('voo') || h.includes('vôo') || h.includes('flight'));
                           let idxDestino = headers.findIndex(h => h.includes('dest'));
                           let idxEtd = headers.findIndex(h => h === 'etd' || h.includes('partida') || h === 'std' || h.includes('saida') || h.includes('saída'));
-                          let idxPrefixo = headers.findIndex(h => h.includes('prefixo') || h.includes('reg') || h.includes('matricula'));
-                          let idxModelo = headers.findIndex(h => h.includes('modelo') || h.includes('eqp') || h.includes('equipamento'));
+                          let idxPrefixo = headers.findIndex(h => h.includes('prefixo') || h.includes('reg') || h.includes('matricula') || h.includes('acft') || h.includes('aeronave') || h.includes('aeron') || h === 'tail');
+                          let idxModelo = headers.findIndex(h => h.includes('modelo') || h.includes('eqp') || h.includes('equipamento') || h.includes('tipo'));
                           // In the user's Excel, "ESTIMADO" means ETA.
                           let idxEta = headers.findIndex(h => h === 'eta' || h.includes('chegada') && h.includes('estimado') || h === 'sta' || h === 'estimado');
                           let idxPosicao = headers.findIndex(h => h.includes('posi') || h.includes('gate') || h.includes('berco') || h.includes('berço'));
@@ -1094,6 +1094,32 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                                 return map[code] || code;
                             };
 
+                            let reg = getCol(cols, idxPrefixo).trim().toUpperCase();
+                            let model = getCol(cols, idxModelo).trim().toUpperCase();
+                            
+                            if (reg) {
+                                const cleanReg = reg.replace(/[^A-Z0-9]/ig, '');
+                                let attemptMatch;
+                                if (cleanReg.length >= 3) {
+                                    attemptMatch = aircraftsDB.find(a => {
+                                        const cleanPrefix = a.prefix.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                                        return cleanPrefix === cleanReg || cleanPrefix.endsWith(cleanReg);
+                                    });
+                                }
+                                if (!attemptMatch) {
+                                    attemptMatch = aircraftsDB.find(a => a.prefix.toUpperCase() === reg);
+                                }
+                                if (attemptMatch) {
+                                    // Utiliza o prefixo exato do banco de dados
+                                    reg = attemptMatch.prefix;
+                                    if (!model || model === '--') {
+                                        if (attemptMatch.model && attemptMatch.model !== '--') {
+                                            model = attemptMatch.model;
+                                        }
+                                    }
+                                }
+                            }
+
                             newFlights.push({
                               id: generateUUID(),
                               airline: getAirlineName(cia),
@@ -1102,8 +1128,8 @@ export const RootMesh: React.FC<RootMeshProps> = ({
                               departureFlightNumber: vooSaida,
                               destination: getCol(cols, idxDestino).trim().toUpperCase(),
                               etd: formatImportTime(getCol(cols, idxEtd)),
-                              registration: getCol(cols, idxPrefixo).trim().toUpperCase(),
-                              model: getCol(cols, idxModelo).trim().toUpperCase(),
+                              registration: reg,
+                              model: model,
                               eta: formatImportTime(getCol(cols, idxEta)),
                               positionId: getCol(cols, idxPosicao).trim().toUpperCase(),
                               actualArrivalTime: formatImportTime(getCol(cols, idxCalco)),
