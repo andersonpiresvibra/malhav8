@@ -1828,7 +1828,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 className={
                   isFocused && editable && isDarkMode
                     ? "invert brightness-200 justify-start"
-                    : "justify-start"
+                    : row.status === FlightStatus.FILA && minutesToEtd <= -60
+                      ? "grayscale opacity-55 contrast-[1.15] justify-start"
+                      : "justify-start"
                 }
               />
             ) : (
@@ -2680,7 +2682,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
       if (minutesToETD <= -60)
         return {
-          label: "RETIDO (+1H)",
+          label: "STAND-BY (+1H)",
           subtitle: displayTime,
           color: isDarkMode
             ? "text-slate-500 bg-slate-900 border-slate-700/50"
@@ -2908,7 +2910,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     if (
       label === "ATRASADO" ||
       label === "ATRASANDO" ||
-      label === "RETIDO (+1H)"
+      label === "STAND-BY (+1H)"
     ) {
       const minutesToETD = getMinutesDiff(row.etd, row.date);
       if (minutesToETD < 0 || label === "ATRASADO") {
@@ -2917,7 +2919,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         return "bg-yellow-500 hover:bg-yellow-600 text-neutral-950 shadow-yellow-600/20 border border-yellow-400 font-black";
       } else if (minutesToETD < 40) {
         return "bg-yellow-500 hover:bg-yellow-600 text-neutral-950 shadow-yellow-600/20 border border-yellow-400 font-black";
-      } else if (label === "RETIDO (+1H)") {
+      } else if (label === "STAND-BY (+1H)") {
         return "bg-slate-500 hover:bg-slate-600 text-white shadow-slate-600/20 border border-slate-400";
       }
     }
@@ -3055,7 +3057,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
               : "border-yellow-100 !border-yellow-100"
           }`;
       textStyle = "text-black !text-black font-extrabold tracking-wider";
-    } else if (label && label.startsWith("RETIDO")) {
+    } else if (label && (label.startsWith("RETIDO") || label.startsWith("STAND-BY"))) {
       bgStyle = isDarkMode 
         ? "bg-slate-900/40 !bg-slate-900/40 border-slate-800/50 !border-slate-800/50 group-hover:!bg-slate-800/80 group-hover:!border-emerald-500/30" 
         : "bg-slate-100 !bg-slate-100 border-slate-200 !border-slate-200 group-hover:!bg-emerald-100";
@@ -3805,7 +3807,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   dynamicStatus?.label === "ATRASADO" ||
                   dynamicStatus?.label === "ATRASANDO" ||
                   dynamicStatus?.label === "PENALTY" ||
-                  dynamicStatus?.label === "RETIDO (+1H)";
+                  dynamicStatus?.label === "RETIDO (+1H)" ||
+                  dynamicStatus?.label === "STAND-BY (+1H)";
 
                 const renderReportCell = (flight: FlightData) => {
                   const latest = getLatestReportItem(flight);
