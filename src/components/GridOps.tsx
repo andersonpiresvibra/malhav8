@@ -4544,13 +4544,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             )}
                             {dynamicStatus.label}
                           </div>
-                          {dynamicStatus.subtitle && (
-                            <span
-                              className={`block text-[8px] font-black uppercase tracking-widest mt-0.5 ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
-                            >
-                              {dynamicStatus.subtitle}
-                            </span>
-                          )}
                         </div>
                       ) : (
                         <StatusBadge
