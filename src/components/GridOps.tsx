@@ -2992,13 +2992,27 @@ export const GridOps: React.FC<GridOpsProps> = ({
     let textStyle = "";
 
     if (label === "PENALTY") {
-      bgStyle = "bg-[#E7000B] !bg-[#E7000B]";
+      bgStyle = isDarkMode
+        ? "bg-[#E7000B] !bg-[#E7000B] border-red-50/10 !border-red-50/10"
+        : "bg-[#E7000B] !bg-[#E7000B] border-red-200 !border-red-200";
       textStyle = "text-white !text-white font-extrabold tracking-wider";
     } else if (label === "ATRASADO") {
-      bgStyle = "bg-[#000000] !bg-[#000000]";
+      bgStyle = isDarkMode
+        ? "bg-[#4b4b4b] !bg-[#4b4b4b] border-neutral-700 !border-neutral-700"
+        : "bg-[#4b4b4b] !bg-[#4b4b4b] border-neutral-400 !border-neutral-400";
       textStyle = "text-white !text-white font-extrabold tracking-wider";
     } else if (label === "ATRASANDO") {
-      bgStyle = "bg-[#EAB308] !bg-[#EAB308]";
+      bgStyle = isDarkMode
+        ? `bg-[#EAB308] !bg-[#EAB308] ${
+            mins < 30
+              ? "border-yellow-900/40 !border-yellow-900/40"
+              : "border-yellow-900/20 !border-yellow-900/20"
+          }`
+        : `bg-[#EAB308] !bg-[#EAB308] ${
+            mins < 30
+              ? "border-yellow-200 !border-yellow-200"
+              : "border-yellow-100 !border-yellow-100"
+          }`;
       textStyle = "text-black !text-black font-extrabold tracking-wider";
     } else if (label && label.startsWith("RETIDO")) {
       bgStyle = isDarkMode ? "bg-slate-900/40 !bg-slate-900/40 border-slate-800/50 !border-slate-800/50" : "bg-slate-100 !bg-slate-100 border-slate-200 !border-slate-200";
