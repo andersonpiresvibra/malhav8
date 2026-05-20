@@ -208,6 +208,9 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
     photoUrl: o.photo_url || '',
     email: o.email || '',
     isLT: o.is_lt || 'NÃO',
+    isUsuario: 'is_usuario' in o ? !!o.is_usuario : (o.is_lt === 'SIM'),
+    isAdministrador: !!o.is_administrador,
+    isMaster: !!o.is_master,
     patio: o.patio || '',
     tmfLogin: o.tmf_login || '',
     bloodType: o.blood_type || '',
@@ -864,3 +867,94 @@ export const clearAllFlightAssignments = async (): Promise<void> => {
     }
   }
 };
+
+export interface DbUserPreferences {
+  user_id: string;
+  visible_columns: Record<string, boolean>;
+  visible_tabs: Record<string, boolean>;
+  locked_columns: Record<string, boolean>;
+  locked_tabs: Record<string, boolean>;
+}
+
+export const getUserLayoutPreferences = async (userId: string): Promise<DbUserPreferences | null> => {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const { data, error } = await supabase
+      .from('preferencias_layout_usuario')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      if (
+        error.message.includes("does not exist") || 
+        error.code === 'PGRST116' || 
+        error.message.includes("relation \"preferencias_layout_usuario\"") ||
+        error.message.includes("Could not find the table") ||
+        error.message.includes("schema cache")
+      ) {
+        console.warn("[getUserLayoutPreferences] Tabela preferencias_layout_usuario não existe no Supabase. Usando armazenamento local.");
+        return null;
+      }
+      console.error('[getUserLayoutPreferences] Error fetching preferences:', error.message);
+      return null;
+    }
+    return data as DbUserPreferences;
+  } catch (err) {
+    console.error('[getUserLayoutPreferences] Exception fetching preferences:', err);
+    return null;
+  }
+};
+
+export const saveUserLayoutPreferences = async (
+  userId: string,
+  visibleColumns: Record<string, boolean>,
+  visibleTabs: Record<string, boolean>,
+  lockedColumns: Record<string, boolean>,
+  lockedTabs: Record<string, boolean>
+): Promise<void> => {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const payload = {
+      user_id: userId,
+      visible_columns: visibleColumns,
+      visible_tabs: visibleTabs,
+      locked_columns: lockedColumns,
+      locked_tabs: lockedTabs,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('preferencias_layout_usuario')
+      .upsert([payload]);
+
+    if (error) {
+      if (
+        error.message.includes("does not exist") || 
+        error.message.includes("relation \"preferencias_layout_usuario\"") ||
+        error.message.includes("Could not find the table") ||
+        error.message.includes("schema cache")
+      ) {
+        console.warn(
+          `[saveUserLayoutPreferences] A tabela "preferencias_layout_usuario" não existe no Supabase. ` +
+          `Instâncias de configuração foram guardadas preferencialmente em cache local (LocalStorage).`
+        );
+        return;
+      }
+      throw error;
+    }
+  } catch (err: any) {
+    // Se for um erro já tratado de tabela inexistente, não polui o console como erro crítico
+    if (err.message && (
+      err.message.includes("preferencias_layout_usuario") ||
+      err.message.includes("does not exist") ||
+      err.message.includes("schema")
+    )) {
+      console.warn('[saveUserLayoutPreferences] Salvo em cache local (tabela opcional ausente no Supabase).');
+      return;
+    }
+    console.error('[saveUserLayoutPreferences] Exception saving preferences:', err);
+    throw err;
+  }
+};
+

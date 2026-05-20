@@ -70,8 +70,10 @@ interface LayoutPreferencesModalProps {
   isOpen: boolean;
   onClose: () => void;
   preferences: UserLayoutPreferences;
-  onSave: (prefs: UserLayoutPreferences) => void;
+  onSave: (prefs: UserLayoutPreferences, lockedCols: Record<string, boolean>, lockedTabs: Record<string, boolean>) => void;
   currentUser: string;
+  lockedColumnsFromDb?: Record<string, boolean>;
+  lockedTabsFromDb?: Record<string, boolean>;
 }
 
 export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
@@ -79,13 +81,16 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
   onClose,
   preferences,
   onSave,
-  currentUser
+  currentUser,
+  lockedColumnsFromDb,
+  lockedTabsFromDb
 }) => {
   const { isDarkMode } = useTheme();
   const [activeSubTab, setActiveSubTab] = useState<'columns' | 'tabs' | 'locks'>('columns');
   
-  // Local state for locked components (stored in localStorage)
+  // Local state for locked components (stored in localStorage / synced from props)
   const [lockedColumns, setLockedColumns] = useState<Record<string, boolean>>(() => {
+    if (lockedColumnsFromDb) return lockedColumnsFromDb;
     const saved = localStorage.getItem('layout_locks_columns');
     if (saved) {
       try {
@@ -104,6 +109,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
   });
 
   const [lockedTabs, setLockedTabs] = useState<Record<string, boolean>>(() => {
+    if (lockedTabsFromDb) return lockedTabsFromDb;
     const saved = localStorage.getItem('layout_locks_tabs');
     if (saved) {
       try {
@@ -143,9 +149,16 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
   // Sync state if modal reopens or props change
   React.useEffect(() => {
     if (isOpen) {
+      if (lockedColumnsFromDb) setLockedColumns(lockedColumnsFromDb);
+      if (lockedTabsFromDb) setLockedTabs(lockedTabsFromDb);
+    }
+  }, [isOpen, lockedColumnsFromDb, lockedTabsFromDb]);
+
+  React.useEffect(() => {
+    if (isOpen) {
       setLocalPrefs(getInitialPrefs());
     }
-  }, [isOpen, preferences]);
+  }, [isOpen, preferences, lockedColumns, lockedTabs]);
 
   if (!isOpen) return null;
 
@@ -260,7 +273,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
       visibleTabs: finalVisibleTabs
     };
 
-    onSave(finalPrefs);
+    onSave(finalPrefs, lockedColumns, lockedTabs);
     window.dispatchEvent(new Event('layout-locks-updated'));
     onClose();
   };

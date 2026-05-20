@@ -4,6 +4,7 @@ import { Search, Plus, Trash2, Edit2, ChevronDown, RefreshCw, Save, X, Settings,
 import { supabase } from '../lib/supabase';
 import { updateOperatorWorkDays } from '../services/supabaseService';
 import { OperatorProfile } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import { downloadTemplate } from '../utils/excelTemplateUtils';
 
@@ -21,6 +22,9 @@ const COLUMNS: { key: OperatorField; label: string; width: string; isVariable: b
   { key: 'fullName', label: 'NOME COMPLETO', width: 'w-[200px] min-w-[200px]', isVariable: true },
   { key: 'role', label: 'FUNÇÃO', width: 'w-[100px] min-w-[100px]', isVariable: true },
   { key: 'isLT', label: 'LT?', width: 'w-[70px] min-w-[70px]', isVariable: true },
+  { key: 'isUsuario', label: 'USUÁRIO', width: 'w-[80px] min-w-[80px]', isVariable: false },
+  { key: 'isAdministrador', label: 'ADMIN', width: 'w-[80px] min-w-[80px]', isVariable: false },
+  { key: 'isMaster', label: 'MASTER', width: 'w-[80px] min-w-[80px]', isVariable: false },
   { key: 'companyId', label: 'MATR. VB', width: 'w-[100px] min-w-[100px]', isVariable: true },
   { key: 'gruId', label: 'MATR. GRU', width: 'w-[100px] min-w-[100px]', isVariable: true },
   { key: 'vestNumber', label: 'ISO', width: 'w-[70px] min-w-[70px]', isVariable: true },
@@ -40,6 +44,8 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
   const [operators, setOperators] = useState<OperatorProfile[]>(globalOperators);
   const [isLoading, setIsLoading] = useState(true);
 
+  const { isMaster: isCurrentUserMaster, isAdministrador: isCurrentUserAdmin } = useAuth();
+
   // Sync to global Operators on change
   useEffect(() => {
     onUpdateGlobalOperators(operators.filter(o => !o.id.startsWith('new-')));
@@ -56,6 +62,18 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
   const [editingCell, setEditingCell] = useState<{ rowId: string; col: number } | null>(null);
   const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
   const [unlockedRowId, setUnlockedRowId] = useState<string | null>(null);
+
+  const canEditCell = (op: OperatorProfile, key: string) => {
+    const isRowUnlocked = unlockedRowId === op.id || op.id.startsWith('new-');
+    if (!isRowUnlocked) return false;
+    if (isCurrentUserMaster) return true;
+    if (isCurrentUserAdmin) {
+       if (op.isMaster) return false;
+       if (key === 'isMaster') return false;
+       return true;
+    }
+    return false;
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoUploadRowId, setPhotoUploadRowId] = useState<string | null>(null);
   
@@ -144,6 +162,9 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
           category: o.category,
           role: o.role || '',
           isLT: o.is_lt || 'NÃO',
+          isUsuario: 'is_usuario' in o ? !!o.is_usuario : (o.is_lt === 'SIM'),
+          isAdministrador: !!o.is_administrador,
+          isMaster: !!o.is_master,
           patio: o.patio || '',
           tmfLogin: o.tmf_login || '',
           bloodType: o.blood_type || '',
@@ -189,7 +210,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         emailVal = `${emailVal}@vibraenergia.com.br`;
     }
     
-    const supabasePayload = {
+    const supabasePayload: any = {
       full_name: op.fullName,
       war_name: op.warName,
       status: op.status,
@@ -209,7 +230,37 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
       shift_end: op.shift?.end || null,
     };
 
-    const { error } = await supabase.from('operadores_geral').update(supabasePayload).eq('id', op.id);
+    supabasePayload.is_usuario = op.isUsuario !== undefined ? op.isUsuario : (op.isLT === 'SIM');
+    supabasePayload.is_administrador = !!op.isAdministrador;
+    supabasePayload.is_master = !!op.isMaster;
+
+    let { error } = await supabase.from('operadores_geral').update(supabasePayload).eq('id', op.id);
+    
+    if (error && (error.message.includes("column") || error.message.includes("does not exist"))) {
+      console.warn("[supabase] Role columns do not exist. Retrying with basic fields.");
+      const fallbackPayload = { ...supabasePayload };
+      delete fallbackPayload.is_usuario;
+      delete fallbackPayload.is_administrador;
+      delete fallbackPayload.is_master;
+
+      const fallbackRes = await supabase.from('operadores_geral').update(fallbackPayload).eq('id', op.id);
+      if (fallbackRes.error) {
+        error = fallbackRes.error;
+      } else {
+        error = null;
+        alert(
+          "⚠️ Os dados básicos do operador foram salvos com sucesso!\n\n" +
+          "Porém, as colunas de controle de acesso (is_usuario, is_administrador, is_master) ainda não existem no seu banco. " +
+          "Para ativar de vez essa categorização, execute este DDL no SQL Editor do seu painel do Supabase:\n\n" +
+          "----------------------------------------------\n" +
+          "ALTER TABLE operadores_geral ADD COLUMN is_usuario boolean DEFAULT true;\n" +
+          "ALTER TABLE operadores_geral ADD COLUMN is_administrador boolean DEFAULT false;\n" +
+          "ALTER TABLE operadores_geral ADD COLUMN is_master boolean DEFAULT false;\n" +
+          "----------------------------------------------"
+        );
+      }
+    }
+
     if (error) {
         alert('Erro ao salvar edição: ' + error.message);
     } else {
@@ -230,29 +281,32 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     setFocusedCell(null);
   };
 
-  const handleFieldChange = (id: string, field: OperatorField, value: string) => {
+  const handleFieldChange = (id: string, field: OperatorField, value: any) => {
     if (field === 'actions') return;
 
-    let newValue: any = (field === 'photoUrl' || field === 'email') ? value : value.toUpperCase();
-    
-    if (field === 'companyId' || field === 'gruId') {
-      const digits = newValue.replace(/\D/g, '');
-      if (digits.length <= 6) {
-         if (digits.length > 3) newValue = `${digits.slice(0,3)}.${digits.slice(3)}`;
-         else newValue = digits;
-      } else {
-         newValue = `${digits.slice(0,3)}.${digits.slice(3,6)}`;
+    let newValue: any = value;
+    if (typeof value === 'string') {
+      newValue = (field === 'photoUrl' || field === 'email') ? value : value.toUpperCase();
+      
+      if (field === 'companyId' || field === 'gruId') {
+        const digits = newValue.replace(/\D/g, '');
+        if (digits.length <= 6) {
+           if (digits.length > 3) newValue = `${digits.slice(0,3)}.${digits.slice(3)}`;
+           else newValue = digits;
+        } else {
+           newValue = `${digits.slice(0,3)}.${digits.slice(3,6)}`;
+        }
+      } else if (field === 'vestNumber' || field === 'tmfLogin') {
+        newValue = newValue.replace(/\D/g, '').slice(0, 4);
+      } else if (field === 'shiftStart' || field === 'shiftEnd') {
+        const digits = newValue.replace(/\D/g, '');
+        if (digits.length > 2) {
+           newValue = `${digits.slice(0,2)}:${digits.slice(2,4)}`;
+        } else {
+           newValue = digits;
+        }
+        if (newValue.length > 5) newValue = newValue.slice(0,5);
       }
-    } else if (field === 'vestNumber' || field === 'tmfLogin') {
-      newValue = newValue.replace(/\D/g, '').slice(0, 4);
-    } else if (field === 'shiftStart' || field === 'shiftEnd') {
-      const digits = newValue.replace(/\D/g, '');
-      if (digits.length > 2) {
-         newValue = `${digits.slice(0,2)}:${digits.slice(2,4)}`;
-      } else {
-         newValue = digits;
-      }
-      if (newValue.length > 5) newValue = newValue.slice(0,5);
     }
     
     setOperators(prev => {
@@ -293,7 +347,7 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
     const emailVal = op.email?.toLowerCase().trim();
     const finalEmail = emailVal ? (emailVal.includes('@') ? emailVal : `${emailVal}@vibraenergia.com.br`) : null;
     
-    const insertPayload = {
+    const insertPayload: any = {
         full_name: op.fullName || 'Sem Nome',
         war_name: op.warName || 'Sem Nome',
         status: op.status || 'ATIVO',
@@ -313,9 +367,40 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
         shift_end: op.shift?.end || null,
         photo_url: op.photoUrl || null,
     };
+
+    insertPayload.is_usuario = op.isUsuario !== undefined ? op.isUsuario : (op.isLT === 'SIM');
+    insertPayload.is_administrador = !!op.isAdministrador;
+    insertPayload.is_master = !!op.isMaster;
     
     try {
-        const { data, error } = await supabase.from('operadores_geral').insert([insertPayload]).select('id').single();
+        let { data, error } = await supabase.from('operadores_geral').insert([insertPayload]).select('id').single();
+        
+        if (error && (error.message.includes("column") || error.message.includes("does not exist"))) {
+          console.warn("[supabase] Role columns do not exist. Retrying with basic fields.");
+          const fallbackPayload = { ...insertPayload };
+          delete fallbackPayload.is_usuario;
+          delete fallbackPayload.is_administrador;
+          delete fallbackPayload.is_master;
+
+          const fallbackRes = await supabase.from('operadores_geral').insert([fallbackPayload]).select('id').single();
+          if (fallbackRes.error) {
+            error = fallbackRes.error;
+          } else {
+            error = null;
+            data = fallbackRes.data;
+            alert(
+              "⚠️ O operador foi criado com sucesso com as informações básicas!\n\n" +
+              "Porém, as colunas de controle de acesso (is_usuario, is_administrador, is_master) ainda não existem no seu banco. " +
+              "Para habilitá-las, execute este DDL no SQL Editor do seu painel do Supabase:\n\n" +
+              "----------------------------------------------\n" +
+              "ALTER TABLE operadores_geral ADD COLUMN is_usuario boolean DEFAULT true;\n" +
+              "ALTER TABLE operadores_geral ADD COLUMN is_administrador boolean DEFAULT false;\n" +
+              "ALTER TABLE operadores_geral ADD COLUMN is_master boolean DEFAULT false;\n" +
+              "----------------------------------------------"
+            );
+          }
+        }
+
         if (error) {
             alert('Erro ao criar operador: ' + error.message);
             return;
@@ -1024,6 +1109,42 @@ export const OperatorsAdmin: React.FC<OperatorsAdminProps> = ({ isDarkMode, glob
                               >
                                 <Trash2 size={14} />
                               </button>
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      if (['isUsuario', 'isAdministrador', 'isMaster'].includes(col.key)) {
+                        const isChecked = !!cellValue;
+                        const editable = canEditCell(op, col.key);
+                        
+                        return (
+                          <td 
+                            key={`${op.id}-${col.key}`} 
+                            data-col={cIdx}
+                            className={`p-0 border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} relative h-10 text-center align-middle hover:bg-black/5 dark:hover:bg-white/5 transition-colors`}
+                          >
+                            <div className="w-full h-full flex items-center justify-center">
+                              <label className={`flex items-center justify-center cursor-pointer ${!editable ? 'pointer-events-none opacity-50' : ''}`}>
+                                <input 
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={!editable}
+                                  onChange={(e) => {
+                                    if (editable) {
+                                      handleFieldChange(op.id, col.key as OperatorField, e.target.checked);
+                                      if (col.key === 'isUsuario') {
+                                        handleFieldChange(op.id, 'isLT', e.target.checked ? 'SIM' : 'NÃO');
+                                      }
+                                    }
+                                  }}
+                                  className={`w-4 h-4 rounded border ${
+                                    isDarkMode 
+                                      ? 'bg-slate-800 border-slate-700 text-indigo-500 focus:ring-indigo-500' 
+                                      : 'bg-white border-slate-300 text-emerald-500 focus:ring-emerald-500'
+                                  } transition duration-150 ease-in-out cursor-pointer`}
+                                />
+                              </label>
                             </div>
                           </td>
                         );

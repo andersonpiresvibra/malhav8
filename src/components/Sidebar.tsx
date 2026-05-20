@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass, CalendarDays, Building, Layers, HardHat, MapPin, ChevronDown } from 'lucide-react';
 import { ViewState } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
   activeView: ViewState;
@@ -30,6 +31,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const { isUsuario, isAdministrador, isMaster } = useAuth();
+
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
@@ -38,8 +41,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
     { id: 'AERODROMO' as ViewState, icon: Earth, label: 'Aeródromo' },
-    { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
-  ].filter(item => !visibleTabs || visibleTabs[item.id] !== false);
+    { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório', adminOnly: true },
+  ].filter(item => {
+    if (visibleTabs && visibleTabs[item.id] === false) return false;
+    if (item.adminOnly) {
+      return isAdministrador || isMaster;
+    }
+    return true;
+  });
 
   const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'ROOT_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AIRLINES_ADMIN' || activeView === 'MALHA_RAIZ_ADMIN' || activeView === 'AERODROMO_ADMIN';
 
@@ -285,27 +294,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
           </div>
         )}
 
-        <button
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          data-active={isManagementActive}
-          title="Gerenciamento"
-          className={`sidebar-nav-btn flex flex-col items-center justify-center p-3 rounded-xl transition-all w-full group ${
-            isManagementActive
-              ? isDarkMode 
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
-                : 'bg-white text-emerald-900 shadow-lg' 
-              : isDarkMode
-                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
-          }`}
-        >
-          <Settings size={22} strokeWidth={isManagementActive ? 2.5 : 2} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
-          <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 whitespace-nowrap ${
-            isManagementActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
-          } transition-opacity`}>
-            Gerenciar
-          </span>
-        </button>
+        {(isUsuario || isAdministrador || isMaster) && (
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            data-active={isManagementActive}
+            title="Gerenciamento"
+            className={`sidebar-nav-btn flex flex-col items-center justify-center p-3 rounded-xl transition-all w-full group ${
+              isManagementActive
+                ? isDarkMode 
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                  : 'bg-white text-emerald-900 shadow-lg' 
+                : isDarkMode
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Settings size={22} strokeWidth={isManagementActive ? 2.5 : 2} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
+            <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 whitespace-nowrap ${
+              isManagementActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
+            } transition-opacity`}>
+              Gerenciar
+            </span>
+          </button>
+        )}
       </div>
     </aside>
   );

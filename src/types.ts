@@ -71,6 +71,9 @@ export interface OperatorProfile {
   bloodType?: string; // TS (e.g. O+)
   email?: string; // Email corporativo @vibraenergia.com.br
   isLT?: 'SIM' | 'NÃO'; // LT
+  isUsuario?: boolean;
+  isAdministrador?: boolean;
+  isMaster?: boolean;
   patio?: 'AERODROMO' | 'VIP' | 'AMBOS' | string; // Pátio
   role?: 'Op. Jr.' | 'Op. Pl' | 'Op. Sr.' | string; // Função
   photoUrl: string;

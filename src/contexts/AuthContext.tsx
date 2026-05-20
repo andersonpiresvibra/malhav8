@@ -9,6 +9,9 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   warName: string;
   loginWithWarName: (name: string) => Promise<{ success: boolean; error?: string }>;
+  isUsuario: boolean;
+  isAdministrador: boolean;
+  isMaster: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,6 +21,9 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   warName: '',
   loginWithWarName: async () => ({ success: false }),
+  isUsuario: false,
+  isAdministrador: false,
+  isMaster: false,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -52,18 +58,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
+  const [dbUserRoles, setDbUserRoles] = useState<{ isUsuario: boolean; isAdministrador: boolean; isMaster: boolean } | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      const name = user.user_metadata?.war_name || user.email?.split('@')[0].toUpperCase();
+      const email = user.email;
+
+      const fetchRoles = async () => {
+        try {
+          // 1. Tenta buscar por e-mail primeiro (utilizadores reais autenticados)
+          if (email) {
+            const { data: rawData, error } = await supabase
+              .from('operadores_geral')
+              .select('is_usuario, is_administrador, is_master, is_lt')
+              .ilike('email', email)
+              .maybeSingle();
+
+            const data = rawData as any;
+            if (!error && data) {
+              const hasUsuarioCol = 'is_usuario' in data;
+              setDbUserRoles({
+                isUsuario: hasUsuarioCol ? !!data.is_usuario : (data.is_lt === 'SIM'),
+                isAdministrador: !!data.is_administrador,
+                isMaster: !!data.is_master
+              });
+              return;
+            }
+          }
+
+          // 2. Se não encontrar ou não tiver e-mail, tenta buscar por war_name (compatibilidade/usuarios virtuais)
+          if (name) {
+            const { data: rawData, error } = await supabase
+              .from('operadores_geral')
+              .select('is_usuario, is_administrador, is_master, is_lt')
+              .ilike('war_name', name)
+              .maybeSingle();
+
+            const data = rawData as any;
+            if (!error && data) {
+              const hasUsuarioCol = 'is_usuario' in data;
+              setDbUserRoles({
+                isUsuario: hasUsuarioCol ? !!data.is_usuario : (data.is_lt === 'SIM'),
+                isAdministrador: !!data.is_administrador,
+                isMaster: !!data.is_master
+              });
+              return;
+            }
+          }
+
+          setDbUserRoles(null);
+        } catch (err) {
+          console.error("Erro ao obter funções do usuário no banco:", err);
+          setDbUserRoles(null);
+        }
+      };
+
+      fetchRoles();
+    } else {
+      setDbUserRoles(null);
+    }
+  }, [user]);
+
+  const isCurrentUserOwner = user?.email === 'andersonpires.vibra@gmail.com';
+
+  const isUsuario = isCurrentUserOwner || (dbUserRoles?.isUsuario ?? (user?.user_metadata?.is_usuario ?? (user?.user_metadata?.is_lt === 'SIM' || false)));
+  const isAdministrador = isCurrentUserOwner || (dbUserRoles?.isAdministrador ?? (user?.user_metadata?.is_administrador ?? false));
+  const isMaster = isCurrentUserOwner || (dbUserRoles?.isMaster ?? (user?.user_metadata?.is_master ?? false));
+
   const loginWithWarName = async (name: string) => {
     try {
       const { data, error } = await supabase
         .from('operadores_geral')
         .select('*')
         .ilike('war_name', name)
-        .eq('is_lt', 'SIM')
         .limit(1)
         .single();
 
       if (error || !data) {
-        return { success: false, error: 'Acesso negado. Apenas LTs (Líderes Técnicos) podem acessar o sistema.' };
+        return { success: false, error: 'Acesso negado. Usuário não encontrado no sistema.' };
+      }
+
+      const hasUsuarioCol = 'is_usuario' in data;
+      const dbIsUsuario = hasUsuarioCol ? !!data.is_usuario : (data.is_lt === 'SIM');
+      const dbIsAdmin = !!data.is_administrador;
+      const dbIsMaster = !!data.is_master;
+
+      if (!dbIsUsuario && !dbIsAdmin && !dbIsMaster) {
+        return { success: false, error: 'Acesso negado. Usuário sem permissões autorizadas para acessar o sistema.' };
       }
 
       const virtualUser = {
@@ -72,7 +154,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user_metadata: {
           war_name: data.war_name,
           full_name: data.full_name,
-          is_virtual: true
+          is_virtual: true,
+          is_usuario: dbIsUsuario,
+          is_administrador: dbIsAdmin,
+          is_master: dbIsMaster
         }
       };
 
@@ -98,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     || 'LT';
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut, warName, loginWithWarName }}>
+    <AuthContext.Provider value={{ user, session, loading, signOut, warName, loginWithWarName, isUsuario, isAdministrador, isMaster }}>
       {children}
     </AuthContext.Provider>
   );

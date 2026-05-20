@@ -1521,7 +1521,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     [searchFilteredFlights],
   );
 
-  const tabs: {
+  const baseTabs: {
     id: Tab;
     label: string;
     icon: React.ElementType;
@@ -1558,7 +1558,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
       icon: CheckCircle,
       count: stats.finalizados,
     },
-  ].filter(tab => !layoutPreferences || !layoutPreferences.visibleTabs || layoutPreferences.visibleTabs[tab.id] !== false);
+  ];
+
+  const tabs = baseTabs.filter(tab => !layoutPreferences || !layoutPreferences.visibleTabs || (layoutPreferences.visibleTabs as any)[tab.id] !== false);
 
   const filteredData = useMemo(() => {
     let base = searchFilteredFlights;

@@ -51,31 +51,108 @@ const App: React.FC = () => {
     return defaultPreferences;
   });
 
-  // Atualiza as preferências de layout quando mudar de usuário
+  const [lockedColumns, setLockedColumns] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('layout_locks_columns');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      flightNumber: true,
+      positionId: true,
+      operator: true,
+      etd: true,
+    };
+  });
+
+  const [lockedTabs, setLockedTabs] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('layout_locks_tabs');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      GRID_OPS: true,
+    };
+  });
+
+  // Atualiza as preferências de layout e travas quando mudar de usuário ou inciar (carrega do Supabase com fallback local)
   useEffect(() => {
-    if (user) {
-      const key = `layout_prefs_${user?.user_metadata?.war_name || 'default'}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
+    if (user && user.user_metadata?.war_name) {
+      const username = user.user_metadata.war_name;
+      import('./services/supabaseService').then(async ({ getUserLayoutPreferences }) => {
+        const dbPrefs = await getUserLayoutPreferences(username);
+        if (dbPrefs) {
           setLayoutPreferences({
-            visibleTabs: { ...defaultPreferences.visibleTabs, ...parsed.visibleTabs },
-            visibleColumns: { ...defaultPreferences.visibleColumns, ...parsed.visibleColumns }
+            visibleTabs: { ...defaultPreferences.visibleTabs, ...dbPrefs.visible_tabs },
+            visibleColumns: { ...defaultPreferences.visibleColumns, ...dbPrefs.visible_columns }
           });
-        } catch (e) {
-          setLayoutPreferences(defaultPreferences);
+          if (dbPrefs.locked_columns) {
+            setLockedColumns(dbPrefs.locked_columns);
+          }
+          if (dbPrefs.locked_tabs) {
+            setLockedTabs(dbPrefs.locked_tabs);
+          }
+        } else {
+          // Fallback para localStorage se não encontrar no banco
+          const key = `layout_prefs_${username}`;
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              setLayoutPreferences({
+                visibleTabs: { ...defaultPreferences.visibleTabs, ...parsed.visibleTabs },
+                visibleColumns: { ...defaultPreferences.visibleColumns, ...parsed.visibleColumns }
+              });
+            } catch (e) {}
+          } else {
+            setLayoutPreferences(defaultPreferences);
+          }
+          
+          const savedLocksCols = localStorage.getItem('layout_locks_columns');
+          if (savedLocksCols) {
+            try { setLockedColumns(JSON.parse(savedLocksCols)); } catch (e) {}
+          }
+          const savedLocksTabs = localStorage.getItem('layout_locks_tabs');
+          if (savedLocksTabs) {
+            try { setLockedTabs(JSON.parse(savedLocksTabs)); } catch (e) {}
+          }
         }
-      } else {
-        setLayoutPreferences(defaultPreferences);
-      }
+      }).catch(err => {
+        console.error('[App] Failed to load layout preferences:', err);
+      });
+    } else {
+      setLayoutPreferences(defaultPreferences);
     }
   }, [user]);
 
-  const handleSavePreferences = useCallback((newPrefs: UserLayoutPreferences) => {
+  const handleSavePreferences = useCallback(async (
+    newPrefs: UserLayoutPreferences,
+    newLocksCols: Record<string, boolean>,
+    newLocksTabs: Record<string, boolean>
+  ) => {
     setLayoutPreferences(newPrefs);
-    const key = `layout_prefs_${user?.user_metadata?.war_name || 'default'}`;
+    setLockedColumns(newLocksCols);
+    setLockedTabs(newLocksTabs);
+    
+    const username = user?.user_metadata?.war_name || 'default';
+    const key = `layout_prefs_${username}`;
     localStorage.setItem(key, JSON.stringify(newPrefs));
+    localStorage.setItem('layout_locks_columns', JSON.stringify(newLocksCols));
+    localStorage.setItem('layout_locks_tabs', JSON.stringify(newLocksTabs));
+
+    if (user && user.user_metadata?.war_name) {
+      try {
+        const { saveUserLayoutPreferences } = await import('./services/supabaseService');
+        await saveUserLayoutPreferences(
+          username,
+          newPrefs.visibleColumns,
+          newPrefs.visibleTabs,
+          newLocksCols,
+          newLocksTabs
+        );
+      } catch (err: any) {
+        console.warn('[App] Não foi possível sincronizar as preferências no Supabase (Mesa sem tabela correspondente). Salvo em cache local de navegação:', err.message);
+      }
+    }
   }, [user]);
 
   // === ESTADO CENTRALIZADO (A VERDADE ÚNICA) ===
@@ -734,6 +811,8 @@ const App: React.FC = () => {
         preferences={layoutPreferences}
         onSave={handleSavePreferences}
         currentUser={warName}
+        lockedColumnsFromDb={lockedColumns}
+        lockedTabsFromDb={lockedTabs}
       />
 
       <div className={`flex flex-1 w-full ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'} transition-colors duration-500 font-sans overflow-hidden relative`}>
