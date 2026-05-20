@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Sun, Moon, User, Edit2, Maximize, Minimize, Plane, Search, RefreshCw, Power, X } from 'lucide-react';
+import { Sun, Moon, User, Edit2, Maximize, Minimize, Plane, Search, RefreshCw, Power, X, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface DashboardHeaderProps {
@@ -14,9 +14,10 @@ interface DashboardHeaderProps {
   ltPhotoUrl?: string;
   setLtName: (name: string) => void;
   operators?: any[];
+  onOpenLayoutPrefs?: () => void;
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName, operators = [] }) => {
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName, operators = [], onOpenLayoutPrefs }) => {
   const { signOut } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [editingField, setEditingField] = useState<'density' | 'temperature' | 'ltName' | null>(null);
@@ -209,6 +210,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
         </div>
 
         <div className="flex items-center gap-4">
+          {onOpenLayoutPrefs && (
+            <button 
+              onClick={onOpenLayoutPrefs} 
+              title="Personalizar Layout (Colunas e Abas)"
+              className="p-2.5 text-emerald-100 hover:text-white hover:bg-white/10 transition-all rounded-md"
+            >
+              <SlidersHorizontal size={20} />
+            </button>
+          )}
           <button 
             onClick={onToggleFullscreen} 
             className="p-2.5 text-emerald-100 hover:text-white hover:bg-white/10 transition-all rounded-md"

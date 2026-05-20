@@ -189,6 +189,7 @@ interface GridOpsProps {
   currentMeshDate?: string;
   positionRestrictions: Record<string, "HYBRID" | "CTA" | "SRV">;
   positionsMetadata?: Record<string, any>;
+  layoutPreferences?: any;
 }
 
 const parseTime = (timeStr: string) => {
@@ -347,9 +348,23 @@ export const GridOps: React.FC<GridOpsProps> = ({
   currentMeshDate,
   positionRestrictions,
   positionsMetadata = {},
+  layoutPreferences,
 }) => {
   const { isDarkMode } = useTheme();
   const { user, warName } = useAuth();
+
+  const isColVisible = (colKey: string) => {
+    if (!layoutPreferences || !layoutPreferences.visibleColumns) return true;
+    
+    let logicalKey = colKey;
+    if (colKey === "departureFlightNumber" || colKey === "flightNumber") {
+      logicalKey = "flightNumber";
+    } else if (colKey === "assignmentTime" || colKey === "assignedByLt") {
+      logicalKey = "operator";
+    }
+    
+    return layoutPreferences.visibleColumns[logicalKey] !== false;
+  };
 
   const currentUserName = user?.warName || warName || ltName || "SISTEMA";
   const currentUserRole = user?.role || "LÍDER DE TURNO";
@@ -1543,7 +1558,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       icon: CheckCircle,
       count: stats.finalizados,
     },
-  ];
+  ].filter(tab => !layoutPreferences || !layoutPreferences.visibleTabs || layoutPreferences.visibleTabs[tab.id] !== false);
 
   const filteredData = useMemo(() => {
     let base = searchFilteredFlights;
@@ -1615,6 +1630,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
     colIndex: number,
     editable: boolean = true,
   ) => {
+    if (!isColVisible(colKey as string)) {
+      return null;
+    }
+
     const isFocused =
       focusedCell?.rowId === row.id && focusedCell?.col === colKey;
     const isEditing =
@@ -3441,332 +3460,463 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 {/* LAYOUT CONDICIONAL DE COLUNAS */}
                 {activeTab === "FILA" ? (
                   <>
-                    <SortableHeader
-                      label="COMP."
-                      columnKey="airlineCode"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="V.SAÍDA"
-                      columnKey="departureFlightNumber"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="ICAO"
-                      columnKey="destination"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CID"
-                      columnKey="destination"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="PREFIXO"
-                      columnKey="registration"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="POS"
-                      columnKey="positionId"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="ETD"
-                      columnKey="etd"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CALÇO"
-                      columnKey="actualArrivalTime"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="ETA"
-                      columnKey="eta"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="T. REST"
-                      columnKey="etd"
-                      className="text-center w-14"
-                    />
-                    <SortableHeader
-                      label="OPERADOR"
-                      columnKey="operator"
-                      className="text-left pl-2 w-32"
-                    />
-                    <SortableHeader
-                      label="FROTA"
-                      columnKey="fleet"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="F.TIPO"
-                      columnKey="fleet"
-                      className="text-center w-14"
-                    />
+                    {isColVisible("airlineCode") && (
+                      <SortableHeader
+                        label="COMP."
+                        columnKey="airlineCode"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("flightNumber") && (
+                      <SortableHeader
+                        label="V.SAÍDA"
+                        columnKey="departureFlightNumber"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="ICAO"
+                        columnKey="destination"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="CID"
+                        columnKey="destination"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("registration") && (
+                      <SortableHeader
+                        label="PREFIXO"
+                        columnKey="registration"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("positionId") && (
+                      <SortableHeader
+                        label="POS"
+                        columnKey="positionId"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="ETD"
+                        columnKey="etd"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("actualArrivalTime") && (
+                      <SortableHeader
+                        label="CALÇO"
+                        columnKey="actualArrivalTime"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("eta") && (
+                      <SortableHeader
+                        label="ETA"
+                        columnKey="eta"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="T. REST"
+                        columnKey="etd"
+                        className="text-center w-14"
+                      />
+                    )}
+                    {isColVisible("operator") && (
+                      <SortableHeader
+                        label="OPERADOR"
+                        columnKey="operator"
+                        className="text-left pl-2 w-32"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="FROTA"
+                        columnKey="fleet"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="F.TIPO"
+                        columnKey="fleet"
+                        className="text-center w-14"
+                      />
+                    )}
                   </>
                 ) : isStreamlinedView ? (
                   <>
-                    <SortableHeader
-                      label="COMP."
-                      columnKey="airlineCode"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="PREFIXO"
-                      columnKey="registration"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="MODELO"
-                      columnKey="model"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="V.SAÍDA"
-                      columnKey="departureFlightNumber"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="ICAO"
-                      columnKey="destination"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CID"
-                      columnKey="destination"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="POS"
-                      columnKey="positionId"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CALÇO"
-                      columnKey="actualArrivalTime"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="ETD"
-                      columnKey="etd"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="T. REST"
-                      columnKey="etd"
-                      className="text-center w-14"
-                    />
-                    <SortableHeader
-                      label="OPERADOR"
-                      columnKey="operator"
-                      className="text-left pl-2 w-32"
-                    />
-                    <SortableHeader
-                      label="FROTA"
-                      columnKey="fleet"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="F.TIPO"
-                      columnKey="fleet"
-                      className="text-center w-14"
-                    />
-                    <th
-                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
-                    >
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span
-                          className={`font-black text-[9px] uppercase tracking-wider text-white`}
-                        >
-                          REPORT
-                        </span>
-                      </div>
-                    </th>
+                    {isColVisible("airlineCode") && (
+                      <SortableHeader
+                        label="COMP."
+                        columnKey="airlineCode"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("registration") && (
+                      <SortableHeader
+                        label="PREFIXO"
+                        columnKey="registration"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("model") && (
+                      <SortableHeader
+                        label="MODELO"
+                        columnKey="model"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("flightNumber") && (
+                      <SortableHeader
+                        label="V.SAÍDA"
+                        columnKey="departureFlightNumber"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="ICAO"
+                        columnKey="destination"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="CID"
+                        columnKey="destination"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("positionId") && (
+                      <SortableHeader
+                        label="POS"
+                        columnKey="positionId"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("actualArrivalTime") && (
+                      <SortableHeader
+                        label="CALÇO"
+                        columnKey="actualArrivalTime"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="ETD"
+                        columnKey="etd"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="T. REST"
+                        columnKey="etd"
+                        className="text-center w-14"
+                      />
+                    )}
+                    {isColVisible("operator") && (
+                      <SortableHeader
+                        label="OPERADOR"
+                        columnKey="operator"
+                        className="text-left pl-2 w-32"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="FROTA"
+                        columnKey="fleet"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="F.TIPO"
+                        columnKey="fleet"
+                        className="text-center w-14"
+                      />
+                    )}
+                    {isColVisible("report") && (
+                      <th
+                        className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                      >
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span
+                            className={`font-black text-[9px] uppercase tracking-wider text-white`}
+                          >
+                            REPORT
+                          </span>
+                        </div>
+                      </th>
+                    )}
+                    {isColVisible("tab") && (
+                      <th
+                        className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                      >
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span
+                            className={`font-black text-[9px] uppercase tracking-wider text-white`}
+                          >
+                            TAB
+                          </span>
+                        </div>
+                      </th>
+                    )}
                     {activeTab === "DESIGNADOS" && (
                       <>
-                        <SortableHeader
-                          label="HR.D"
-                          columnKey="assignmentTime"
-                          className="text-center w-16"
-                        />
-                        <SortableHeader
-                          label="LT"
-                          columnKey="assignedByLt"
-                          className="text-left pl-2 w-28"
-                        />
+                        {isColVisible("operator") && (
+                          <SortableHeader
+                            label="HR.D"
+                            columnKey="assignmentTime"
+                            className="text-center w-16"
+                          />
+                        )}
+                        {isColVisible("operator") && (
+                          <SortableHeader
+                            label="LT"
+                            columnKey="assignedByLt"
+                            className="text-left pl-2 w-28"
+                          />
+                        )}
                       </>
                     )}
                   </>
                 ) : isFinishedView ? (
                   <>
-                    <SortableHeader
-                      label="COMP."
-                      columnKey="airlineCode"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="PREFIXO"
-                      columnKey="registration"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="MODELO"
-                      columnKey="model"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="V.SAÍDA"
-                      columnKey="departureFlightNumber"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="ICAO"
-                      columnKey="destination"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CID"
-                      columnKey="destination"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="POS"
-                      columnKey="positionId"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CALÇO"
-                      columnKey="actualArrivalTime"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="ETD"
-                      columnKey="etd"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="T. REST"
-                      columnKey="etd"
-                      className="text-center w-14"
-                    />
-                    <SortableHeader
-                      label="OPERADOR"
-                      columnKey="operator"
-                      className="text-left pl-2 w-32"
-                    />
-                    <SortableHeader
-                      label="FROTA"
-                      columnKey="fleet"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="F.TIPO"
-                      columnKey="fleet"
-                      className="text-center w-14"
-                    />
-                    <th
-                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
-                    >
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span
-                          className={`font-black text-[9px] uppercase tracking-wider text-white`}
-                        >
-                          REPORT
-                        </span>
-                      </div>
-                    </th>
-                    <th
-                      className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
-                    >
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span
-                          className={`font-black text-[9px] uppercase tracking-wider text-white`}
-                        >
-                          TAB
-                        </span>
-                      </div>
-                    </th>
+                    {isColVisible("airlineCode") && (
+                      <SortableHeader
+                        label="COMP."
+                        columnKey="airlineCode"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("registration") && (
+                      <SortableHeader
+                        label="PREFIXO"
+                        columnKey="registration"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("model") && (
+                      <SortableHeader
+                        label="MODELO"
+                        columnKey="model"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("flightNumber") && (
+                      <SortableHeader
+                        label="V.SAÍDA"
+                        columnKey="departureFlightNumber"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="ICAO"
+                        columnKey="destination"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="CID"
+                        columnKey="destination"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("positionId") && (
+                      <SortableHeader
+                        label="POS"
+                        columnKey="positionId"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("actualArrivalTime") && (
+                      <SortableHeader
+                        label="CALÇO"
+                        columnKey="actualArrivalTime"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="ETD"
+                        columnKey="etd"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="T. REST"
+                        columnKey="etd"
+                        className="text-center w-14"
+                      />
+                    )}
+                    {isColVisible("operator") && (
+                      <SortableHeader
+                        label="OPERADOR"
+                        columnKey="operator"
+                        className="text-left pl-2 w-32"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="FROTA"
+                        columnKey="fleet"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="F.TIPO"
+                        columnKey="fleet"
+                        className="text-center w-14"
+                      />
+                    )}
+                    {isColVisible("report") && (
+                      <th
+                        className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                      >
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span
+                            className={`font-black text-[9px] uppercase tracking-wider text-white`}
+                          >
+                            REPORT
+                          </span>
+                        </div>
+                      </th>
+                    )}
+                    {isColVisible("tab") && (
+                      <th
+                        className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
+                      >
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span
+                            className={`font-black text-[9px] uppercase tracking-wider text-white`}
+                          >
+                            TAB
+                          </span>
+                        </div>
+                      </th>
+                    )}
                   </>
                 ) : (
                   <>
-                    <SortableHeader
-                      label="COMP."
-                      columnKey="airlineCode"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="PREFIXO"
-                      columnKey="registration"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="MODELO"
-                      columnKey="model"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="V.CHEG"
-                      columnKey="flightNumber"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="ETA"
-                      columnKey="eta"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="V.SAÍDA"
-                      columnKey="departureFlightNumber"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="ICAO"
-                      columnKey="destination"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CID"
-                      columnKey="destination"
-                      className="text-center w-20"
-                    />
-                    <SortableHeader
-                      label="POS"
-                      columnKey="positionId"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="CALÇO"
-                      columnKey="actualArrivalTime"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="ETD"
-                      columnKey="etd"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="T. REST"
-                      columnKey="etd"
-                      className="text-center w-14"
-                    />
-                    <SortableHeader
-                      label="OPERADOR"
-                      columnKey="operator"
-                      className="text-left pl-2 w-32"
-                    />
-                    <SortableHeader
-                      label="FROTA"
-                      columnKey="fleet"
-                      className="text-center w-16"
-                    />
-                    <SortableHeader
-                      label="F.TIPO"
-                      columnKey="fleet"
-                      className="text-center w-14"
-                    />
+                    {isColVisible("airlineCode") && (
+                      <SortableHeader
+                        label="COMP."
+                        columnKey="airlineCode"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("registration") && (
+                      <SortableHeader
+                        label="PREFIXO"
+                        columnKey="registration"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("model") && (
+                      <SortableHeader
+                        label="MODELO"
+                        columnKey="model"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("flightNumber") && (
+                      <SortableHeader
+                        label="V.CHEG"
+                        columnKey="flightNumber"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("eta") && (
+                      <SortableHeader
+                        label="ETA"
+                        columnKey="eta"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("flightNumber") && (
+                      <SortableHeader
+                        label="V.SAÍDA"
+                        columnKey="departureFlightNumber"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="ICAO"
+                        columnKey="destination"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("destination") && (
+                      <SortableHeader
+                        label="CID"
+                        columnKey="destination"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("positionId") && (
+                      <SortableHeader
+                        label="POS"
+                        columnKey="positionId"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("actualArrivalTime") && (
+                      <SortableHeader
+                        label="CALÇO"
+                        columnKey="actualArrivalTime"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="ETD"
+                        columnKey="etd"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("etd") && (
+                      <SortableHeader
+                        label="T. REST"
+                        columnKey="etd"
+                        className="text-center w-14"
+                      />
+                    )}
+                    {isColVisible("operator") && (
+                      <SortableHeader
+                        label="OPERADOR"
+                        columnKey="operator"
+                        className="text-left pl-2 w-32"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="FROTA"
+                        columnKey="fleet"
+                        className="text-center w-16"
+                      />
+                    )}
+                    {isColVisible("fleet") && (
+                      <SortableHeader
+                        label="F.TIPO"
+                        columnKey="fleet"
+                        className="text-center w-14"
+                      />
+                    )}
                   </>
                 )}
 
@@ -3811,6 +3961,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   dynamicStatus?.label === "STAND-BY (+1H)";
 
                 const renderReportCell = (flight: FlightData) => {
+                  if (!isColVisible("report")) {
+                    return null;
+                  }
                   const latest = getLatestReportItem(flight);
                   if (!latest) {
                     return (
@@ -3914,11 +4067,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         )}
 
                         {/* CITY */}
-                        <td
-                          className={`px-1 border-y border-l ${getRowBgClass(row)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
-                        >
-                          {getCityName(row.destination || "", destinosDB)}
-                        </td>
+                        {isColVisible("destination") && (
+                          <td
+                            className={`px-1 border-y border-l ${getRowBgClass(row)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                          >
+                            {getCityName(row.destination || "", destinosDB)}
+                          </td>
+                        )}
 
                         {/* REGISTRATION */}
                         {renderEditableCell(
@@ -3971,43 +4126,47 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         )}
 
                         {/* T. REST */}
-                        <TimeRestCell
-                          row={row}
-                          isDarkMode={isDarkMode}
-                        />
+                        {isColVisible("etd") && (
+                          <TimeRestCell
+                            row={row}
+                            isDarkMode={isDarkMode}
+                          />
+                        )}
 
                         {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                        <td
-                          className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible`}
-                        >
-                          <div className="relative w-full h-full flex flex-col justify-center">
-                            {row.operator ? (
-                              <div
-                                className="flex items-center justify-start w-full cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                              >
-                                <OperatorCell
-                                  operatorName={row.operator}
-                                  operators={operators}
-                                  isDarkMode={isDarkMode}
-                                />
-                              </div>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                                className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
-                              >
-                                {renderDesignarButtonContent(row)}
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        {isColVisible("operator") && (
+                          <td
+                            className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible`}
+                          >
+                            <div className="relative w-full h-full flex flex-col justify-center">
+                              {row.operator ? (
+                                <div
+                                  className="flex items-center justify-start w-full cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                >
+                                  <OperatorCell
+                                    operatorName={row.operator}
+                                    operators={operators}
+                                    isDarkMode={isDarkMode}
+                                  />
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                  className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
+                                >
+                                  {renderDesignarButtonContent(row)}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
 
                         {/* FLEET */}
                         {renderEditableCell(
@@ -4081,11 +4240,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         )}
 
                         {/* CITY (Not directly editable, derived from destination) */}
-                        <td
-                          className={`px-1 border-y border-l ${getRowBgClass(row)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
-                        >
-                          {getCityName(row.destination || "", destinosDB)}
-                        </td>
+                        {isColVisible("destination") && (
+                          <td
+                            className={`px-1 border-y border-l ${getRowBgClass(row)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                          >
+                            {getCityName(row.destination || "", destinosDB)}
+                          </td>
+                        )}
 
                         {/* POSITION */}
                         {renderEditableCell(
@@ -4118,43 +4279,47 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         )}
 
                         {/* T. REST */}
-                        <TimeRestCell
-                          row={row}
-                          isDarkMode={isDarkMode}
-                        />
+                        {isColVisible("etd") && (
+                          <TimeRestCell
+                            row={row}
+                            isDarkMode={isDarkMode}
+                          />
+                        )}
 
                         {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                        <td
-                          className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible`}
-                        >
-                          <div className="relative w-full h-full flex flex-col justify-center">
-                            {row.operator ? (
-                              <div
-                                className="flex items-center justify-start w-full cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                              >
-                                <OperatorCell
-                                  operatorName={row.operator}
-                                  operators={operators}
-                                  isDarkMode={isDarkMode}
-                                />
-                              </div>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                                className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
-                              >
-                                {renderDesignarButtonContent(row)}
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        {isColVisible("operator") && (
+                          <td
+                            className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible`}
+                          >
+                            <div className="relative w-full h-full flex flex-col justify-center">
+                              {row.operator ? (
+                                <div
+                                  className="flex items-center justify-start w-full cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                >
+                                  <OperatorCell
+                                    operatorName={row.operator}
+                                    operators={operators}
+                                    isDarkMode={isDarkMode}
+                                  />
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                  className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
+                                >
+                                  {renderDesignarButtonContent(row)}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
 
                         {/* FLEET */}
                         {renderEditableCell(
@@ -4204,11 +4369,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                               false,
                             )}
                             {/* LT */}
-                            <td
-                              className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left font-black text-[9px] ${isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight overflow-hidden truncate`}
-                            >
-                              {row.assignedByLt || "--"}
-                            </td>
+                            {isColVisible("operator") && (
+                              <td
+                                className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left font-black text-[9px] ${isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight overflow-hidden truncate`}
+                              >
+                                {row.assignedByLt || "--"}
+                              </td>
+                            )}
                           </>
                         )}
                       </>
@@ -4295,42 +4462,46 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         )}
 
                         {/* T. REST */}
-                        <TimeRestCell
-                          row={row}
-                          isDarkMode={isDarkMode}
-                        />
+                        {isColVisible("etd") && (
+                          <TimeRestCell
+                            row={row}
+                            isDarkMode={isDarkMode}
+                          />
+                        )}
 
                         {/* OPERATOR (WITH ASSIGN BUTTON & MESSAGE DOT) */}
-                        <td
-                          className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible truncate`}
-                        >
-                          <div className="relative w-full h-full flex flex-col justify-center">
-                            {row.operator ? (
-                              <div
-                                className="flex items-center justify-start w-full cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                              >
-                                <OperatorCell
-                                  operatorName={row.operator}
-                                  operators={operators}
-                                />
-                              </div>
-                            ) : (
-                              <span
-                                className={`${isDarkMode ? "text-slate-700" : "text-slate-400"} italic uppercase text-[9px] pl-2 cursor-pointer`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                              >
-                                --
-                              </span>
-                            )}
-                          </div>
-                        </td>
+                        {isColVisible("operator") && (
+                          <td
+                            className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible truncate`}
+                          >
+                            <div className="relative w-full h-full flex flex-col justify-center">
+                              {row.operator ? (
+                                <div
+                                  className="flex items-center justify-start w-full cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                >
+                                  <OperatorCell
+                                    operatorName={row.operator}
+                                    operators={operators}
+                                  />
+                                </div>
+                              ) : (
+                                <span
+                                  className={`${isDarkMode ? "text-slate-700" : "text-slate-400"} italic uppercase text-[9px] pl-2 cursor-pointer`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                >
+                                  --
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        )}
 
                         {/* FLEET */}
                         {renderEditableCell(
@@ -4360,11 +4531,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         {renderReportCell(row)}
 
                         {/* TAB (Exclusivo Finalizados) - Not directly editable as it's calculated */}
-                        <td
-                          className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-center font-mono ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
-                        >
-                          {calculateTAB(row)}
-                        </td>
+                        {isColVisible("tab") && (
+                          <td
+                            className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-center font-mono ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
+                          >
+                            {calculateTAB(row)}
+                          </td>
+                        )}
                       </>
                     ) : (
                       <>
@@ -4432,11 +4605,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         )}
 
                         {/* CITY */}
-                        <td
-                          className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
-                        >
-                          {getCityName(row.destination || "", destinosDB)}
-                        </td>
+                        {isColVisible("destination") && (
+                          <td
+                            className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-center font-black text-[9px] ${isRowDelayed ? (isDarkMode ? "!text-slate-100" : "!text-[#000000]") : isDarkMode ? "text-slate-400" : "text-slate-500"} uppercase tracking-tight`}
+                          >
+                            {getCityName(row.destination || "", destinosDB)}
+                          </td>
+                        )}
 
                         {/* POSITION */}
                         {renderEditableCell(
@@ -4469,43 +4644,47 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         )}
 
                         {/* T. REST */}
-                        <TimeRestCell
-                          row={row}
-                          isDarkMode={isDarkMode}
-                        />
+                        {isColVisible("etd") && (
+                          <TimeRestCell
+                            row={row}
+                            isDarkMode={isDarkMode}
+                          />
+                        )}
 
                         {/* OPERATOR (WITH ASSIGN BUTTON) */}
-                        <td
-                          className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible`}
-                        >
-                          <div className="relative w-full h-full flex flex-col justify-center">
-                            {row.operator ? (
-                              <div
-                                className="flex items-center justify-start w-full cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                              >
-                                <OperatorCell
-                                  operatorName={row.operator}
-                                  operators={operators}
-                                  isDarkMode={isDarkMode}
-                                />
-                              </div>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalFlight(row);
-                                }}
-                                className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
-                              >
-                                {renderDesignarButtonContent(row)}
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        {isColVisible("operator") && (
+                          <td
+                            className={`px-2 border-y border-l ${getRowBgClass(row)} transition-all text-left align-middle overflow-visible`}
+                          >
+                            <div className="relative w-full h-full flex flex-col justify-center">
+                              {row.operator ? (
+                                <div
+                                  className="flex items-center justify-start w-full cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                >
+                                  <OperatorCell
+                                    operatorName={row.operator}
+                                    operators={operators}
+                                    isDarkMode={isDarkMode}
+                                  />
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignModalFlight(row);
+                                  }}
+                                  className={`inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded shadow-lg transition-all active:scale-95 w-full mx-auto ${getDesignarButtonClass(row)}`}
+                                >
+                                  {renderDesignarButtonContent(row)}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
 
                         {/* FLEET */}
                         {renderEditableCell(

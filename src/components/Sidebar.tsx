@@ -7,9 +7,10 @@ interface SidebarProps {
   onViewChange: (view: ViewState) => void;
   isDarkMode: boolean;
   onSimulateEndOfDay?: () => void;
+  visibleTabs?: Record<string, boolean>;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDarkMode, onSimulateEndOfDay }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDarkMode, onSimulateEndOfDay, visibleTabs }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     MALHA: false,
@@ -38,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
     { id: 'AERODROMO' as ViewState, icon: Earth, label: 'Aeródromo' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório' },
-  ];
+  ].filter(item => !visibleTabs || visibleTabs[item.id] !== false);
 
   const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'ROOT_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AIRLINES_ADMIN' || activeView === 'MALHA_RAIZ_ADMIN' || activeView === 'AERODROMO_ADMIN';
 
@@ -102,30 +103,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
              {expandedSections.MALHA && (
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
-                 <button
-                   onClick={() => { onViewChange('MALHA_RAIZ_ADMIN'); setIsMenuOpen(false); }}
-                   className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                       activeView === 'MALHA_RAIZ_ADMIN' 
-                         ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                         : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                    }`}
-                 >
-                    <CalendarDays size={14} className="shrink-0" /> <span className="text-left w-full">MALHARAIZ_DB</span>
-                 </button>
+                 {(!visibleTabs || visibleTabs.MALHA_RAIZ_ADMIN !== false) && (
+                   <button
+                     onClick={() => { onViewChange('MALHA_RAIZ_ADMIN'); setIsMenuOpen(false); }}
+                     className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                         activeView === 'MALHA_RAIZ_ADMIN' 
+                           ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                           : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                      }`}
+                   >
+                     <CalendarDays size={14} className="shrink-0" /> <span className="text-left w-full">MALHARAIZ_DB</span>
+                   </button>
+                 )}
 
-                 <button
-                    onClick={() => {
-                       onViewChange('OPERATIONAL_MESH');
-                       setIsMenuOpen(false);
-                    }}
-                    className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                       activeView === 'OPERATIONAL_MESH' 
-                         ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                         : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                    }`}
-                 >
-                    <Table size={14} className="shrink-0" /> <span className="text-left w-full">MALHABASE_BD</span>
-                 </button>
+                 {(!visibleTabs || visibleTabs.OPERATIONAL_MESH !== false) && (
+                   <button
+                      onClick={() => {
+                         onViewChange('OPERATIONAL_MESH');
+                         setIsMenuOpen(false);
+                      }}
+                      className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                         activeView === 'OPERATIONAL_MESH' 
+                           ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                           : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                      }`}
+                   >
+                      <Table size={14} className="shrink-0" /> <span className="text-left w-full">MALHABASE_BD</span>
+                   </button>
+                 )}
                </div>
              )}
 
@@ -143,33 +148,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
              {expandedSections.OPERACIONAL && (
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
-                 <button
-                    onClick={() => {
-                       onViewChange('OPERATORS_ADMIN');
-                       setIsMenuOpen(false);
-                    }}
-                    className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                       activeView === 'OPERATORS_ADMIN' 
-                         ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                         : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                    }`}
-                 >
-                    <HardHat size={14} className="shrink-0" /> <span className="text-left w-full">OPERADORES_BD</span>
-                 </button>
+                 {(!visibleTabs || visibleTabs.OPERATORS_ADMIN !== false) && (
+                   <button
+                      onClick={() => {
+                         onViewChange('OPERATORS_ADMIN');
+                         setIsMenuOpen(false);
+                      }}
+                      className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                         activeView === 'OPERATORS_ADMIN' 
+                           ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                           : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                      }`}
+                   >
+                      <HardHat size={14} className="shrink-0" /> <span className="text-left w-full">OPERADORES_BD</span>
+                   </button>
+                 )}
 
-                 <button
-                    onClick={() => {
-                       onViewChange('FLEETS_ADMIN');
-                       setIsMenuOpen(false);
-                    }}
-                    className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                       activeView === 'FLEETS_ADMIN' 
-                         ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                         : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                    }`}
-                 >
-                    <Layers size={14} className="shrink-0" /> <span className="text-left w-full">FROTAS_BD</span>
-                 </button>
+                 {(!visibleTabs || visibleTabs.FLEETS_ADMIN !== false) && (
+                   <button
+                      onClick={() => {
+                         onViewChange('FLEETS_ADMIN');
+                         setIsMenuOpen(false);
+                      }}
+                      className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                         activeView === 'FLEETS_ADMIN' 
+                           ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                           : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                      }`}
+                   >
+                      <Layers size={14} className="shrink-0" /> <span className="text-left w-full">FROTAS_BD</span>
+                   </button>
+                 )}
                </div>
              )}
 
@@ -187,19 +196,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
              {expandedSections.ESTRUTURA && (
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
-                 <button
-                    onClick={() => {
-                       onViewChange('AERODROMO_ADMIN');
-                       setIsMenuOpen(false);
-                    }}
-                    className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                       activeView === 'AERODROMO_ADMIN' 
-                         ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                         : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                    }`}
-                 >
-                    <MapPin size={14} className="shrink-0" /> <span className="text-left w-full">AERÓDROMO_DB</span>
-                 </button>
+                 {(!visibleTabs || visibleTabs.AERODROMO_ADMIN !== false) && (
+                   <button
+                      onClick={() => {
+                         onViewChange('AERODROMO_ADMIN');
+                         setIsMenuOpen(false);
+                      }}
+                      className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                         activeView === 'AERODROMO_ADMIN' 
+                           ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                           : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                      }`}
+                   >
+                      <MapPin size={14} className="shrink-0" /> <span className="text-left w-full">AERÓDROMO_DB</span>
+                   </button>
+                 )}
                </div>
              )}
 
@@ -217,33 +228,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
              {expandedSections.CLIENTES && (
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
-                 <button
-                    onClick={() => {
-                       onViewChange('AIRLINES_ADMIN');
-                       setIsMenuOpen(false);
-                    }}
-                    className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                       activeView === 'AIRLINES_ADMIN' 
-                         ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                         : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                    }`}
-                 >
-                    <Building size={14} className="shrink-0" /> <span className="text-left w-full">COMPANHIAS_DB</span>
-                 </button>
+                 {(!visibleTabs || visibleTabs.AIRLINES_ADMIN !== false) && (
+                   <button
+                      onClick={() => {
+                         onViewChange('AIRLINES_ADMIN');
+                         setIsMenuOpen(false);
+                      }}
+                      className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                         activeView === 'AIRLINES_ADMIN' 
+                           ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
+                           : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                      }`}
+                   >
+                      <Building size={14} className="shrink-0" /> <span className="text-left w-full">COMPANHIAS_DB</span>
+                   </button>
+                 )}
 
-                 <button
-                    onClick={() => {
-                       onViewChange('AIRCRAFTS_ADMIN');
-                       setIsMenuOpen(false);
-                    }}
-                    className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                       activeView === 'AIRCRAFTS_ADMIN' 
-                         ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                         : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                    }`}
-                 >
-                    <Plane size={14} className="shrink-0" /> <span className="text-left w-full">AERONAVES_BD</span>
-                 </button>
+                 {(!visibleTabs || visibleTabs.AIRCRAFTS_ADMIN !== false) && (
+                   <button
+                      onClick={() => {
+                         onViewChange('AIRCRAFTS_ADMIN');
+                         setIsMenuOpen(false);
+                      }}
+                      className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                         activeView === 'AIRCRAFTS_ADMIN' 
+                           ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-650 text-white')
+                           : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                      }`}
+                   >
+                      <Plane size={14} className="shrink-0" /> <span className="text-left w-full">AERONAVES_BD</span>
+                   </button>
+                 )}
                </div>
              )}
 

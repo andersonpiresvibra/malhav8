@@ -25,11 +25,58 @@ import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './cons
 
 import { GridOps } from './components/GridOps';
 import { AerodromoAdmin } from './components/AerodromoAdmin';
+import { LayoutPreferencesModal, UserLayoutPreferences, defaultPreferences } from './components/modals/LayoutPreferencesModal';
 
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
   const [view, setView] = useState<ViewState>('GRID_OPS');
   const [pendingAction, setPendingAction] = useState<'CREATE' | 'IMPORT' | null>(null);
+  
+  // === ESTADO DE CONFIGURAÇÃO DE LAYOUT DO USUÁRIO ===
+  const [layoutModalOpen, setLayoutModalOpen] = useState(false);
+  const [layoutPreferences, setLayoutPreferences] = useState<UserLayoutPreferences>(() => {
+    const key = `layout_prefs_${user?.user_metadata?.war_name || 'default'}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          visibleTabs: { ...defaultPreferences.visibleTabs, ...parsed.visibleTabs },
+          visibleColumns: { ...defaultPreferences.visibleColumns, ...parsed.visibleColumns }
+        };
+      } catch (e) {
+        return defaultPreferences;
+      }
+    }
+    return defaultPreferences;
+  });
+
+  // Atualiza as preferências de layout quando mudar de usuário
+  useEffect(() => {
+    if (user) {
+      const key = `layout_prefs_${user?.user_metadata?.war_name || 'default'}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setLayoutPreferences({
+            visibleTabs: { ...defaultPreferences.visibleTabs, ...parsed.visibleTabs },
+            visibleColumns: { ...defaultPreferences.visibleColumns, ...parsed.visibleColumns }
+          });
+        } catch (e) {
+          setLayoutPreferences(defaultPreferences);
+        }
+      } else {
+        setLayoutPreferences(defaultPreferences);
+      }
+    }
+  }, [user]);
+
+  const handleSavePreferences = useCallback((newPrefs: UserLayoutPreferences) => {
+    setLayoutPreferences(newPrefs);
+    const key = `layout_prefs_${user?.user_metadata?.war_name || 'default'}`;
+    localStorage.setItem(key, JSON.stringify(newPrefs));
+  }, [user]);
 
   // === ESTADO CENTRALIZADO (A VERDADE ÚNICA) ===
   const [globalFlights, setGlobalFlights] = useState<FlightData[]>(() => {
@@ -614,6 +661,7 @@ const App: React.FC = () => {
         ltPhotoUrl={currentLtProfile?.photoUrl}
         setLtName={setLtName}
         operators={globalOperators}
+        onOpenLayoutPrefs={() => setLayoutModalOpen(true)}
       />
 
       {supabaseError && (
@@ -680,12 +728,21 @@ const App: React.FC = () => {
         onClose={() => setEndOfDayAlert(prev => ({ ...prev, isOpen: false }))}
       />
 
+      <LayoutPreferencesModal
+        isOpen={layoutModalOpen}
+        onClose={() => setLayoutModalOpen(false)}
+        preferences={layoutPreferences}
+        onSave={handleSavePreferences}
+        currentUser={warName}
+      />
+
       <div className={`flex flex-1 w-full ${isDarkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'} transition-colors duration-500 font-sans overflow-hidden relative`}>
         <Sidebar 
           activeView={view} 
           onViewChange={handleViewChange} 
           isDarkMode={isDarkMode} 
           onSimulateEndOfDay={runEndOfDayRoutine}
+          visibleTabs={layoutPreferences.visibleTabs}
         />
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
@@ -715,6 +772,7 @@ const App: React.FC = () => {
                     onEditingStateChange={setIsGridEditing}
                     ltName={ltName}
                     currentMeshDate={currentMeshDate}
+                    layoutPreferences={layoutPreferences}
                   />
                 )}
                 {view === 'SHIFT_OPERATORS' && (
