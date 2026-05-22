@@ -3380,7 +3380,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             
             const buttonStyle: React.CSSProperties = {
               flex: tab.id === "STANDBY" ? "1.2 1 0%" : "1 1 0%",
-              minWidth: tab.id === "STANDBY" ? "150px" : "auto",
+              minWidth: tab.id === "STANDBY" ? "165px" : "auto",
             };
             
             if (tab.id === "STANDBY") {

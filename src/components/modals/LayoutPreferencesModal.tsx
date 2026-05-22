@@ -1,37 +1,45 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Layout, ToggleLeft, ToggleRight, Check, RotateCcw, Columns, Compass, Lock, Unlock, Shield } from 'lucide-react';
+import { X, Layout, Check, RotateCcw, Columns, Compass, Lock, Info, Eye, EyeOff } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export interface UserLayoutPreferences {
   visibleTabs: {
-    GRID_OPS: boolean;          // Malha
-    SHIFT_OPERATORS: boolean;   // Equipe / Escala
-    AERODROMO: boolean;         // Aeródromo
-    REPORTS: boolean;           // Relatório
+    GRID_OPS?: boolean;          // Malha
+    SHIFT_OPERATORS?: boolean;   // Equipe / Escala
+    AERODROMO?: boolean;         // Aeródromo
+    REPORTS?: boolean;           // Relatório
     // Admins / Sub-abas do menu expansível
-    MALHA_RAIZ_ADMIN: boolean;
-    OPERATIONAL_MESH: boolean;
-    OPERATORS_ADMIN: boolean;
-    FLEETS_ADMIN: boolean;
-    AIRCRAFTS_ADMIN: boolean;
-    AIRLINES_ADMIN: boolean;
-    AERODROMO_ADMIN: boolean;
+    MALHA_RAIZ_ADMIN?: boolean;
+    OPERATIONAL_MESH?: boolean;
+    OPERATORS_ADMIN?: boolean;
+    FLEETS_ADMIN?: boolean;
+    AIRCRAFTS_ADMIN?: boolean;
+    AIRLINES_ADMIN?: boolean;
+    AERODROMO_ADMIN?: boolean;
+    // Malha internal tabs
+    CHEGADA?: boolean;
+    FILA?: boolean;
+    DESIGNADOS?: boolean;
+    ABASTECENDO?: boolean;
+    FINALIZADO?: boolean;
+    STANDBY?: boolean;
   };
   visibleColumns: {
-    airlineCode: boolean;       // Companhia Aérea (COMP.)
-    registration: boolean;      // Prefixo (PREFIXO)
-    model: boolean;             // Modelo Aeronave (MODELO)
-    flightNumber: boolean;      // Voo Chegada/Saída (V.SAÍDA)
-    eta: boolean;               // Horários (ETA/ETD)
-    destination: boolean;       // Destino (ICAO/CID)
-    positionId: boolean;        // Posição (POS)
-    actualArrivalTime: boolean; // Hora de Calço (CALÇO)
-    etd: boolean;               // SLA Restante (T. REST)
-    operator: boolean;          // Operador designado (OPERADOR)
-    fleet: boolean;             // Número da Viatura/Tipo (FROTA/F.TIPO)
-    report: boolean;            // Relatório operacional (REPORT)
-    tab: boolean;               // Botão tático (TAB)
+    airlineCode?: boolean;       // Companhia Aérea (COMP.)
+    registration?: boolean;      // Prefixo (PREFIXO)
+    model?: boolean;             // Modelo Aeronave (MODELO)
+    flightNumber?: boolean;      // Voo Chegada/Saída (V.SAÍDA)
+    eta?: boolean;               // Horários (ETA/ETD)
+    destination?: boolean;       // Destino (ICAO/CID)
+    positionId?: boolean;        // Posição (POS)
+    actualArrivalTime?: boolean; // Hora de Calço (CALÇO)
+    etd?: boolean;               // SLA Restante (T. REST)
+    operator?: boolean;          // Operador designado (OPERADOR)
+    fleet?: boolean;             // Número da Viatura/Tipo (FROTA/F.TIPO)
+    report?: boolean;            // Relatório operacional (REPORT)
+    tab?: boolean;               // Botão tático (TAB)
+    [key: string]: boolean | undefined;
   };
 }
 
@@ -48,6 +56,13 @@ export const defaultPreferences: UserLayoutPreferences = {
     AIRCRAFTS_ADMIN: true,
     AIRLINES_ADMIN: true,
     AERODROMO_ADMIN: true,
+    // Default subtabs for internal Malha Operacional
+    CHEGADA: true,
+    FILA: true,
+    DESIGNADOS: true,
+    ABASTECENDO: true,
+    FINALIZADO: true,
+    STANDBY: true,
   },
   visibleColumns: {
     airlineCode: true,
@@ -86,85 +101,144 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
   lockedTabsFromDb
 }) => {
   const { isDarkMode } = useTheme();
-  const [activeSubTab, setActiveSubTab] = useState<'columns' | 'tabs' | 'locks'>('columns');
   
-  // Local state for locked components (stored in localStorage / synced from props)
-  const [lockedColumns, setLockedColumns] = useState<Record<string, boolean>>(() => {
-    if (lockedColumnsFromDb) return lockedColumnsFromDb;
-    const saved = localStorage.getItem('layout_locks_columns');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // use default patterns
-      }
+  // Navigation tabs inside LayoutPreferences modal
+  const [activeSubTab, setActiveSubTab] = useState<'columns' | 'tabs'>('columns');
+  
+  // Active internal Malha Operacional category/tab for columns grouping
+  const [activeMeshTab, setActiveMeshTab] = useState<string>('GERAL');
+
+  // Define tabs of the Malha Operacional
+  const MESH_TABS = [
+    { id: 'GERAL', label: 'Todos os voos' },
+    { id: 'CHEGADA', label: 'Chegada' },
+    { id: 'FILA', label: 'Fila' },
+    { id: 'DESIGNADOS', label: 'Designados' },
+    { id: 'ABASTECENDO', label: 'Abastecendo' },
+    { id: 'FINALIZADO', label: 'Finalizados' },
+    { id: 'STANDBY', label: 'Stand-by' },
+  ];
+
+  // Map of which columns are rendered inside each of these Malha Operacional tabs
+  const getColumnsForTab = (tabId: string) => {
+    switch (tabId) {
+      case 'GERAL':
+      case 'CHEGADA':
+        return [
+          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula oficial da aeronave no pátio.', isCustomizable: true },
+          { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave (B738, A20N, etc).', isCustomizable: true },
+          { key: 'flightNumber', label: 'Voo (V.CHEG / V.SAÍDA)', desc: 'Identificação dos voos do painel.', isCustomizable: false },
+          { key: 'eta', label: 'Prev. Pouso (ETA)', desc: 'Estimativa de pouso da aeronave.', isCustomizable: true },
+          { key: 'destination', label: 'Roteiro (ICAO/CID)', desc: 'Aeroporto correspondente e cidade.', isCustomizable: false },
+          { key: 'positionId', label: 'Posição / Box (POS)', desc: 'Portão ou Box alocado.', isCustomizable: false },
+          { key: 'actualArrivalTime', label: 'Calço', desc: 'Horário do calço físico nos portões.', isCustomizable: false },
+          { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
+          { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
+          { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'report', label: 'Botões Log (REPORT)', desc: 'Histórico e auditoria de checklist.', isCustomizable: false },
+          { key: 'tab', label: 'Botões Ação (TAB)', desc: 'Botão de despacho e comando operacional direto.', isCustomizable: false },
+        ];
+      case 'FILA':
+        return [
+          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'flightNumber', label: 'V.SAÍDA', desc: 'Voo de decolagem planejado na malha.', isCustomizable: false },
+          { key: 'destination', label: 'Roteiro (ICAO/CID)', desc: 'Aeroporto correspondente e cidade.', isCustomizable: false },
+          { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula oficial da aeronave no pátio.', isCustomizable: true },
+          { key: 'positionId', label: 'Posição / Box (POS)', desc: 'Portão ou Box alocado.', isCustomizable: false },
+          { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
+          { key: 'actualArrivalTime', label: 'Calço', desc: 'Horário do calço físico nos portões.', isCustomizable: false },
+          { key: 'eta', label: 'Prev. Pouso (ETA)', desc: 'Estimativa de pouso da aeronave.', isCustomizable: true },
+          { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
+          { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+        ];
+      case 'DESIGNADOS':
+        return [
+          { key: 'operator', label: 'Operador (HR.D / LT)', desc: 'Nome do operador e hora da designação.', isCustomizable: true },
+          { key: 'flightNumber', label: 'Voo Chegada/Saída', desc: 'Identificação dos voos do painel.', isCustomizable: false },
+          { key: 'positionId', label: 'Posição / Box (POS)', desc: 'Portão ou Box alocado.', isCustomizable: false },
+          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula oficial da aeronave.', isCustomizable: true },
+          { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave.', isCustomizable: true },
+          { key: 'actualArrivalTime', label: 'Calço', desc: 'Horário do calço físico nos portões.', isCustomizable: false },
+          { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
+          { key: 'destination', label: 'Roteiro (ICAO/CID)', desc: 'Aeroporto correspondente e cidade.', isCustomizable: false },
+          { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'report', label: 'Botões Log (REPORT)', desc: 'Histórico e auditoria de checklist.', isCustomizable: false },
+          { key: 'tab', label: 'Botões Ação (TAB)', desc: 'Botão de despacho e comando operacional direto.', isCustomizable: false },
+        ];
+      case 'ABASTECENDO':
+      case 'FINALIZADO':
+        return [
+          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula de aeronave abastecida no pátio.', isCustomizable: true },
+          { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave.', isCustomizable: true },
+          { key: 'flightNumber', label: 'Voo Chegada/Saída', desc: 'Identificação dos voos.', isCustomizable: false },
+          { key: 'destination', label: 'Roteiro (ICAO/CID)', desc: 'Aeroporto correspondente e cidade.', isCustomizable: false },
+          { key: 'positionId', label: 'Posição / Box (POS)', desc: 'Portão ou Box alocado.', isCustomizable: false },
+          { key: 'actualArrivalTime', label: 'Calço', desc: 'Horário do calço físico nos portões.', isCustomizable: false },
+          { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
+          { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
+          { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'report', label: 'Botões Log (REPORT)', desc: 'Histórico e auditoria de checklist.', isCustomizable: false },
+          { key: 'tab', label: 'Botões Ação (TAB)', desc: 'Botão de despacho e comando operacional direto.', isCustomizable: false },
+        ];
+      case 'STANDBY':
+        return [
+          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula de aeronave no pátio.', isCustomizable: true },
+          { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave.', isCustomizable: true },
+          { key: 'flightNumber', label: 'Voo Chegada/Saída', desc: 'Identificação dos voos.', isCustomizable: false },
+          { key: 'destination', label: 'Roteiro (ICAO/CID)', desc: 'Aeroporto correspondente e cidade.', isCustomizable: false },
+          { key: 'positionId', label: 'Posição / Box (POS)', desc: 'Portão ou Box alocado.', isCustomizable: false },
+          { key: 'actualArrivalTime', label: 'Calço', desc: 'Horário do calço físico nos portões.', isCustomizable: false },
+          { key: 'eta', label: 'Prev. Pouso (ETA)', desc: 'Estimativa de pouso da aeronave.', isCustomizable: true },
+          { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
+          { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
+          { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+        ];
+      default:
+        return [];
     }
-    // Default initial mandatory columns
+  };
+
+  // Local state initialized with current preferences
+  const [localPrefs, setLocalPrefs] = useState<UserLayoutPreferences>(() => {
+    const baseCols = { ...defaultPreferences.visibleColumns, ...preferences.visibleColumns };
+    const baseTabs = { ...defaultPreferences.visibleTabs, ...preferences.visibleTabs };
+    return { visibleColumns: baseCols, visibleTabs: baseTabs };
+  });
+
+  // Keep static non-modifiable locks structure (since sidebar is no longer customizable)
+  // We keep locked flags internally to maintain standard functional compatibility
+  const [lockedColumns] = useState<Record<string, boolean>>(() => {
     return {
       flightNumber: true,
+      destination: true,
       positionId: true,
-      operator: true,
+      actualArrivalTime: true,
       etd: true,
     };
   });
 
-  const [lockedTabs, setLockedTabs] = useState<Record<string, boolean>>(() => {
-    if (lockedTabsFromDb) return lockedTabsFromDb;
-    const saved = localStorage.getItem('layout_locks_tabs');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // use default patterns
-      }
-    }
-    // Default initial mandatory tabs
+  const [lockedTabs] = useState<Record<string, boolean>>(() => {
     return {
       GRID_OPS: true,
     };
   });
 
-  // Local state initialized with current preferences, forced true if locked
-  const getInitialPrefs = () => {
-    const baseCols = { ...defaultPreferences.visibleColumns, ...preferences.visibleColumns };
-    const baseTabs = { ...defaultPreferences.visibleTabs, ...preferences.visibleTabs };
-    
-    // Force highly restrictive settings if locked
-    Object.keys(lockedColumns).forEach(key => {
-      if (lockedColumns[key]) {
-        baseCols[key as keyof UserLayoutPreferences['visibleColumns']] = true;
-      }
-    });
-    Object.keys(lockedTabs).forEach(key => {
-      if (lockedTabs[key]) {
-        baseTabs[key as keyof UserLayoutPreferences['visibleTabs']] = true;
-      }
-    });
-
-    return { visibleColumns: baseCols, visibleTabs: baseTabs };
-  };
-
-  const [localPrefs, setLocalPrefs] = useState<UserLayoutPreferences>(getInitialPrefs);
-
-  // Sync state if modal reopens or props change
   React.useEffect(() => {
     if (isOpen) {
-      if (lockedColumnsFromDb) setLockedColumns(lockedColumnsFromDb);
-      if (lockedTabsFromDb) setLockedTabs(lockedTabsFromDb);
+      const baseCols = { ...defaultPreferences.visibleColumns, ...preferences.visibleColumns };
+      const baseTabs = { ...defaultPreferences.visibleTabs, ...preferences.visibleTabs };
+      setLocalPrefs({ visibleColumns: baseCols, visibleTabs: baseTabs });
     }
-  }, [isOpen, lockedColumnsFromDb, lockedTabsFromDb]);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setLocalPrefs(getInitialPrefs());
-    }
-  }, [isOpen, preferences, lockedColumns, lockedTabs]);
+  }, [isOpen, preferences]);
 
   if (!isOpen) return null;
 
+  // Toggles the visibility state of a column key globally
   const toggleColumn = (key: keyof UserLayoutPreferences['visibleColumns']) => {
-    if (lockedColumns[key]) return; // Cannot modify locked column
-    
     setLocalPrefs(prev => ({
       ...prev,
       visibleColumns: {
@@ -174,9 +248,8 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
     }));
   };
 
+  // Toggles the visibility state of a sub-tab key (CHEGADA, FILA, etc.)
   const toggleTab = (key: keyof UserLayoutPreferences['visibleTabs']) => {
-    if (lockedTabs[key]) return; // Cannot modify locked tab
-    
     setLocalPrefs(prev => ({
       ...prev,
       visibleTabs: {
@@ -186,74 +259,16 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
     }));
   };
 
-  const toggleLockColumn = (key: string) => {
-    const updated = {
-      ...lockedColumns,
-      [key]: !lockedColumns[key]
-    };
-    setLockedColumns(updated);
-    localStorage.setItem('layout_locks_columns', JSON.stringify(updated));
-    
-    // If locked, automatically force visiblity to true
-    if (updated[key]) {
-      setLocalPrefs(prev => ({
-        ...prev,
-        visibleColumns: {
-          ...prev.visibleColumns,
-          [key]: true
-        }
-      }));
-    }
-  };
-
-  const toggleLockTab = (key: string) => {
-    const updated = {
-      ...lockedTabs,
-      [key]: !lockedTabs[key]
-    };
-    setLockedTabs(updated);
-    localStorage.setItem('layout_locks_tabs', JSON.stringify(updated));
-    
-    // If locked, automatically force visibility to true
-    if (updated[key]) {
-      setLocalPrefs(prev => ({
-        ...prev,
-        visibleTabs: {
-          ...prev.visibleTabs,
-          [key]: true
-        }
-      }));
-    }
-  };
-
+  // Reverts customizations to default layouts
   const handleReset = () => {
-    if (confirm('Deseja restaurar as configurações padrão de layout e travas?')) {
-      const defaultColsLock = {
-        flightNumber: true,
-        positionId: true,
-        operator: true,
-        etd: true,
-      };
-      const defaultTabsLock = {
-        GRID_OPS: true,
-      };
-      
-      setLockedColumns(defaultColsLock);
-      setLockedTabs(defaultTabsLock);
-      localStorage.setItem('layout_locks_columns', JSON.stringify(defaultColsLock));
-      localStorage.setItem('layout_locks_tabs', JSON.stringify(defaultTabsLock));
-      
-      const resetPrefs = JSON.parse(JSON.stringify(defaultPreferences));
-      // Force defaults
-      Object.keys(defaultColsLock).forEach(k => { if (defaultColsLock[k as keyof typeof defaultColsLock]) resetPrefs.visibleColumns[k as any] = true; });
-      Object.keys(defaultTabsLock).forEach(k => { if (defaultTabsLock[k as keyof typeof defaultTabsLock]) resetPrefs.visibleTabs[k as any] = true; });
-
-      setLocalPrefs(resetPrefs);
+    if (confirm('Deseja restaurar as configurações padrão de visualização da Malha Operacional?')) {
+      setLocalPrefs(JSON.parse(JSON.stringify(defaultPreferences)));
     }
   };
 
+  // Saves and triggers event for real-time update
   const handleSaveSubmit = () => {
-    // Ensure locked remain visible
+    // Keep sidebar and critical columns visible
     const finalVisibleColumns = { ...localPrefs.visibleColumns };
     Object.keys(lockedColumns).forEach(key => {
       if (lockedColumns[key]) {
@@ -262,11 +277,18 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
     });
 
     const finalVisibleTabs = { ...localPrefs.visibleTabs };
-    Object.keys(lockedTabs).forEach(key => {
-      if (lockedTabs[key]) {
-        finalVisibleTabs[key as keyof UserLayoutPreferences['visibleTabs']] = true;
-      }
-    });
+    // Keep sidebar views always active as sidebar is not customizable
+    finalVisibleTabs.GRID_OPS = true;
+    finalVisibleTabs.SHIFT_OPERATORS = true;
+    finalVisibleTabs.AERODROMO = true;
+    finalVisibleTabs.REPORTS = true;
+    finalVisibleTabs.MALHA_RAIZ_ADMIN = true;
+    finalVisibleTabs.OPERATIONAL_MESH = true;
+    finalVisibleTabs.OPERATORS_ADMIN = true;
+    finalVisibleTabs.FLEETS_ADMIN = true;
+    finalVisibleTabs.AIRCRAFTS_ADMIN = true;
+    finalVisibleTabs.AIRLINES_ADMIN = true;
+    finalVisibleTabs.AERODROMO_ADMIN = true;
 
     const finalPrefs = {
       visibleColumns: finalVisibleColumns,
@@ -278,39 +300,10 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
     onClose();
   };
 
-  const columnMetadata = [
-    { key: 'airlineCode' as const, label: 'Companhia (COMP.)', desc: 'Identificação e logo das empresas aéreas brasileiras e internacionais.' },
-    { key: 'registration' as const, label: 'Prefixo (PRFX)', desc: 'Matrícula oficial da aeronave abastecida no pátio de Guarulhos.' },
-    { key: 'model' as const, label: 'Modelo da Aeronave', desc: 'Fabricante e modelo exato do avião (B738, A20N, B77W, etc).' },
-    { key: 'flightNumber' as const, label: 'Identificação de Voos', desc: 'Códigos dos voos de pouso e de decolagem planejados na malha.' },
-    { key: 'eta' as const, label: 'ETA / ETD planejado', desc: 'Estimativas oficiais de pouso e partida da aeronave.' },
-    { key: 'destination' as const, label: 'Origem / Destino', desc: 'Localidades, código ICAO do aeroporto e nome correspondente da cidade.' },
-    { key: 'positionId' as const, label: 'Posição / Box', desc: 'Portão de calço (gate ou box remoto) onde a aeronave se posicionou.' },
-    { key: 'actualArrivalTime' as const, label: 'Hora de Calço', desc: 'Horário do calço físico nos portões do terminal de GRU SBGR.' },
-    { key: 'etd' as const, label: 'SLA / Tempo de Calço', desc: 'Sinalizador do tempo disponível para abastecimento, margem de atraso.' },
-    { key: 'operator' as const, label: 'Operador Designado', desc: 'Nome do operador de abastecimento com atalhos de atribuição rápida.' },
-    { key: 'fleet' as const, label: 'Viatura (Frota & Tipo)', desc: 'Identificação da viatura (Servidor de Hidrante ou CTA) e tipo operacional.' },
-    { key: 'report' as const, label: 'Log e Report', desc: 'Histórico operacional com atalho em tempo real para auditoria de checklists.' },
-    { key: 'tab' as const, label: 'Ação Tática (TAB)', desc: 'Controle direto de ações rápidas baseados no fluxo de status dos voos.' },
-  ];
-
-  const tabMetadata = [
-    { key: 'GRID_OPS' as const, label: 'Painel da Malha', desc: 'Central operacional de monitoramento de voos, SLAs e despacho rápido.' },
-    { key: 'SHIFT_OPERATORS' as const, label: 'Organização de Equipe', desc: 'Escala de pessoal, descanso, horários e capacidade das alas.' },
-    { key: 'AERODROMO' as const, label: 'Visualizador de Aeródromo', desc: 'Gargalos físicos de portão, caminhões no pátio e posições remotas.' },
-    { key: 'REPORTS' as const, label: 'Painel de Relatórios', desc: 'Sumarização de eventos, histórico de checklists e exportação para XLS.' },
-    
-    { key: 'MALHA_RAIZ_ADMIN' as const, label: 'BD: Malha Raiz', desc: 'Interface de importação e manutenção da base de voos planejados (VRA).' },
-    { key: 'OPERATIONAL_MESH' as const, label: 'BD: Malha Operacional', desc: 'Banco de dados mutável das operações correntes em Guarulhos.' },
-    { key: 'OPERATORS_ADMIN' as const, label: 'Cadastro: Operadores', desc: 'Banco de perfis, habilidades, fotos e exames da equipe ativa.' },
-    { key: 'FLEETS_ADMIN' as const, label: 'Cadastro: Frotas', desc: 'Controle de viaturas, fluxo volumétrico máximo e dados de hidrantes.' },
-    { key: 'AIRCRAFTS_ADMIN' as const, label: 'Cadastro: Aeronaves', desc: 'Controle das aeronaves integradas ao ecossistema do aeroporto.' },
-    { key: 'AIRLINES_ADMIN' as const, label: 'Cadastro: Empresas Aéreas', desc: 'Código de cores e fotos das logomarcas oficiais das parcerias Vibra.' },
-    { key: 'AERODROMO_ADMIN' as const, label: 'Config de Portões / Boxes', desc: 'Controle geométrico e de restrição do pátio de combustível (GRU).' },
-  ];
+  const columnsList = getColumnsForTab(activeMeshTab);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
       <div className={`w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border flex flex-col max-h-[85vh] transition-colors duration-300 ${
         isDarkMode ? 'bg-[#121622] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'
       }`}>
@@ -325,11 +318,11 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
               <Layout size={20} />
             </div>
             <div>
-              <h3 className="text-base font-black uppercase tracking-tight">Personalização de Painel</h3>
+              <h3 className="text-base font-black uppercase tracking-tight">Personalização da Malha Operacional</h3>
               <p className={`text-[10px] uppercase font-bold tracking-widest ${
                 isDarkMode ? 'text-slate-400' : 'text-slate-500'
               }`}>
-                Configuração para o login do LT: <span className="text-emerald-500 font-extrabold">{currentUser}</span>
+                Visualização do LT: <span className="text-emerald-500 dark:text-emerald-400 font-extrabold">{currentUser}</span>
               </p>
             </div>
           </div>
@@ -343,13 +336,13 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Navigation */}
+        {/* Modal Main Navigation */}
         <div className={`flex border-b px-6 shrink-0 ${
           isDarkMode ? 'border-slate-800 bg-slate-900/10' : 'border-slate-100 bg-slate-50/50'
         }`}>
           <button
             onClick={() => setActiveSubTab('columns')}
-            className={`py-3.5 px-4 text-xs font-black uppercase tracking-wider border-b-2 flex items-center gap-2 transition-colors ${
+            className={`py-3.5 px-4 text-xs font-black uppercase tracking-wider border-b-2 flex items-center gap-2 transition-all ${
               activeSubTab === 'columns'
                 ? isDarkMode
                   ? 'border-indigo-500 text-indigo-400 font-black'
@@ -357,11 +350,11 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
                 : 'border-transparent text-slate-400 hover:text-slate-300'
             }`}
           >
-            <Columns size={14} /> Colunas da Malha
+            <Columns size={14} /> Colunas por Aba
           </button>
           <button
             onClick={() => setActiveSubTab('tabs')}
-            className={`py-3.5 px-4 text-xs font-black uppercase tracking-wider border-b-2 flex items-center gap-2 transition-colors ${
+            className={`py-3.5 px-4 text-xs font-black uppercase tracking-wider border-b-2 flex items-center gap-2 transition-all ${
               activeSubTab === 'tabs'
                 ? isDarkMode
                   ? 'border-indigo-500 text-indigo-400 font-black'
@@ -369,126 +362,78 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
                 : 'border-transparent text-slate-400 hover:text-slate-300'
             }`}
           >
-            <Compass size={14} /> Abas e Menus
-          </button>
-          <button
-            onClick={() => setActiveSubTab('locks')}
-            className={`py-3.5 px-4 text-xs font-black uppercase tracking-wider border-b-2 flex items-center gap-2 transition-colors ${
-              activeSubTab === 'locks'
-                ? isDarkMode
-                  ? 'border-indigo-500 text-indigo-400 font-black'
-                  : 'border-emerald-600 text-emerald-800 font-black'
-                : 'border-transparent text-slate-400 hover:text-slate-300'
-            }`}
-          >
-            <Lock size={14} /> 🔒 Editar Travas / Obrigatoriedade
+            <Compass size={14} /> Visualização de Abas
           </button>
         </div>
 
         {/* Content Panel */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           {activeSubTab === 'columns' ? (
-            <div className="flex flex-col gap-3">
-              <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} mb-2`}>
-                Selecione as colunas da malha operacional que deseja visualizar. Desmarque para limpar seu campo visual e diminuir a fadiga durante turnos agitados de pátio em Guarulhos.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {columnMetadata.map(({ key, label, desc }) => {
-                  const isVisible = localPrefs.visibleColumns[key];
-                  const isLocked = lockedColumns[key];
+            <div className="flex flex-col gap-4">
+              <div className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                isDarkMode ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+              }`}>
+                <Info size={16} className="text-sky-500 shrink-0 mt-0.5" />
+                <p className="text-[11px] leading-relaxed">
+                  Selecione uma das abas abaixo para revisar suas colunas. Tente desmarcar colunas redundantes para diminuir a fadiga visual. Colunas críticas de controle, horários obrigatórios e botões táticos são fixados pelo sistema.
+                </p>
+              </div>
+
+              {/* Subtabs representing actual views on Malha Operacional */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1.5 shrink-0 scrollbar-thin">
+                {MESH_TABS.map((tab) => {
+                  const isActive = activeMeshTab === tab.id;
                   return (
                     <button
-                      key={key}
-                      onClick={() => toggleColumn(key)}
-                      disabled={isLocked}
-                      className={`flex items-start text-left gap-3.5 p-3 rounded-xl border transition-all ${
-                        isLocked
+                      key={tab.id}
+                      onClick={() => setActiveMeshTab(tab.id)}
+                      className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap ${
+                        isActive
                           ? isDarkMode
-                            ? 'bg-slate-900/50 border-slate-800/80 text-slate-400 cursor-not-allowed opacity-90'
-                            : 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed opacity-90'
-                          : isVisible
-                            ? isDarkMode
-                              ? 'bg-indigo-500/5 border-indigo-500/20 text-white shadow-sm'
-                              : 'bg-emerald-50/40 border-emerald-600/20 text-slate-900 shadow-sm'
-                            : isDarkMode
-                              ? 'bg-slate-900/10 border-slate-800/80 text-slate-500'
-                              : 'bg-slate-50/50 border-slate-100 text-slate-400'
+                            ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                            : 'bg-emerald-600 border-emerald-500 text-white shadow-sm'
+                          : isDarkMode
+                            ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                            : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200/80'
                       }`}
                     >
-                      <div className="mt-0.5">
-                        {isLocked ? (
-                          <div className={`p-1 rounded-md ${isDarkMode ? 'bg-amber-600/20 text-amber-500' : 'bg-amber-100 text-amber-700'}`}>
-                            <Lock size={12} strokeWidth={3} />
-                          </div>
-                        ) : isVisible ? (
-                          <div className={`p-1 rounded-md ${isDarkMode ? 'bg-indigo-500 text-white' : 'bg-emerald-600 text-white'}`}>
-                            <Check size={12} strokeWidth={3} />
-                          </div>
-                        ) : (
-                          <div className={`w-[20px] h-[20px] rounded-md border-2 ${isDarkMode ? 'border-slate-700' : 'border-slate-300'}`} />
-                        )}
-                      </div>
-                      <div className="flex-1 leading-normal">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-black block tracking-tight uppercase">{label}</span>
-                          {isLocked && (
-                            <span className={`text-[8px] font-extrabold uppercase px-1 py-0.5 rounded leading-none ${
-                              isDarkMode ? 'bg-amber-950/40 text-amber-500' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              Obrigatório
-                            </span>
-                          )}
-                        </div>
-                        <span className={`text-[10px] block mt-0.5 ${
-                          isLocked
-                            ? isDarkMode ? 'text-slate-550' : 'text-slate-500 font-medium'
-                            : isVisible
-                              ? isDarkMode ? 'text-slate-300' : 'text-slate-600'
-                              : isDarkMode ? 'text-slate-600' : 'text-slate-400'
-                        }`}>
-                          {desc}
-                        </span>
-                      </div>
+                      {tab.label}
                     </button>
                   );
                 })}
               </div>
-            </div>
-          ) : activeSubTab === 'tabs' ? (
-            <div className="flex flex-col gap-3">
-              <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'} mb-2`}>
-                Desmarque as abas ou views administrativas que sua skala atual não demanda gerenciar. Elas estarão ocultas na barra lateral e nos sub-menus, mas permanecem seguras na base relacional do Supabase.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {tabMetadata.map(({ key, label, desc }) => {
-                  const isVisible = localPrefs.visibleTabs[key];
-                  const isLocked = lockedTabs[key];
+
+              {/* Columns list for the selected grid subtab */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
+                {columnsList.map(({ key, label, desc, isCustomizable }) => {
+                  const isVisible = localPrefs.visibleColumns[key] !== false;
+                  
                   return (
                     <button
                       key={key}
-                      onClick={() => toggleTab(key)}
-                      disabled={isLocked}
+                      onClick={() => isCustomizable && toggleColumn(key as keyof UserLayoutPreferences['visibleColumns'])}
+                      disabled={!isCustomizable}
                       className={`flex items-start text-left gap-3.5 p-3 rounded-xl border transition-all ${
-                        isLocked
+                        !isCustomizable
                           ? isDarkMode
-                            ? 'bg-slate-900/50 border-slate-800/80 text-slate-400 cursor-not-allowed opacity-90'
-                            : 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed opacity-90'
+                            ? 'bg-slate-900/40 border-slate-950 text-slate-400 cursor-not-allowed opacity-95'
+                            : 'bg-slate-100/75 border-slate-200 text-slate-500 cursor-not-allowed opacity-95'
                           : isVisible
                             ? isDarkMode
                               ? 'bg-indigo-500/5 border-indigo-500/20 text-white shadow-sm'
                               : 'bg-emerald-50/40 border-emerald-600/20 text-slate-900 shadow-sm'
                             : isDarkMode
                               ? 'bg-slate-900/10 border-slate-800/80 text-slate-500'
-                              : 'bg-slate-50/50 border-slate-100 text-slate-400'
+                              : 'bg-slate-50/50 border-slate-150 text-slate-400'
                       }`}
                     >
                       <div className="mt-0.5">
-                        {isLocked ? (
-                          <div className={`p-1 rounded-md ${isDarkMode ? 'bg-amber-600/20 text-amber-500' : 'bg-amber-100 text-amber-700'}`}>
+                        {!isCustomizable ? (
+                          <div className={`p-1 rounded-md ${isDarkMode ? 'bg-amber-600/10 text-amber-500' : 'bg-amber-100/80 text-amber-700'}`}>
                             <Lock size={12} strokeWidth={3} />
                           </div>
                         ) : isVisible ? (
-                          <div className={`p-1 rounded-md ${isDarkMode ? 'bg-indigo-500 text-white' : 'bg-emerald-600 text-white'}`}>
+                          <div className={`p-1 rounded-md ${isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white'}`}>
                             <Check size={12} strokeWidth={3} />
                           </div>
                         ) : (
@@ -498,17 +443,17 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
                       <div className="flex-1 leading-normal">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-black block tracking-tight uppercase">{label}</span>
-                          {isLocked && (
+                          {!isCustomizable && (
                             <span className={`text-[8px] font-extrabold uppercase px-1 py-0.5 rounded leading-none ${
                               isDarkMode ? 'bg-amber-950/40 text-amber-500' : 'bg-amber-100 text-amber-800'
                             }`}>
-                              Obrigatório
+                              Sempre Visível
                             </span>
                           )}
                         </div>
                         <span className={`text-[10px] block mt-0.5 ${
-                          isLocked
-                            ? isDarkMode ? 'text-slate-550' : 'text-slate-500 font-medium'
+                          !isCustomizable
+                            ? isDarkMode ? 'text-slate-500' : 'text-slate-500 font-medium'
                             : isVisible
                               ? isDarkMode ? 'text-slate-300' : 'text-slate-600'
                               : isDarkMode ? 'text-slate-600' : 'text-slate-400'
@@ -522,113 +467,65 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-5">
-              <div className={`p-4 rounded-xl border flex gap-3.5 items-start ${
-                isDarkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-emerald-50/30 border-emerald-600/15'
+            <div className="flex flex-col gap-3">
+              <div className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                isDarkMode ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
               }`}>
-                <div className={`p-2 rounded-xl mt-0.5 ${
-                  isDarkMode ? 'bg-indigo-500/10 text-indigo-400' : 'bg-emerald-100 text-emerald-800'
-                }`}>
-                  <Shield size={18} />
-                </div>
-                <div className="flex-1 leading-normal">
-                  <span className="text-xs font-black block tracking-tight uppercase">🔒 Gestão de Obrigatoriedade (Travas)</span>
-                  <span className={`text-[11px] block mt-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-650'}`}>
-                    Configure abaixo quais colunas e seções operacionais são <strong>obrigatórias</strong> para os LTs e operadores. Elementos com a trava ativada <span className="text-amber-500 font-bold">não poderão ser ocultados</span> nas telas de trabalho, mantendo as informações críticas sempre visíveis.
-                  </span>
-                </div>
+                <Info size={16} className="text-sky-500 shrink-0 mt-0.5" />
+                <p className="text-[11px] leading-relaxed">
+                  Desmarque as abas da Malha Operacional que você não precisa acompanhar no painel central de despachos rápidos. A aba "Todos os Voos" sempre permanece ativa por motivos de auditoria de segurança.
+                </p>
               </div>
 
-              <div className="flex flex-col gap-6">
-                {/* Seção 1: Colunas */}
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-wider mb-3 text-emerald-600 dark:text-indigo-400 pb-1 border-b border-dashed border-slate-700/50 flex items-center gap-1.5">
-                    <Columns size={12} /> Travar Colunas da Tabela
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {columnMetadata.map(({ key, label }) => {
-                      const isLocked = lockedColumns[key];
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => toggleLockColumn(key)}
-                          className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
-                            isLocked
-                              ? isDarkMode
-                                ? 'bg-amber-500/5 border-amber-500/20 text-white shadow-sm'
-                                : 'bg-amber-50/40 border-amber-500/30 text-amber-900 font-semibold shadow-sm'
-                              : isDarkMode
-                                ? 'bg-slate-900/10 border-slate-800 text-slate-500'
-                                : 'bg-slate-50/50 border-slate-150 text-slate-400 shadow-none'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className={`p-1 rounded ${
-                              isLocked
-                                ? isDarkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'
-                                : isDarkMode ? 'bg-slate-850 text-slate-600' : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-                            </div>
-                            <span className="text-xs font-bold uppercase tracking-tight">{label}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                {[
+                  { key: 'CHEGADA', label: 'Chegada', desc: 'Amostragem de voos estimados para pouso e calço.' },
+                  { key: 'FILA', label: 'Fila', desc: 'Alocação pendente de operadores do pátio.' },
+                  { key: 'DESIGNADOS', label: 'Designados', desc: 'Voos delegados com operador atribuído.' },
+                  { key: 'ABASTECENDO', label: 'Abastecendo', desc: 'Aeronaves recebendo combustível ativamente.' },
+                  { key: 'FINALIZADO', label: 'Finalizados', desc: 'Histórico de checklists concluídos e cancelamentos.' },
+                  { key: 'STANDBY', label: 'Stand-by', desc: 'Abas de acompanhamento tático prioritário.' },
+                ].map(({ key, label, desc }) => {
+                  const isVisible = localPrefs.visibleTabs[key as keyof UserLayoutPreferences['visibleTabs']] !== false;
+                  
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => toggleTab(key as keyof UserLayoutPreferences['visibleTabs'])}
+                      className={`flex items-start text-left gap-3.5 p-3 rounded-xl border transition-all ${
+                        isVisible
+                          ? isDarkMode
+                            ? 'bg-indigo-500/5 border-indigo-500/20 text-white shadow-sm'
+                            : 'bg-emerald-50/40 border-emerald-600/20 text-slate-900 shadow-sm'
+                          : isDarkMode
+                            ? 'bg-slate-900/10 border-slate-800/80 text-slate-500'
+                            : 'bg-slate-50/50 border-slate-100 text-slate-400'
+                      }`}
+                    >
+                      <div className="mt-0.5">
+                        {isVisible ? (
+                          <div className={`p-1 rounded-md ${isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                            <Check size={12} strokeWidth={3} />
                           </div>
-                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded leading-none ${
-                            isLocked
-                              ? 'bg-amber-500/10 text-amber-500'
-                              : isDarkMode ? 'bg-slate-850 text-slate-600' : 'bg-slate-150 text-slate-500'
-                          }`}>
-                            {isLocked ? 'TRAVADO' : 'LIBERADO'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Seção 2: Abas */}
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-wider mb-3 text-emerald-600 dark:text-indigo-400 pb-1 border-b border-dashed border-slate-700/50 flex items-center gap-1.5">
-                    <Compass size={12} /> Travar Abas de Navegação
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {tabMetadata.map(({ key, label }) => {
-                      const isLocked = lockedTabs[key];
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => toggleLockTab(key)}
-                          className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
-                            isLocked
-                              ? isDarkMode
-                                ? 'bg-amber-500/5 border-amber-500/20 text-white shadow-sm'
-                                : 'bg-amber-50/40 border-amber-500/30 text-amber-900 font-semibold shadow-sm'
-                              : isDarkMode
-                                ? 'bg-slate-900/10 border-slate-800 text-slate-500'
-                                : 'bg-slate-50/50 border-slate-150 text-slate-400 shadow-none'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className={`p-1 rounded ${
-                              isLocked
-                                ? isDarkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'
-                                : isDarkMode ? 'bg-slate-850 text-slate-600' : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-                            </div>
-                            <span className="text-xs font-bold uppercase tracking-tight">{label}</span>
-                          </div>
-                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded leading-none ${
-                            isLocked
-                              ? 'bg-amber-500/10 text-amber-500'
-                              : isDarkMode ? 'bg-slate-850 text-slate-600' : 'bg-slate-150 text-slate-500'
-                          }`}>
-                            {isLocked ? 'TRAVADO' : 'LIBERADO'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                        ) : (
+                          <div className={`w-[20px] h-[20px] rounded-md border-2 ${isDarkMode ? 'border-slate-700' : 'border-slate-300'}`} />
+                        )}
+                      </div>
+                      <div className="flex-1 leading-normal">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-black block tracking-tight uppercase">{label}</span>
+                        </div>
+                        <span className={`text-[10px] block mt-0.5 ${
+                          isVisible
+                            ? isDarkMode ? 'text-slate-300' : 'text-slate-650'
+                            : isDarkMode ? 'text-slate-600' : 'text-slate-400'
+                        }`}>
+                          {desc}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -657,10 +554,10 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
               Cancelar
             </button>
             <button
-              onClick={handleSaveSubmit}
-              className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all text-white shadow-lg active:scale-95 flex items-center gap-2 ${
-                isDarkMode ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-emerald-600 hover:bg-emerald-500'
-              }`}
+               onClick={handleSaveSubmit}
+               className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all text-white shadow-lg active:scale-95 flex items-center gap-2 ${
+                 isDarkMode ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-emerald-600 hover:bg-emerald-500'
+               }`}
             >
               <Check size={14} /> Aplicar Ajustes
             </button>

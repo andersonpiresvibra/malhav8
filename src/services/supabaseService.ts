@@ -124,28 +124,51 @@ export const getDestinos = async (): Promise<any[]> => {
 
 export const getVehicles = async (): Promise<Vehicle[]> => {
   if (!isSupabaseConfigured()) return [];
-  const { data, error } = await supabase.from('frotas').select('*');
-  if (error) throw error;
-  
-            const mapped = data.map((v: any) => ({
-              id: v.fleet_number?.toString() || v.id?.toString(),
-              type: v.type?.toString().toUpperCase() === 'CTA' ? 'CTA' : 'SERVIDOR',
-              manufacturer: v.manufacturer,
-              status: v.status,
-              maxFlowRate: v.max_flow_rate || 1000,
-              hasPlatform: v.has_platform,
-              capacity: v.capacity,
-              counterInitial: v.counter_initial,
-              counterFinal: v.counter_final,
-              isActive: v.status !== 'INATIVO',
-              observations: v.observations,
-              operatorId: v.operator_id
-            })) as Vehicle[];
-            vehiclesCache = data.map((v: any) => ({
-              id: v.id,
-              fleetNumber: v.fleet_number?.toString()
-            }));
-            return mapped;
+  try {
+    const { data, error } = await supabase.from('frotas').select('*');
+    if (error) {
+      console.error('[Supabase] Error fetching vehicles:', error.message);
+      const cached = localStorage.getItem('supabase_cache_vehicles');
+      if (cached) {
+        console.warn('[Supabase] Returning cached vehicles list');
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+        return JSON.parse(cached);
+      }
+      throw error;
+    }
+    
+    const mapped = data.map((v: any) => ({
+      id: v.fleet_number?.toString() || v.id?.toString(),
+      type: v.type?.toString().toUpperCase() === 'CTA' ? 'CTA' : 'SERVIDOR',
+      manufacturer: v.manufacturer,
+      status: v.status,
+      maxFlowRate: v.max_flow_rate || 1000,
+      hasPlatform: v.has_platform,
+      capacity: v.capacity,
+      counterInitial: v.counter_initial,
+      counterFinal: v.counter_final,
+      isActive: v.status !== 'INATIVO',
+      observations: v.observations,
+      operatorId: v.operator_id
+    })) as Vehicle[];
+    
+    vehiclesCache = data.map((v: any) => ({
+      id: v.id,
+      fleetNumber: v.fleet_number?.toString()
+    }));
+
+    localStorage.setItem('supabase_cache_vehicles', JSON.stringify(mapped));
+    return mapped;
+  } catch (err: any) {
+    console.error('[Supabase] Exception in getVehicles:', err);
+    const cached = localStorage.getItem('supabase_cache_vehicles');
+    if (cached) {
+      console.warn('[Supabase] Returning cached vehicles list after exception');
+      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      return JSON.parse(cached);
+    }
+    throw err;
+  }
 };
 
 export const updateVehicleOperator = async (vehicleFleetNumber: string | null, operatorId: string | null) => {
@@ -193,46 +216,69 @@ export const updateVehicleOperator = async (vehicleFleetNumber: string | null, o
 
 export const getOperators = async (): Promise<OperatorProfile[]> => {
   if (!isSupabaseConfigured()) return [];
-  const { data, error } = await supabase.from('operadores_geral').select('*, oper_do_dia(work_date, day_type)');
-  if (error) throw error;
-  
-  operatorsCache = data.map((o: any) => ({ id: o.id, warName: o.war_name }));
+  try {
+    const { data, error } = await supabase.from('operadores_geral').select('*, oper_do_dia(work_date, day_type)');
+    if (error) {
+      console.error('[Supabase] Error fetching operators:', error.message);
+      const cached = localStorage.getItem('supabase_cache_operators');
+      if (cached) {
+        console.warn('[Supabase] Returning cached operators list');
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+        return JSON.parse(cached);
+      }
+      throw error;
+    }
+    
+    operatorsCache = data.map((o: any) => ({ id: o.id, warName: o.war_name }));
 
-  return data.map((o: any) => ({
-    id: o.id,
-    fullName: o.full_name,
-    warName: o.war_name,
-    companyId: o.company_id || '',
-    gruId: o.gru_id || '',
-    vestNumber: o.vest_number || '',
-    photoUrl: o.photo_url || '',
-    email: o.email || '',
-    isLT: o.is_lt || 'NÃO',
-    isUsuario: 'is_usuario' in o ? !!o.is_usuario : (o.is_lt === 'SIM'),
-    isAdministrador: !!o.is_administrador,
-    isMaster: !!o.is_master,
-    patio: o.patio || '',
-    tmfLogin: o.tmf_login || '',
-    bloodType: o.blood_type || '',
-    role: o.role || '',
-    status: o.status,
-    category: o.category,
-    lastPosition: '',
-    fleetCapability: o.fleet_capability,
-    shift: {
-      cycle: o.shift_cycle,
-      start: o.shift_start || '',
-      end: o.shift_end || ''
-    },
-    airlines: ['G3'],
-    ratings: { speed: 4.5, safety: 5.0, airlineSpecific: {} },
-    expertise: { servidor: 80, cta: 50 },
-    stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 },
-    workDays: o.oper_do_dia?.map((wd: any) => ({
-      date: wd.work_date,
-      type: wd.day_type || 'TRABALHO'
-    })) || []
-  })) as OperatorProfile[];
+    const mapped = data.map((o: any) => ({
+      id: o.id,
+      fullName: o.full_name,
+      warName: o.war_name,
+      companyId: o.company_id || '',
+      gruId: o.gru_id || '',
+      vestNumber: o.vest_number || '',
+      photoUrl: o.photo_url || '',
+      email: o.email || '',
+      isLT: o.is_lt || 'NÃO',
+      isUsuario: 'is_usuario' in o ? !!o.is_usuario : (o.is_lt === 'SIM'),
+      isAdministrador: !!o.is_administrador,
+      isMaster: !!o.is_master,
+      patio: o.patio || '',
+      tmfLogin: o.tmf_login || '',
+      bloodType: o.blood_type || '',
+      role: o.role || '',
+      status: o.status,
+      category: o.category,
+      lastPosition: '',
+      fleetCapability: o.fleet_capability,
+      shift: {
+        cycle: o.shift_cycle,
+        start: o.shift_start || '',
+        end: o.shift_end || ''
+      },
+      airlines: ['G3'],
+      ratings: { speed: 4.5, safety: 5.0, airlineSpecific: {} },
+      expertise: { servidor: 80, cta: 50 },
+      stats: { flightsWeekly: 0, flightsMonthly: 0, volumeWeekly: 0, volumeMonthly: 0 },
+      workDays: o.oper_do_dia?.map((wd: any) => ({
+        date: wd.work_date,
+        type: wd.day_type || 'TRABALHO'
+      })) || []
+    })) as OperatorProfile[];
+
+    localStorage.setItem('supabase_cache_operators', JSON.stringify(mapped));
+    return mapped;
+  } catch (err: any) {
+    console.error('[Supabase] Exception in getOperators:', err);
+    const cached = localStorage.getItem('supabase_cache_operators');
+    if (cached) {
+      console.warn('[Supabase] Returning cached operators list after exception');
+      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      return JSON.parse(cached);
+    }
+    throw err;
+  }
 };
 
 function generateUUID() {
@@ -287,63 +333,101 @@ export const updateOperatorWorkDays = async (operatorId: string, workDays: Array
 
 export const getAircrafts = async (): Promise<AircraftType[]> => {
   if (!isSupabaseConfigured()) return [];
-  const { data, error } = await supabase.from('aeronaves').select('*');
-  if (error) throw error;
-  return data as any[];
+  try {
+    const { data, error } = await supabase.from('aeronaves').select('*');
+    if (error) {
+      console.error('[Supabase] Error fetching aircrafts:', error.message);
+      const cached = localStorage.getItem('supabase_cache_aircrafts');
+      if (cached) {
+        console.warn('[Supabase] Returning cached aircrafts list');
+        return JSON.parse(cached);
+      }
+      throw error;
+    }
+    localStorage.setItem('supabase_cache_aircrafts', JSON.stringify(data || []));
+    return data as any[];
+  } catch (err: any) {
+    console.error('[Supabase] Exception in getAircrafts:', err);
+    const cached = localStorage.getItem('supabase_cache_aircrafts');
+    if (cached) {
+      console.warn('[Supabase] Returning cached aircrafts after exception');
+      return JSON.parse(cached);
+    }
+    throw err;
+  }
 };
 
 export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
   if (!isSupabaseConfigured()) return [];
   
-  let query = supabase.from('malha_operacional').select('*, operadores_geral(war_name), frotas(fleet_number)').eq('date_ref', dateRef);
-  let { data, error } = await query;
+  try {
+    let query = supabase.from('malha_operacional').select('*, operadores_geral(war_name), frotas(fleet_number)').eq('date_ref', dateRef);
+    let { data, error } = await query;
+      
+    if (error) {
+      console.error('[Supabase] Error fetching flights:', error.message);
+      const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
+      if (cached) {
+        console.warn('[Supabase] Returning cached flights for date:', dateRef);
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+        return JSON.parse(cached);
+      }
+      throw error;
+    }
     
-  
-  
-  if (error) {
-    console.error('[Supabase] Error fetching flights:', error.message);
-    throw error;
+    const mapped = (data || []).map((f: any) => ({
+      id: f.id,
+      date: f.date_ref,
+      flightNumber: f.flight_number,
+      departureFlightNumber: f.departure_flight_number,
+      airline: f.airline,
+      airlineCode: f.airline_code,
+      model: f.model,
+      registration: f.registration,
+      origin: f.origin,
+      destination: f.destination,
+      eta: f.eta || '',
+      etd: f.etd || '',
+      actualArrivalTime: f.actual_arrival_time,
+      positionId: f.position_id,
+      positionType: f.position_type as any,
+      pitId: f.pit_id,
+      wingSide: f.wing_side as any,
+      fuelStatus: f.fuel_status || 0,
+      status: f.status as FlightStatus,
+      operator: f.operadores_geral?.war_name || f.operator, // Fallback for backwards comp
+      operatorId: f.operator_id || undefined,
+      supportOperator: f.support_operator || undefined,
+      supportOperatorId: f.support_operator_id || undefined,
+      fleet: f.frotas?.fleet_number || undefined,
+      vehicleId: f.vehicle_id || undefined,
+      vehicleType: f.vehicle_type as any,
+      volume: f.volume,
+      isOnGround: f.is_on_ground,
+      delayJustification: f.delay_justification,
+      designationTime: f.designation_time ? new Date(f.designation_time) : undefined,
+      startTime: f.start_time ? new Date(f.start_time) : undefined,
+      endTime: f.end_time ? new Date(f.end_time) : undefined,
+      assignmentTime: f.assignment_time ? new Date(f.assignment_time) : undefined,
+      assignedByLt: f.assigned_by_lt,
+      isExcludedFromQueue: f.is_excluded_from_queue,
+      logs: f.logs || [],
+      report: f.report || {}
+    })) as FlightData[];
+
+    localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mapped));
+    window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
+    return mapped;
+  } catch (err: any) {
+    console.error('[Supabase] Exception in getFlights:', err);
+    const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
+    if (cached) {
+      console.warn('[Supabase] Returning cached flights after exception for date:', dateRef);
+      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      return JSON.parse(cached);
+    }
+    throw err;
   }
-  
-  return (data || []).map((f: any) => ({
-    id: f.id,
-    date: f.date_ref,
-    flightNumber: f.flight_number,
-    departureFlightNumber: f.departure_flight_number,
-    airline: f.airline,
-    airlineCode: f.airline_code,
-    model: f.model,
-    registration: f.registration,
-    origin: f.origin,
-    destination: f.destination,
-    eta: f.eta || '',
-    etd: f.etd || '',
-    actualArrivalTime: f.actual_arrival_time,
-    positionId: f.position_id,
-    positionType: f.position_type as any,
-    pitId: f.pit_id,
-    wingSide: f.wing_side as any,
-    fuelStatus: f.fuel_status || 0,
-    status: f.status as FlightStatus,
-    operator: f.operadores_geral?.war_name || f.operator, // Fallback for backwards comp
-    operatorId: f.operator_id || undefined,
-    supportOperator: f.support_operator || undefined,
-    supportOperatorId: f.support_operator_id || undefined,
-    fleet: f.frotas?.fleet_number || undefined,
-    vehicleId: f.vehicle_id || undefined,
-    vehicleType: f.vehicle_type as any,
-    volume: f.volume,
-    isOnGround: f.is_on_ground,
-    delayJustification: f.delay_justification,
-    designationTime: f.designation_time ? new Date(f.designation_time) : undefined,
-    startTime: f.start_time ? new Date(f.start_time) : undefined,
-    endTime: f.end_time ? new Date(f.end_time) : undefined,
-    assignmentTime: f.assignment_time ? new Date(f.assignment_time) : undefined,
-    assignedByLt: f.assigned_by_lt,
-    isExcludedFromQueue: f.is_excluded_from_queue,
-    logs: f.logs || [],
-    report: f.report || {}
-  })) as FlightData[];
 };
 
 export const deleteAllFlightsByDate = async (dateRef: string): Promise<void> => {
@@ -593,50 +677,68 @@ export const clearRootMesh = async (): Promise<void> => {
 export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]> => {
   if (!isSupabaseConfigured()) return [];
   
-  let { data, error } = await supabase
-    .from('malha_dia')
-    .select('*')
-    .eq('date', dateRef)
-    .order('etd');
+  try {
+    let { data, error } = await supabase
+      .from('malha_dia')
+      .select('*')
+      .eq('date', dateRef)
+      .order('etd');
+      
+    if (error && error.message.includes("does not exist")) {
+       console.warn("[Supabase] fallback para getBaseMesh...", error.message);
+       const fallback = await supabase.from('malha_dia').select('*');
+       data = fallback.data;
+       error = fallback.error;
+    }
+
+    if (error) {
+      console.error(`[Supabase] Error fetching base mesh:`, error.message);
+      const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
+      if (cached) {
+        console.warn(`[Supabase] Returning cached base mesh flights for ${dateRef}`);
+        return JSON.parse(cached);
+      }
+      throw error;
+    }
     
-  if (error && error.message.includes("does not exist")) {
-     console.warn("[Supabase] fallback para getBaseMesh...", error.message);
-     const fallback = await supabase.from('malha_dia').select('*');
-     data = fallback.data;
-     error = fallback.error;
+    if (!data) return [];
+
+    // Try to find the date column dynamically if it's named something else
+    const filteredData = data.filter((row: any) => {
+      const rowDate = row.date || row.date_ref || row.data || row.voo_data || row.flight_date;
+      return rowDate === dateRef;
+    });
+    
+    const finalData = filteredData.length > 0 ? filteredData : data; // Fallback to all if date filter fails or if user just wants to see them
+
+    const mapped = finalData.map(dbFlight => ({
+      id: dbFlight.id,
+      date: dbFlight.date || dbFlight.date_ref || dbFlight.data || dbFlight.voo_data || dbFlight.flight_date || dateRef,
+      airline: dbFlight.airline || dbFlight.cia || '',
+      airlineCode: dbFlight.airline_code || dbFlight.cia_cod || dbFlight.airline?.substring(0,3) || '',
+      flightNumber: dbFlight.flight_number || dbFlight.voo || dbFlight.voo_chegada || dbFlight.prefixo || '',
+      departureFlightNumber: dbFlight.departure_flight_number || dbFlight.voo_saida || dbFlight.flight_number || '', // Backup
+      destination: dbFlight.destination || dbFlight.destino || '',
+      etd: dbFlight.etd || '00:00',
+      registration: dbFlight.registration || dbFlight.matricula || '',
+      eta: dbFlight.eta || dbFlight.etd || '00:00',
+      positionId: dbFlight.position_id || dbFlight.posicao || '',
+      actualArrivalTime: dbFlight.actual_arrival_time || '',
+      model: dbFlight.model || dbFlight.modelo || dbFlight.equipamento || '',
+      disabled: dbFlight.is_disabled || dbFlight.desabilitado || false
+    }));
+
+    localStorage.setItem(`supabase_cache_basemesh_flights_${dateRef}`, JSON.stringify(mapped));
+    return mapped;
+  } catch (err: any) {
+    console.error('[Supabase] Exception in getBaseMeshFlights:', err);
+    const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
+    if (cached) {
+      console.warn(`[Supabase] Returning cached base mesh flights for ${dateRef} after exception`);
+      return JSON.parse(cached);
+    }
+    throw err;
   }
-
-  if (error) {
-    console.error(`[Supabase] Error fetching base mesh:`, error.message);
-    throw error;
-  }
-  
-  if (!data) return [];
-
-  // Try to find the date column dynamically if it's named something else
-  const filteredData = data.filter((row: any) => {
-    const rowDate = row.date || row.date_ref || row.data || row.voo_data || row.flight_date;
-    return rowDate === dateRef;
-  });
-  
-  const finalData = filteredData.length > 0 ? filteredData : data; // Fallback to all if date filter fails or if user just wants to see them
-
-  return finalData.map(dbFlight => ({
-    id: dbFlight.id,
-    date: dbFlight.date || dbFlight.date_ref || dbFlight.data || dbFlight.voo_data || dbFlight.flight_date || dateRef,
-    airline: dbFlight.airline || dbFlight.cia || '',
-    airlineCode: dbFlight.airline_code || dbFlight.cia_cod || dbFlight.airline?.substring(0,3) || '',
-    flightNumber: dbFlight.flight_number || dbFlight.voo || dbFlight.voo_chegada || dbFlight.prefixo || '',
-    departureFlightNumber: dbFlight.departure_flight_number || dbFlight.voo_saida || dbFlight.flight_number || '', // Backup
-    destination: dbFlight.destination || dbFlight.destino || '',
-    etd: dbFlight.etd || '00:00',
-    registration: dbFlight.registration || dbFlight.matricula || '',
-    eta: dbFlight.eta || dbFlight.etd || '00:00',
-    positionId: dbFlight.position_id || dbFlight.posicao || '',
-    actualArrivalTime: dbFlight.actual_arrival_time || '',
-    model: dbFlight.model || dbFlight.modelo || dbFlight.equipamento || '',
-    disabled: dbFlight.is_disabled || dbFlight.desabilitado || false
-  }));
 };
 
 const cleanTime = (timeStr: string | null | undefined): string | null => {

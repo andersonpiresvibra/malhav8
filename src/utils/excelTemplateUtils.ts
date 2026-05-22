@@ -31,9 +31,9 @@ export const downloadTemplate = (module: string) => {
       break;
     case 'operators':
       ws_data = [
-        ["MATRICULA", "NOME_COMPLETO", "NOME_DE_GUERRA", "CARGO", "EMPRESA", "ALA", "ESCALA"],
-        ["12345", "João Silva", "SILVA", "OPERADOR", "BR Aviation", "A", "Turno 1"],
-        ["54321", "Maria Santos", "SANTOS", "LÍDER", "BR Aviation", "B", "Turno 2"],
+        ["NOME GUERRA", "NOME COMPL.", "FUNÇÃO", "LT", "MATRI VIBRA", "MATR. GRU", "LOG. TMF", "TIP. S", "E-MAIL", "PÁTIO", "TURNO", "HR. ENT", "HR SAID", "STATUS"],
+        ["CESARIO", "CESARIO DE SOUZA", "OPERADOR", "SIM", "12345", "98765", "cesario.tmf", "O+", "cesario@vibraenergia.com.br", "AERODROMO", "MANHÃ", "06:00", "15:00", "ATIVO"],
+        ["MICHEL", "MICHEL SANTOS", "OPERADOR", "NÃO", "54321", "12309", "michel.tmf", "A-", "michel@vibraenergia.com.br", "AERODROMO", "MANHÃ", "05:00", "14:00", "ATIVO"]
       ];
       ws_name = "Operadores";
       break;

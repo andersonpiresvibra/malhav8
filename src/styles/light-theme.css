@@ -438,7 +438,7 @@
 
 
 :root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) {
-  background-color: #E2E8F0;
+  background-color: #E2E8F0 !important;
 }
 
 :root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div#subheader-portal-target:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > button:nth-of-type(4) {

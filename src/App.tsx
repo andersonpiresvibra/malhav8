@@ -180,11 +180,26 @@ const App: React.FC = () => {
   const [globalOperators, setGlobalOperators] = useState<OperatorProfile[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  const [isSupabaseOffline, setIsSupabaseOffline] = useState(false);
   const lastManualActionRef = useRef<number>(0);
 
   const handleManualFlightsUpdate = useCallback((action: React.SetStateAction<FlightData[]>) => {
     setGlobalFlights(action);
     lastManualActionRef.current = Date.now();
+  }, []);
+
+  // Escuta o status online/offline do Supabase
+  useEffect(() => {
+    const handleNetworkState = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setIsSupabaseOffline(!!customEvent.detail.offline);
+      }
+    };
+    window.addEventListener('supabase-network-state', handleNetworkState);
+    return () => {
+      window.removeEventListener('supabase-network-state', handleNetworkState);
+    };
   }, []);
 
   useEffect(() => {
@@ -218,7 +233,7 @@ const App: React.FC = () => {
             setPositionsMetadata(aerodromoConfig.positions_metadata);
           }
           if (aerodromoConfig.position_restrictions && Object.keys(aerodromoConfig.position_restrictions).length > 0) {
-            setPositionRestrictions(aerodromoConfig.position_restrictions);
+             setPositionRestrictions(aerodromoConfig.position_restrictions);
           }
           if (aerodromoConfig.disabled_positions && aerodromoConfig.disabled_positions.length > 0) {
             setDisabledPositions(new Set(aerodromoConfig.disabled_positions));
@@ -229,27 +244,15 @@ const App: React.FC = () => {
         }
         
         if (vehicles.length === 0 && operators.length === 0) {
-            import('./lib/supabase').then(({ isSupabaseConfigured }) => {
-                if (isSupabaseConfigured()) {
-                    setSupabaseError(`O banco conectou com sucesso, mas não retornou DADOS (0 veículos e 0 operadores). Possíveis causas:\n1. Você não rodou o script "supabase_seed.sql" no SQL Editor do Supabase.\n2. O banco está bloqueado por RLS (Row Level Security). Desative o RLS para leitura anônima ou insira dados pelas tabelas. Vá no seu projeto Supabase > Tabela Vehicles > '...' > 'Disable RLS' para testes.`);
-                }
-            });
+             console.warn('Conectado com sucesso mas sem frota e operadores no banco.');
         }
       } catch (err: any) {
-        console.error('Failed to load base data from Supabase:', err);
-        import('./lib/supabase').then(({ isSupabaseConfigured }) => {
-            if (isSupabaseConfigured()) {
-                setSupabaseError(`Erro de conexão com o Supabase: ${err.message || JSON.stringify(err)}`);
-            }
-        });
+        console.error('Failed to load base data from Supabase, entering contingency offline mode:', err);
+        setIsSupabaseOffline(true);
       }
     }).catch(err => {
-      console.error('Failed to import supabaseService:', err);
-      import('./lib/supabase').then(({ isSupabaseConfigured }) => {
-          if (isSupabaseConfigured()) {
-              setSupabaseError(`${err.message || 'Erro ao inicializar conexão com Supabase'}`);
-          }
-      });
+      console.error('Failed to import supabaseService, entering contingency offline mode:', err);
+      setIsSupabaseOffline(true);
     });
   }, []);
 
@@ -820,6 +823,17 @@ const App: React.FC = () => {
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
           <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
+          {isSupabaseOffline && (
+            <div className="bg-amber-500 text-slate-900 px-4 py-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider shrink-0 z-[50] border-b border-amber-600 shadow-sm animate-pulse">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-900 animate-pulse shrink-0" />
+                <span>⚠️ MODO CONTINGÊNCIA ATIVO: CONEXÃO SUPABASE INSTÁVEL. OPERANDO COM CACHE SALVO.</span>
+              </div>
+              <button onClick={() => window.location.reload()} className="px-2.5 py-1 bg-slate-900 text-amber-400 rounded hover:bg-slate-800 text-[10px] font-black transition-all cursor-pointer">
+                TENTAR RECONECTAR
+              </button>
+            </div>
+          )}
           <div className="flex-1 overflow-hidden relative">
               <Suspense fallback={<div className="flex items-center justify-center h-full w-full"><Spinner size={48} text="Carregando módulo..." /></div>}>
                 {view === 'GRID_OPS' && (
