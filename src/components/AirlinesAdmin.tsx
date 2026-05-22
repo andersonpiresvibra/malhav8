@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Database, RefreshCw, Upload, Info, Image as ImageIcon, FileSpreadsheet, Download } from 'lucide-react';
+import { Plus, Trash2, Database, RefreshCw, Upload, Info, Image as ImageIcon, FileSpreadsheet, Download, Search, Settings, ChevronDown, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { AirlineLogo } from './AirlineLogo';
@@ -30,10 +30,88 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'GERAL' | 'NACIONAL' | 'INTERNACIONAL' | 'EXECUTIVA'>('GERAL');
   
+  // Estados para pesquisa inteligente de aeronaves na tabela de aeronaves do Supabase
+  const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
+  const optionsMenuRef = useRef<HTMLDivElement>(null);
+  const [aircraftSearch, setAircraftSearch] = useState('');
+  const [aircraftSuggestions, setAircraftSuggestions] = useState<{ prefix: string; model: string; airline: string }[]>([]);
+  const [showAircraftSuggestions, setShowAircraftSuggestions] = useState(false);
+  const aircraftSuggestionsRef = useRef<HTMLDivElement>(null);
+  const [matchingAirlineCodesFromAircraft, setMatchingAirlineCodesFromAircraft] = useState<string[] | null>(null);
+
+  // Fechar o menu de opções ao clicar fora
+  useEffect(() => {
+    const handleClickOutsideOptions = (event: MouseEvent) => {
+      if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target as Node)) {
+        setShowOptionsDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutsideOptions);
+    return () => document.removeEventListener('mousedown', handleClickOutsideOptions);
+  }, []);
+
+  // Fechar o popup de sugestões de aeronaves ao clicar fora
+  useEffect(() => {
+    const handleClickOutsideAircraft = (event: MouseEvent) => {
+      if (aircraftSuggestionsRef.current && !aircraftSuggestionsRef.current.contains(event.target as Node)) {
+        setShowAircraftSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutsideAircraft);
+    return () => document.removeEventListener('mousedown', handleClickOutsideAircraft);
+  }, []);
+
+  // Efeito debounced para buscar na tabela aeronaves
+  useEffect(() => {
+    if (aircraftSearch.trim().length < 2) {
+      setAircraftSuggestions([]);
+      setMatchingAirlineCodesFromAircraft(null);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('aeronaves')
+          .select('prefix, model, airline')
+          .or(`prefix.ilike.%${aircraftSearch.trim()}%,model.ilike.%${aircraftSearch.trim()}%,airline.ilike.%${aircraftSearch.trim()}%`)
+          .limit(30);
+
+        if (!error && data) {
+          // Filtra sugestões únicas para exibir no popup (por exemplo, até 8)
+          const tempSuggestions: { prefix: string; model: string; airline: string }[] = [];
+          const seenPrefixes = new Set<string>();
+          data.forEach(item => {
+            if (item.prefix && !seenPrefixes.has(item.prefix.toUpperCase())) {
+              seenPrefixes.add(item.prefix.toUpperCase());
+              tempSuggestions.push({
+                prefix: item.prefix.toUpperCase(),
+                model: item.model ? item.model.toUpperCase() : '',
+                airline: item.airline ? item.airline.toUpperCase() : ''
+              });
+            }
+          });
+          setAircraftSuggestions(tempSuggestions.slice(0, 8));
+
+          // Guarda todos os códigos de cia que deram match no banco de dados para filtrar na tabela
+          const matchedCodes = data
+            .map(item => item.airline?.toUpperCase()?.trim())
+            .filter(Boolean) as string[];
+          setMatchingAirlineCodesFromAircraft([...new Set(matchedCodes)]);
+        }
+      } catch (err) {
+        console.error('Erro ao pesquisar aeronaves no banco:', err);
+      }
+    }, 250);
+
+    return () => clearTimeout(delayDebounce);
+  }, [aircraftSearch]);
+
   const filteredAirlines = useMemo(() => {
-    if (activeTab === 'GERAL') return airlines;
-    
-    return airlines.filter(a => {
+    let result = airlines;
+
+    if (activeTab !== 'GERAL') {
+      result = result.filter(a => {
         if (activeTab === 'EXECUTIVA') return a.category === 'EXECUTIVA';
         
         const country = a.country?.toUpperCase()?.trim() || '';
@@ -43,8 +121,36 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
         if (activeTab === 'INTERNACIONAL') return !isBrasil && a.category !== 'EXECUTIVA';
         
         return a.category === activeTab;
+      });
+    }
+
+    if (aircraftSearch.trim() !== '') {
+      if (matchingAirlineCodesFromAircraft !== null) {
+        result = result.filter(a => {
+          const codeUpper = a.airline_code?.toUpperCase()?.trim() || '';
+          const nameUpper = a.airline?.toUpperCase()?.trim() || '';
+          return matchingAirlineCodesFromAircraft.some(m => m === codeUpper || m === nameUpper);
+        });
+      } else {
+        result = [];
+      }
+    }
+
+    return result;
+  }, [airlines, activeTab, aircraftSearch, matchingAirlineCodesFromAircraft]);
+
+  const sortedLogos = useMemo(() => {
+    return [...filteredAirlines].sort((a, b) => {
+      const flightA = a.flight_count || 0;
+      const flightB = b.flight_count || 0;
+      if (flightB !== flightA) {
+        return flightB - flightA; // Descending by flight count (Primary)
+      }
+      const equipA = a.equipment_count || 0;
+      const equipB = b.equipment_count || 0;
+      return equipB - equipA; // Descending by equipment/aircraft count (Secondary)
     });
-  }, [airlines, activeTab]);
+  }, [filteredAirlines]);
   
   const [showImportInstructions, setShowImportInstructions] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -419,12 +525,6 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
            </div>
            
            <div className="flex items-center gap-3">
-               <button 
-                  onClick={() => setShowImportInstructions(true)} 
-                  className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded shadow-md transition-colors flex items-center gap-1.5 active:scale-95 ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'}`}
-               >
-                  <Upload size={14} /> IMPORTAR (XLSX)
-               </button>
                <input 
                   type="file" 
                   accept=".xlsx, .xls" 
@@ -432,15 +532,140 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                   ref={fileInputRef}
                   onChange={handleImportExcel} 
                />
-               <button 
-                  onClick={() => setConfirmDeleteAll(true)} 
-                  className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded shadow-md transition-colors flex items-center gap-1.5 active:scale-95 ${isDarkMode ? 'bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20' : 'bg-white hover:bg-red-50 text-red-600 border border-red-200'}`}
-               >
-                  <Trash2 size={14} /> LIMPAR TUDO
-               </button>
-               <button onClick={handleCreateNewAirline} className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded shadow-md transition-colors flex items-center gap-1.5 active:scale-95 ${isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-[#329858] hover:bg-[#29824a] text-white'}`}>
-                  <Plus size={14} /> NOVO
-               </button>
+
+               {/* Box de Pesquisa Inteligente na Tabela de Aeronaves */}
+               <div className="relative group" ref={aircraftSuggestionsRef}>
+                 <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                   <Search size={13} className={`${isDarkMode ? 'text-white/40 group-focus-within:text-white' : 'text-slate-400 group-focus-within:text-[#329858]'} transition-colors`} />
+                 </div>
+                 <input 
+                   type="text" 
+                   placeholder="BUSCAR AERONAVE..." 
+                   className={`border rounded text-[10px] uppercase w-[168px] pl-8 pr-7 h-7 tracking-widest outline-none transition-all font-bold ${isDarkMode 
+                     ? 'bg-transparent hover:bg-white/5 border-white/20 focus:border-white/40 text-white placeholder:text-white/40' 
+                     : 'bg-white border-transparent text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-[#329858]/50 focus:border-[#329858]'
+                   }`}
+                   value={aircraftSearch}
+                   onClick={() => { 
+                     setFocusedCell(null); 
+                     setEditingCell(null); 
+                     setShowAircraftSuggestions(true);
+                   }}
+                   onFocus={() => setShowAircraftSuggestions(true)}
+                   onChange={(e) => {
+                     setAircraftSearch(e.target.value);
+                     setShowAircraftSuggestions(true);
+                   }}
+                 />
+                 {aircraftSearch && (
+                   <button
+                     onClick={() => {
+                       setAircraftSearch('');
+                       setAircraftSuggestions([]);
+                       setMatchingAirlineCodesFromAircraft(null);
+                       setShowAircraftSuggestions(false);
+                     }}
+                     className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                     title="Limpar pesquisa"
+                   >
+                     <X size={11} />
+                   </button>
+                 )}
+
+                 {/* Autocomplete inteligente da tabela aeronaves */}
+                 {showAircraftSuggestions && aircraftSuggestions.length > 0 && (
+                   <div 
+                     className={`absolute top-full left-0 w-64 mt-1 rounded shadow-lg border overflow-hidden z-[9999] max-h-48 overflow-y-auto text-[10px] font-bold ${
+                       isDarkMode 
+                         ? 'bg-slate-900 border-slate-700 text-slate-300' 
+                         : 'bg-white border-slate-200 text-slate-700'
+                     }`}
+                   >
+                     {aircraftSuggestions.map((suggestion, sIdx) => (
+                       <div
+                         key={sIdx}
+                         onClick={() => {
+                           setAircraftSearch(suggestion.prefix);
+                           setShowAircraftSuggestions(false);
+                         }}
+                         className={`px-3 py-1.5 cursor-pointer uppercase font-mono tracking-wider truncate duration-100 ${
+                           isDarkMode 
+                             ? 'hover:bg-slate-800 hover:text-white' 
+                             : 'hover:bg-slate-100 hover:text-slate-900'
+                         }`}
+                       >
+                         <span className="text-emerald-500 font-black">{suggestion.prefix}</span>
+                         {suggestion.model && ` - ${suggestion.model}`}
+                         {suggestion.airline && ` (${suggestion.airline})`}
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
+
+               {/* Botão Amarelo de Opções */}
+               <div className="relative" ref={optionsMenuRef}>
+                 <button 
+                   onClick={() => setShowOptionsDropdown(!showOptionsDropdown)}
+                   className={`flex items-center gap-2 px-4 py-2 rounded transition-all font-bold uppercase tracking-wider text-[11px] ${showOptionsDropdown ? 'bg-[#e5c600] shadow-inner' : 'bg-[#FEDC00] hover:bg-[#e5c600] shadow-sm'} text-slate-800 active:scale-95 border border-[#FEDC00] h-7`}
+                 >
+                   <Settings size={14} className={showOptionsDropdown ? 'animate-spin-slow' : ''} />
+                   <span>OPÇÕES</span>
+                   <ChevronDown size={14} className={`transition-transform duration-200 ${showOptionsDropdown ? 'rotate-180' : ''}`} />
+                 </button>
+
+                 {showOptionsDropdown && (
+                   <div className={`absolute right-0 top-full mt-2 w-56 ${isDarkMode ? 'bg-slate-900 border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]' : 'bg-white border-slate-200 shadow-xl'} border rounded-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2`}>
+                     <div className="p-1.5 space-y-0.5 text-left">
+                       <button 
+                         onClick={() => {
+                           handleCreateNewAirline();
+                           setShowOptionsDropdown(false);
+                         }}
+                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+                       >
+                         <Plus size={14} />
+                         <span>Adicionar Companhia</span>
+                       </button>
+
+                       <button 
+                         onClick={() => {
+                           setShowImportInstructions(true);
+                           setShowOptionsDropdown(false);
+                         }}
+                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+                       >
+                         <Upload size={14} />
+                         <span>Importar em Lote</span>
+                       </button>
+
+                       <button 
+                         onClick={() => {
+                           downloadTemplate('airlines');
+                           setShowOptionsDropdown(false);
+                         }}
+                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+                       >
+                         <Download size={14} />
+                         <span>Baixar Modelo</span>
+                       </button>
+
+                       <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-slate-200'}`} />
+
+                       <button 
+                         onClick={() => {
+                           setConfirmDeleteAll(true);
+                           setShowOptionsDropdown(false);
+                         }}
+                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all text-red-500 hover:bg-red-500/10`}
+                       >
+                         <Trash2 size={14} />
+                         <span>Limpar Tudo</span>
+                       </button>
+                     </div>
+                   </div>
+                 )}
+               </div>
            </div>
         </div>
 
@@ -629,7 +854,7 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
                      <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{filteredAirlines.length} empresas listadas nesta aba</p>
                  </div>
                  <div className={`flex flex-wrap gap-3 justify-start content-start overflow-auto p-3 w-full flex-1 border-0 rounded-[3px] ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
-                     {filteredAirlines.map(airline => (
+                     {sortedLogos.map(airline => (
                          <div 
                              key={airline.id} 
                              className="cursor-pointer flex-shrink-0 hover:scale-110 hover:-translate-y-1 transition-all duration-200 flex flex-col items-center justify-center relative"

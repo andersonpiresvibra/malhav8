@@ -80,58 +80,26 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
   };
 
   const teamMembers = useMemo(() => {
-    const currentTime = new Date();
-    const currentHour = currentTime.getHours();
-    const currentMinute = currentTime.getMinutes();
-
     const todayStr = new Date().toISOString().split('T')[0];
 
     return operators.map(p => {
       const dayEntry = p.workDays?.find(wd => wd.date === todayStr);
-      const isNotWorking = dayEntry && ['FOLGA', 'AT', 'AF'].includes(dayEntry.type);
+      const isNotWorking = dayEntry && ['FOLGA', 'AT', 'AF', 'FÉRIAS', 'AFAST.', 'FOLG.'].includes(dayEntry.type);
       const isOnSchedule = !isNotWorking;
 
-      let isActive = false;
-      
-      if (isOnSchedule && p.shift && p.shift.start && p.shift.end && p.shift.start.includes(':') && p.shift.end.includes(':')) {
-          const [sH, sM] = p.shift.start.split(':').map(Number);
-          const [eH, eM] = p.shift.end.split(':').map(Number);
-          
-          if (!isNaN(sH) && !isNaN(sM) && !isNaN(eH) && !isNaN(eM)) {
-              const nowMins = currentHour * 60 + currentMinute;
-              const startMins = sH * 60 + sM;
-              const endMins = eH * 60 + eM;
+      let isActive = isOnSchedule;
 
-              if (startMins < endMins) {
-                  isActive = nowMins >= startMins && nowMins <= endMins;
-              } else {
-                  // Overnight shift
-                  isActive = nowMins >= startMins || nowMins <= endMins;
-              }
-          } else {
-              isActive = true;
-          }
-      } else {
-          // Fallback if there's no shift mapped in the operator object
-          isActive = true; 
-      }
-
-      // Preserve intentional inactive statuses even if inside shift hours
       let finalStatus = p.status;
       const inactiveStatuses = ['INATIVO', 'FOLGA', 'FÉRIAS', 'AFAST.', 'DESCONECTADO', 'FOLG.'];
-      if (!isActive) {
-          finalStatus = 'INATIVO';
-      } else if (inactiveStatuses.includes(p.status || '')) {
-          finalStatus = p.status;
-          isActive = false;
-      }
 
-      const mission = getActiveMission(p.warName);
-      if (isActive) {
+      if (!isActive) {
+          finalStatus = (p.status && inactiveStatuses.includes(p.status)) ? p.status : 'FOLGA';
+      } else {
+          const mission = getActiveMission(p.warName);
           if (mission) {
               finalStatus = mission.status === 'DESIGNADO' ? 'DESIGNADO' : 'OCUPADO';
           } else {
-              finalStatus = 'DISPONÍVEL';
+              finalStatus = (p.status && !inactiveStatuses.includes(p.status)) ? p.status : 'DISPONÍVEL';
           }
       }
 
@@ -164,7 +132,6 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
     const baseList = teamMembers.filter(op => 
       !['INATIVO', 'FOLGA', 'FÉRIAS', 'AFAST.', 'FOLG.'].includes(op.status || '') &&
       (activeShift === 'GERAL' || (op.shift && op.shift.cycle === activeShift)) &&
-      (!activeCategory || activeCategory === 'AERODROMO' || op.patio === activeCategory || op.patio === 'AMBOS') &&
       (op.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       op.warName.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -179,7 +146,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
       if (!isAvailA && isAvailB) return 1;
       return 0;
     });
-  }, [teamMembers, activeShift, activeCategory, searchTerm]);
+  }, [teamMembers, activeShift, searchTerm]);
 
   const handleAssignVehicle = async (operatorId: string, vehicleId: string) => {
     let selectedWarName = '';
@@ -271,21 +238,6 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                         {viewMode === 'CARDS' ? 'Ver Tabela' : 'Ver Cards'}
                     </button>
                 </div>
-                <div className={`flex items-center gap-1.5 p-1 rounded-md border shadow-inner ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-black/10 border-white/10'}`}>
-                    {['AERODROMO', 'VIP', 'ILHA'].map((cat) => (
-                        <button 
-                            key={cat} 
-                            onClick={() => setActiveCategory(cat as OperatorCategory)} 
-                            className={`px-5 py-2 rounded-md text-[10px] font-black tracking-widest uppercase transition-all duration-300 ${
-                                activeCategory === cat 
-                                    ? (isDarkMode ? 'bg-emerald-500 text-slate-950 shadow-neon' : 'bg-white text-[#2D8E48] shadow-md') 
-                                    : (isDarkMode ? 'text-slate-600 hover:text-slate-400' : 'text-white/60 hover:text-white')
-                            }`}
-                        >
-                            {cat === 'AERODROMO' ? 'PÁTIO' : cat}
-                        </button>
-                    ))}
-                </div>
             </div>
 
             <div className="flex items-center gap-4">
@@ -327,32 +279,6 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
   const telemetryBar = (
     <div className={`h-16 shrink-0 border-b px-8 flex items-center justify-between z-30 ${isDarkMode ? "bg-slate-950 border-slate-800/40 text-slate-200" : "bg-[#2D8E48] border-[#206a34] text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)]"} w-full`}>
         <div className="flex items-center gap-10">
-            {/* Localização */}
-            <div className="flex items-center gap-6">
-                <div className="flex flex-col">
-                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Pátio</span>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.patio}</span>
-                        <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
-                    </div>
-                </div>
-                <div className="flex flex-col">
-                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Vip</span>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.vip}</span>
-                        <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-white/30'}`}></div>
-                    </div>
-                </div>
-                <div className="flex flex-col">
-                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-slate-600' : 'text-white/60'}`}>Ilha</span>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-xl font-black font-mono ${isDarkMode ? 'text-white' : 'text-white'}`}>{teamStats.ilha}</span>
-                    </div>
-                </div>
-            </div>
-
-            <div className={`h-8 w-px ${isDarkMode ? 'bg-slate-800' : 'bg-white/20'}`}></div>
-
             {/* Status Operacional */}
             <div className="flex items-center gap-8">
                 <div className={`flex items-center gap-3 px-4 py-1.5 rounded-md border ${isDarkMode ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-white/10 border-white/20'}`}>
@@ -489,23 +415,13 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                                 </div>
                                             ) : (
                                                 <div className={`flex items-center gap-1 font-mono font-black tracking-tight ${isAvailable || isHandsOn ? 'text-[11px]' : 'text-[9px]'}`}>
-                                                    {isHandsOn ? (
+                                                    {isHandsOn && (
                                                         <Droplet size={12} className="shrink-0 opacity-80 animate-pulse" />
-                                                    ) : (
-                                                        <MapPin size={isAvailable ? 10 : 8} className="shrink-0 opacity-60" />
                                                     )}
                                                     
-                                                    <span className="truncate uppercase opacity-60">
-                                                        {(() => {
-                                                            if (op.status === 'INATIVO') return 'FORA';
-                                                            if (op.status === 'INTERVALO') return 'PAUSA';
-                                                            return op.lastPosition || 'PÁTIO';
-                                                        })()}
-                                                    </span>
-
                                                     <span className={`px-1 rounded-sm font-black uppercase border text-[8px] whitespace-nowrap ${badgeStyle}`}>
                                                         {(() => {
-                                                            if (op.status === 'INATIVO') return op.shift?.cycle || 'N/A';
+                                                            if (op.status === 'INATIVO' || op.status === 'FOLGA') return op.shift?.cycle || 'N/A';
                                                             return statusLabel;
                                                         })()}
                                                     </span>
