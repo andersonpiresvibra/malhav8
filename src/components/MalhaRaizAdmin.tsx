@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Database, RefreshCw, Upload, Info, Download } from 'lucide-react';
+import { Plus, Trash2, Database, RefreshCw, Upload, Info, Download, Send, Eraser } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
-import { getRootMesh, deleteRootMeshFlight, upsertRootMesh, clearRootMesh } from '../services/supabaseService';
+import { getRootMesh, deleteRootMeshFlight, upsertRootMesh, clearRootMesh, upsertBaseMeshFlights } from '../services/supabaseService';
 import { AirlineLogo } from './AirlineLogo';
 import { MeshFlight } from '../types';
 import { downloadTemplate } from '../utils/excelTemplateUtils';
@@ -38,6 +38,11 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
   const [feedback, setFeedback] = useState<{ msg: string; isError: boolean } | null>(null);
   const [confirmDeleteAirline, setConfirmDeleteAirline] = useState<string | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [showSendToBaseModal, setShowSendToBaseModal] = useState(false);
+  const [selectedBaseDate, setSelectedBaseDate] = useState(() => {
+     const tzoffset = (new Date()).getTimezoneOffset() * 60000; // offset in milliseconds
+     return new Date(Date.now() - tzoffset).toISOString().split('T')[0];
+  });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -103,11 +108,25 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
 
   const handleCreateNewFlight = async () => {
     if (!activeAirline) return;
+    
+    const fallbackNames: Record<string, string> = {
+        'LA': 'LATAM', 'JJ': 'LATAM', 'DL': 'DELTA', 'AA': 'AMERICAN', 
+        'G3': 'GOL', 'AD': 'AZUL', 'AF': 'AIR FRANCE', 'KL': 'KLM',
+        'LH': 'LUFTHANSA', 'TP': 'TAP', 'CM': 'COPA', 'UA': 'UNITED',
+        'RG': 'GOL', 'LX': 'SWISS', 'TT': 'TOTAL', 'B0': 'BOA',
+        'AR': 'AEROLINEAS', 'UC': 'LADECO', 'BA': 'BRITISH AIRWAYS',
+        'AV': 'AVIANCA', 'IB': 'IBERIA', 'EK': 'EMIRATES', 'QR': 'QATAR',
+        'TK': 'TURKISH', 'AM': 'AEROMEXICO', 'AC': 'AIR CANADA',
+        'UX': 'AIR EUROPA', 'AT': 'ROYAL AIR MAROC', 'DT': 'TAAG'
+    };
+    const cCode = activeAirline === 'EM GERAL' ? '' : activeAirline;
+    const cName = cCode ? (companyNames[cCode] || fallbackNames[cCode] || cCode) : '';
+
     const tempId = `temp-${Date.now()}`;
     const newFlight: any = {
         id: tempId,
-        airline: activeAirline,
-        airline_code: '',
+        airline: cName,
+        airline_code: cCode,
         flightNumber: 'NEW',
         departureFlightNumber: 'NEW',
         destination: '',
@@ -123,8 +142,8 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
         const { id: _, ...flightToSave } = newFlight;
         const meshFlight: MeshFlight = {
             id: '',
-            airline: activeAirline === 'EM GERAL' ? '' : activeAirline,
-            airlineCode: activeAirline === 'EM GERAL' ? '' : activeAirline,
+            airline: cName,
+            airlineCode: cCode,
             flightNumber: 'NEW',
             departureFlightNumber: 'NEW',
             destination: '',
@@ -197,6 +216,63 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
     } catch (e: any) {
         setFeedback({ msg: `Erro de rede: ${e.message}`, isError: true });
     }
+  };
+
+  const handleSendToBaseMesh = async () => {
+    if (!selectedBaseDate) return;
+    setIsLoading(true);
+    try {
+        const targetFlights = activeAirline === 'EM GERAL' ? flights : flights.filter(f => f.airlineCode === activeAirline);
+        // create payloads
+        const payload = targetFlights.map(f => ({
+            ...f,
+            date: selectedBaseDate,
+            id: '' // allow backend to generate unique id for base mesh
+        }));
+        
+        await upsertBaseMeshFlights(payload);
+        setFeedback({ msg: `${targetFlights.length} voos enviados para a malha base (${selectedBaseDate})!`, isError: false });
+        setShowSendToBaseModal(false);
+    } catch (e: any) {
+        setFeedback({ msg: `Erro ao enviar para malha base: ${e.message}`, isError: true });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleRemoveDuplicates = async () => {
+        setIsLoading(true);
+        try {
+            const targetFlights = activeAirline === 'EM GERAL' ? flights : flights.filter(f => f.airlineCode === activeAirline);
+            
+            const seen = new Set();
+            const toDelete: string[] = [];
+            
+            for (const f of targetFlights) {
+                const flightNum = (f.flightNumber || '').trim();
+                const etd = (f.etd || '').trim();
+                const key = `${f.airlineCode}-${flightNum}-${etd}`;
+                if (seen.has(key)) {
+                    toDelete.push(f.id);
+                } else {
+                    seen.add(key);
+                }
+            }
+            
+            if (toDelete.length > 0) {
+                for (const id of toDelete) {
+                    await deleteRootMeshFlight(id);
+                }
+                setFeedback({ msg: `${toDelete.length} voo(s) duplicado(s) ${activeAirline !== 'EM GERAL' ? `da ${activeAirline}` : ''} removido(s).`, isError: false });
+                await fetchFlights();
+            } else {
+                setFeedback({ msg: 'Nenhum voo duplicado encontrado.', isError: false });
+            }
+        } catch(e: any) {
+            setFeedback({ msg: `Erro ao remover duplicados: ${e.message}`, isError: true });
+        } finally {
+            setIsLoading(false);
+        }
   };
 
   const handleUpdateField = async (id: string, field: keyof MeshFlight, value: any) => {
@@ -440,12 +516,26 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
           const existingData = await getRootMesh();
           const existingMap = new Map((existingData || []).map((r: MeshFlight) => [r.flightNumber, r.id]));
 
+          const fallbackNames: Record<string, string> = {
+              'LA': 'LATAM', 'JJ': 'LATAM', 'DL': 'DELTA', 'AA': 'AMERICAN', 
+              'G3': 'GOL', 'AD': 'AZUL', 'AF': 'AIR FRANCE', 'KL': 'KLM',
+              'LH': 'LUFTHANSA', 'TP': 'TAP', 'CM': 'COPA', 'UA': 'UNITED',
+              'RG': 'GOL', 'LX': 'SWISS', 'TT': 'TOTAL', 'B0': 'BOA',
+              'AR': 'AEROLINEAS', 'UC': 'LADECO', 'BA': 'BRITISH AIRWAYS',
+              'AV': 'AVIANCA', 'IB': 'IBERIA', 'EK': 'EMIRATES', 'QR': 'QATAR',
+              'TK': 'TURKISH', 'AM': 'AEROMEXICO', 'AC': 'AIR CANADA',
+              'UX': 'AIR EUROPA', 'AT': 'ROYAL AIR MAROC', 'DT': 'TAAG'
+          };
+
           const finalPayload: MeshFlight[] = flightsToUpsert.map((f: any) => {
               const existingId = existingMap.get(f.flight_number);
+              const ciaCode = (f.airline_code || '').toUpperCase();
+              const ciaName = companyNames[ciaCode] || fallbackNames[ciaCode] || ciaCode;
+              
               return {
                   id: existingId || '',
-                  airline: f.airline_code,
-                  airlineCode: f.airline_code,
+                  airline: ciaName,
+                  airlineCode: ciaCode,
                   flightNumber: f.flight_number,
                   departureFlightNumber: f.flight_number,
                   destination: f.destination,
@@ -550,6 +640,9 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                     <Database size={16} className={isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} />
                     <h1 className="text-sm font-black uppercase tracking-widest">Malha Raiz</h1>
                     {isLoading && <RefreshCw size={12} className="animate-spin ml-2 text-slate-500" />}
+                    <div className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-widest ml-2 ${isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>
+                         {currentAirlineFlights.length} {currentAirlineFlights.length === 1 ? 'VOO' : 'VOOS'}
+                    </div>
                </div>
                <span className={`text-[10px] font-medium tracking-wide ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Gerencie o banco de dados de malha_raiz por companhia</span>
            </div>
@@ -584,6 +677,21 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                 >
                     {isImporting ? <RefreshCw size={12} className="animate-spin" /> : <Upload size={12} />}
                     {isImporting ? 'Importando...' : 'Importar XLS'}
+                </button>
+                <button 
+                     onClick={handleRemoveDuplicates}
+                     disabled={isLoading}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200'} active:scale-95 disabled:opacity-50`}
+                    title="Remover Registros Duplicados"
+                >
+                    <Eraser size={12} /> Limpar Duplicados
+                </button>
+                <button 
+                     onClick={() => setShowSendToBaseModal(true)}
+                     disabled={isLoading || currentAirlineFlights.length === 0}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200'} active:scale-95 disabled:opacity-50`}
+                >
+                    <Send size={12} /> Enviar p/ Malha Base
                 </button>
                 <button 
                      onClick={handleCreateNewFlight}
@@ -935,6 +1043,51 @@ export const MalhaRaizAdmin: React.FC<MalhaRaizAdminProps> = ({ isDarkMode }) =>
                     <div className="flex items-center justify-end pt-2">
                         <button onClick={() => setFeedback(null)} className={`px-6 py-2 text-xs font-black uppercase tracking-wider rounded shadow-md transition-colors active:scale-95 ${feedback.isError ? (isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-800') : (isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-[#329858] border hover:bg-[#29824a] text-white')}`}>
                             OK
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* SEND TO BASE MESH MODAL */}
+        {showSendToBaseModal && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-2xl p-4">
+                <div className={`p-6 rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] w-full max-w-sm flex flex-col gap-4 ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                            <Send size={20} />
+                        </div>
+                        <div>
+                            <h2 className="font-black text-sm uppercase tracking-widest">Enviar p/ Malha Base</h2>
+                            <p className={`text-[10px] font-medium mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Importar via interface</p>
+                        </div>
+                    </div>
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                        Esta ação irá enviar <strong>{activeAirline === 'EM GERAL' ? flights.length : flights.filter(f => f.airlineCode === activeAirline).length}</strong> voo(s) para a Malha Base (Grade Operacional). Selecione a data alvo:
+                    </div>
+                    
+                    <div className="flex flex-col gap-2">
+                        <label className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Data Base</label>
+                        <input 
+                            type="date" 
+                            className={`w-full bg-transparent text-sm p-3 font-medium rounded outline-none border focus:ring-2 focus:ring-blue-500 transition-all ${isDarkMode ? 'border-slate-700 text-white focus:border-blue-500 placeholder-slate-600' : 'border-slate-300 text-slate-800 focus:border-blue-400'}`}
+                            value={selectedBaseDate}
+                            onChange={(e) => setSelectedBaseDate(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-end flex-wrap gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+                        <button onClick={() => setShowSendToBaseModal(false)} className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded transition-colors ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}>
+                            Cancelar
+                        </button>
+                        <button 
+                            disabled={!selectedBaseDate || isLoading}
+                            onClick={handleSendToBaseMesh} 
+                            className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded shadow-md transition-colors flex items-center gap-1.5 active:scale-95 ${isDarkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'} disabled:opacity-50`}
+                        >
+                            {isLoading ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />}
+                            {isLoading ? 'Enviando...' : 'Confirmar Envio'}
                         </button>
                     </div>
                 </div>

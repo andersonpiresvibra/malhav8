@@ -598,13 +598,11 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
     // Um voo é considerado "Chegada" se possuir V.Cheg, ETA ou Calço
     const isArrivalFlight = !checkField(flight.flightNumber) || !checkField(flight.eta) || !checkField(flight.actualArrivalTime);
 
-    // Campos obrigatórios definidos pelo usuário: Cia, Prefixo, V.Saída, Destino e ETD
+    // Campos obrigatórios definidos pelo usuário: Cia, V.Saída, Destino e ETD
     const isIncomplete = checkField(flight.airline) || 
-                         checkField(flight.registration) ||
                          checkField(flight.departureFlightNumber) || 
                          checkField(flight.destination) || 
-                         checkField(flight.etd) || 
-                         (isArrivalFlight && checkField(flight.eta)); // V.Cheg is no longer strictly mandatory, just ETA for arrivals
+                         checkField(flight.etd);
     
     const hasFormatError = (flight.etd === '?' || (isArrivalFlight && flight.eta === '?') || flight.actualArrivalTime === '?') && !isPre;
     const isUltrapassado = !checkField(flight.etd) && !isPre && getMinutesDiff(flight.etd, flight.date || currentMeshDate) < 0;

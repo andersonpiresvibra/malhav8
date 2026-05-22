@@ -526,7 +526,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                     <img 
                         src={
                             (localFlight.airlineCode === 'RG' || localFlight.airlineCode === 'G3') 
-                            ? 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Gol_Linhas_A%C3%A9reas_Inteligentes_logo_2015.svg/320px-Gol_Linhas_A%C3%A9reas_Inteligentes_logo_2015.svg.png'
+                            ? 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Gol_Linhas_A%C3%A9reas_logo.svg/320px-Gol_Linhas_A%C3%A9reas_logo.svg.png'
                             : `https://images.kiwi.com/airlines/64/${localFlight.airlineCode}.png`
                         }
                         alt={localFlight.airline}
@@ -688,7 +688,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ flight, 
                         {/* T. REST. */}
                         <div className="space-y-1 group">
                             <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                <Clock size={10} className="text-slate-300" /> T. Rest.
+                                <Clock size={10} className="text-slate-300" /> Temp. Rest
                             </label>
                             <span className="text-sm font-mono font-bold tracking-tight px-1.5 py-0.5 rounded shadow-sm min-w-[50px] inline-block text-center uppercase border bg-blue-50 border-blue-100 text-blue-700">
                                 {timeRemaining}

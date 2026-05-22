@@ -91,10 +91,25 @@ export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className
   
   const info = getNormalizedAirlineInfo(airlineCode);
   
-  let iconUrl = `https://images.kiwi.com/airlines/64/${info.iata}.png`;
-  if (info.name === 'GOL' || info.iata === 'G3') {
-    iconUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Gol_Linhas_A%C3%A9reas_Inteligentes_logo_2015.svg/320px-Gol_Linhas_A%C3%A9reas_Inteligentes_logo_2015.svg.png';
-  }
+  const [iconUrl, setIconUrl] = useState<string>(() => {
+    if (info.name === 'GOL' || info.iata === 'G3') {
+      return 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Gol_Linhas_A%C3%A9reas_logo.svg/320px-Gol_Linhas_A%C3%A9reas_logo.svg.png';
+    }
+    return `https://images.kiwi.com/airlines/64/${info.iata}.png`;
+  });
+  const [fallbackAttempt, setFallbackAttempt] = useState(0);
+
+  const handleImgError = () => {
+    if (fallbackAttempt === 0 && (info.name === 'GOL' || info.iata === 'G3')) {
+      setFallbackAttempt(1);
+      setIconUrl('https://images.kiwi.com/airlines/64/G3.png');
+    } else if (fallbackAttempt === 0) {
+      setFallbackAttempt(1);
+      setIconUrl('https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Gol_Linhas_A%C3%A9reas_logo.svg/320px-Gol_Linhas_A%C3%A9reas_logo.svg.png');
+    } else {
+      setImgError(true);
+    }
+  };
 
   const sizeClasses = {
     sm: 'w-5 h-5',
@@ -112,7 +127,8 @@ export const AirlineLogo: React.FC<AirlineLogoProps> = ({ airlineCode, className
             src={iconUrl} 
             alt={info.name} 
             className="w-full h-full object-contain drop-shadow-[1px_1px_1px_rgba(0,0,0,0.5)] hover:scale-110 transition-transform duration-300"
-            onError={() => setImgError(true)}
+            onError={handleImgError}
+            referrerPolicy="no-referrer"
           />
         ) : (
           <span className={`text-[10px] font-bold ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{info.iata}</span>

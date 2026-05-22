@@ -92,6 +92,7 @@ type Tab =
   | "DESIGNADOS"
   | "ABASTECENDO"
   | "FINALIZADO"
+  | "STANDBY"
   | "MALHA";
 type SortDirection = "asc" | "desc" | null;
 type MeshShift = "TODOS" | "MANHA" | "TARDE" | "NOITE";
@@ -507,8 +508,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
   }, [flights, selectedFlight]);
 
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    key: null,
-    direction: null,
+    key: "etd",
+    direction: "asc",
   });
 
   // Estado para controlar visualização de finalizados na aba GERAL
@@ -1492,33 +1493,56 @@ export const GridOps: React.FC<GridOpsProps> = ({
       Object.values(flight.report).some((v) => v !== "" && v !== false),
     );
 
+  const isStandByFlight = (f: FlightData) => {
+    if (
+      f.status === FlightStatus.FINALIZADO ||
+      f.status === FlightStatus.CANCELADO ||
+      f.status === FlightStatus.ABASTECENDO ||
+      f.status === FlightStatus.DESIGNADO
+    ) {
+      return false;
+    }
+    if (f.operator || f.operatorId || f.vehicleId) {
+      return false;
+    }
+    if (!f.etd) return false;
+    const diff = getMinutesDiff(f.etd, f.date);
+    return diff <= -30;
+  };
+
   const stats = useMemo(
-    () => ({
-      total: searchFilteredFlights.length,
-      chegada: searchFilteredFlights.filter((f) => {
-        if (!f.eta) return false;
-        const minutesToEta = getMinutesDiff(f.eta, f.date);
-        return (
-          f.status === FlightStatus.CHEGADA &&
-          !(f.isOnGround && f.positionId) &&
-          minutesToEta <= 120
-        );
-      }).length,
-      fila: searchFilteredFlights.filter(
-        (f) => f.status === FlightStatus.FILA && !f.operator,
-      ).length,
-      designados: searchFilteredFlights.filter(
-        (f) => f.status === FlightStatus.DESIGNADO,
-      ).length,
-      abastecendo: searchFilteredFlights.filter(
-        (f) => f.status === FlightStatus.ABASTECENDO,
-      ).length,
-      finalizados: searchFilteredFlights.filter(
-        (f) =>
-          f.status === FlightStatus.FINALIZADO ||
-          f.status === FlightStatus.CANCELADO,
-      ).length,
-    }),
+    () => {
+      const operationalFlights = searchFilteredFlights.filter((f) => !isStandByFlight(f));
+      const standbyFlights = searchFilteredFlights.filter((f) => isStandByFlight(f));
+
+      return {
+        total: operationalFlights.length,
+        chegada: operationalFlights.filter((f) => {
+          if (!f.eta) return false;
+          const minutesToEta = getMinutesDiff(f.eta, f.date);
+          return (
+            f.status === FlightStatus.CHEGADA &&
+            !(f.isOnGround && f.positionId) &&
+            minutesToEta <= 120
+          );
+        }).length,
+        fila: operationalFlights.filter(
+          (f) => f.status === FlightStatus.FILA && !f.operator,
+        ).length,
+        designados: operationalFlights.filter(
+          (f) => f.status === FlightStatus.DESIGNADO,
+        ).length,
+        abastecendo: operationalFlights.filter(
+          (f) => f.status === FlightStatus.ABASTECENDO,
+        ).length,
+        finalizados: operationalFlights.filter(
+          (f) =>
+            f.status === FlightStatus.FINALIZADO ||
+            f.status === FlightStatus.CANCELADO,
+        ).length,
+        standby: standbyFlights.length,
+      };
+    },
     [searchFilteredFlights],
   );
 
@@ -1559,6 +1583,12 @@ export const GridOps: React.FC<GridOpsProps> = ({
       icon: CheckCircle,
       count: stats.finalizados,
     },
+    {
+      id: "STANDBY",
+      label: "STAND-BY",
+      icon: Clock,
+      count: stats.standby,
+    },
   ];
 
   const tabs = baseTabs.filter(tab => !layoutPreferences || !layoutPreferences.visibleTabs || (layoutPreferences.visibleTabs as any)[tab.id] !== false);
@@ -1566,9 +1596,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const filteredData = useMemo(() => {
     let base = searchFilteredFlights;
 
+    if (activeTab !== "STANDBY") {
+      base = base.filter((f) => !isStandByFlight(f));
+    }
+
     switch (activeTab) {
+      case "STANDBY":
+        base = base.filter((f) => isStandByFlight(f));
+        break;
       case "CHEGADA":
-        base = searchFilteredFlights.filter((f) => {
+        base = base.filter((f) => {
           if (!f.eta) return false;
           const minutesToEta = getMinutesDiff(f.eta, f.date);
           return (
@@ -1579,32 +1616,31 @@ export const GridOps: React.FC<GridOpsProps> = ({
         });
         break;
       case "FILA":
-        base = searchFilteredFlights.filter(
+        base = base.filter(
           (f) => f.status === FlightStatus.FILA && !f.operator,
         );
         break;
       case "DESIGNADOS":
-        base = searchFilteredFlights.filter(
+        base = base.filter(
           (f) => f.status === FlightStatus.DESIGNADO,
         );
         break;
       case "ABASTECENDO":
-        base = searchFilteredFlights.filter(
+        base = base.filter(
           (f) => f.status === FlightStatus.ABASTECENDO,
         );
         break;
       case "FINALIZADO":
-        base = searchFilteredFlights.filter(
+        base = base.filter(
           (f) =>
             f.status === FlightStatus.FINALIZADO ||
             f.status === FlightStatus.CANCELADO,
         );
         break;
       case "GERAL":
-        base = searchFilteredFlights;
         break;
       default:
-        base = searchFilteredFlights;
+        break;
     }
 
     return base;
@@ -3198,82 +3234,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 <RefreshCw size={14} />
                 Sincronizar Dados
               </button>
-              <button
-                onClick={() => {
-                  setIsImportModalOpen(true);
-                  setShowOptionsDropdown(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"}`}
-              >
-                <Upload size={14} />
-                Importar Malha
-              </button>
-              <button
-                onClick={() => {
-                  const dateStr = getDisplayDate(activeDateOffset);
-                  const headers = [
-                    "COMP",
-                    "V.SAIDA",
-                    "ICAO",
-                    "CID",
-                    "PREFIXO",
-                    "POS",
-                    "ETD",
-                    "CALCO",
-                    "ETA",
-                    "OPERADOR",
-                    "FROTA",
-                    "FRT.TIPO",
-                    "STATUS",
-                    "VOLUME",
-                  ];
-                  const rows = visibleFlights.map((f) =>
-                    [
-                      f.airline || "",
-                      f.departureFlightNumber || "",
-                      f.destination || "",
-                      getCityName(f.destination || "", destinosDB),
-                      f.registration || "",
-                      f.positionId || "",
-                      f.etd || "",
-                      f.actualArrivalTime || "?",
-                      f.eta || "?",
-                      f.operator || "",
-                      f.fleet || "",
-                      f.fleetType || "",
-                      f.status || "",
-                      f.volume || "",
-                    ]
-                      .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-                      .join(","),
-                  );
-                  const csvContent =
-                    "data:text/csv;charset=utf-8," +
-                    headers.join(",") +
-                    "\n" +
-                    rows.join("\n");
-                  const encodedUri = encodeURI(csvContent);
-                  const link = document.createElement("a");
-                  link.setAttribute("href", encodedUri);
-                  link.setAttribute(
-                    "download",
-                    `malha_${dateStr.replace(/\s+/g, "_")}.csv`,
-                  );
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  setShowOptionsDropdown(false);
-                  addToast(
-                    "EXPORTAÇÃO",
-                    "Exportação para CSV iniciada com sucesso.",
-                    "success",
-                  );
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-emerald-200"}`}
-              >
-                <FileBarChart size={14} />
-                Exportar Malha (CSV)
-              </button>
+
+
               <button
                 onClick={() => {
                   handleClearFinished();
@@ -3414,29 +3376,68 @@ export const GridOps: React.FC<GridOpsProps> = ({
         <nav className="flex w-full">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
+            const isStandbyHighlight = tab.id === "STANDBY" && stats.standby > 0;
+            
+            const buttonStyle: React.CSSProperties = {
+              flex: tab.id === "STANDBY" ? "1.2 1 0%" : "1 1 0%",
+              minWidth: tab.id === "STANDBY" ? "150px" : "auto",
+            };
+            
+            if (tab.id === "STANDBY") {
+              if (isActive) {
+                buttonStyle.backgroundColor = "#FEDC00";
+                buttonStyle.color = "#262626";
+              } else if (isStandbyHighlight) {
+                buttonStyle.backgroundColor = isDarkMode ? "rgba(254, 220, 0, 0.12)" : "rgba(254, 220, 0, 0.15)";
+                buttonStyle.color = isDarkMode ? "#FEDC00" : "#8a7000";
+              }
+            }
+
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 data-active={isActive ? "true" : "false"}
+                style={buttonStyle}
                 className={`
                                 table-tab-btn
-                                flex-1 h-full px-2 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? "border-slate-950/20" : "border-slate-200"} last:border-r-0
+                                ${tab.id === "STANDBY" ? "flex-[1.2] shrink-0" : "flex-1"} h-full px-2 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-r ${isDarkMode ? "border-slate-950/20" : "border-slate-200"} last:border-r-0
                                 ${
                                   isActive
-                                    ? isDarkMode
-                                      ? "bg-slate-950 text-emerald-400 border-b-2 border-emerald-500"
-                                      : "bg-[#329858] text-white border-b-0"
-                                    : isDarkMode
-                                      ? "text-slate-500 hover:bg-slate-800 hover:text-white"
-                                      : "text-slate-600 hover:bg-emerald-200 hover:text-slate-900"
+                                    ? tab.id === "STANDBY"
+                                      ? ""
+                                      : isDarkMode
+                                        ? "bg-slate-950 text-emerald-400 border-b-2 border-emerald-500"
+                                        : "bg-[#329858] text-white border-b-0"
+                                    : tab.id === "STANDBY"
+                                      ? ""
+                                      : isDarkMode
+                                        ? "text-slate-500 hover:bg-slate-800 hover:text-white"
+                                        : "text-slate-600 hover:bg-emerald-200 hover:text-slate-900"
                                 }
                             `}
               >
                 {tab.label}
                 {tab.count !== undefined && (
                   <span
-                    className={`flex items-center justify-center px-1.5 min-w-[18px] h-4 text-[9px] font-black rounded-sm ${isActive ? (isDarkMode ? "bg-emerald-500 text-slate-950" : "bg-white text-[#2D8E48]") : isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"}`}
+                    className={`flex items-center justify-center px-1.5 min-w-[18px] h-4 text-[9px] font-black rounded-sm ${
+                      isActive 
+                        ? isStandbyHighlight
+                          ? "bg-slate-950 text-amber-400"
+                          : isDarkMode ? "bg-emerald-500 text-slate-950" : "bg-white text-[#2D8E48]"
+                        : isStandbyHighlight
+                          ? isDarkMode ? "bg-amber-500/20 text-amber-400" : "bg-amber-200 text-amber-900"
+                          : isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"
+                    }`}
+                    style={
+                      tab.id === "STANDBY"
+                        ? isActive
+                          ? { backgroundColor: "#262626", color: "#FEDC00" }
+                          : isStandbyHighlight
+                            ? { backgroundColor: "#FEDC00", color: "#262626" }
+                            : undefined
+                        : undefined
+                    }
                   >
                     {tab.count}
                   </span>
@@ -3528,7 +3529,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     )}
                     {isColVisible("etd") && (
                       <SortableHeader
-                        label="T. REST"
+                        label="Temp. Rest"
                         columnKey="etd"
                         className="text-center w-14"
                       />
@@ -3622,7 +3623,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     )}
                     {isColVisible("etd") && (
                       <SortableHeader
-                        label="T. REST"
+                        label="Temp. Rest"
                         columnKey="etd"
                         className="text-center w-14"
                       />
@@ -3760,7 +3761,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     )}
                     {isColVisible("etd") && (
                       <SortableHeader
-                        label="T. REST"
+                        label="Temp. Rest"
                         columnKey="etd"
                         className="text-center w-14"
                       />
@@ -3894,7 +3895,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     )}
                     {isColVisible("etd") && (
                       <SortableHeader
-                        label="T. REST"
+                        label="Temp. Rest"
                         columnKey="etd"
                         className="text-center w-14"
                       />

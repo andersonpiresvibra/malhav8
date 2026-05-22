@@ -40,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
-    { id: 'AERODROMO' as ViewState, icon: Earth, label: 'Aeródromo' },
+    { id: 'AERODROMO' as ViewState, icon: MapPin, label: 'Aeródromo' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório', adminOnly: true },
   ].filter(item => {
     if (visibleTabs && visibleTabs[item.id] === false) return false;
