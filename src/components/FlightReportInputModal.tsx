@@ -94,7 +94,58 @@ export const FlightReportInputModal: React.FC<FlightReportInputModalProps> = ({ 
         </div>
 
         <div className="p-4 bg-white space-y-4 max-h-[60vh] overflow-y-auto">
+            {/* Seção de Pendências Operacionais */}
+            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200/60 space-y-2">
+                <h3 className="text-[9px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                    <AlertCircle size={12} className="text-amber-500 animate-pulse" /> PENDÊNCIAS OPERACIONAIS (PAUSARÁ MISSÃO)
+                </h3>
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    {[
+                        { key: 'missingAircraft', label: 'SEM AERONAVE' },
+                        { key: 'missingCrew', label: 'SEM TRIP' },
+                        { key: 'missingMaintenance', label: 'SEM MANUT' },
+                        { key: 'missingDot', label: 'SEM DOT' },
+                        { key: 'missingRelease', label: 'SEM FOLHA' }
+                    ].map((item) => {
+                        const isChecked = !!localFlight.report?.[item.key as keyof typeof localFlight.report];
+                        return (
+                            <label key={item.key} className="flex items-center gap-2 cursor-pointer select-none">
+                                <input 
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                        const updatedReport = {
+                                            ...(localFlight.report || {}),
+                                            [item.key]: e.target.checked
+                                        };
+                                        setLocalFlight({
+                                            ...localFlight,
+                                            report: updatedReport
+                                        });
+                                    }}
+                                    className="rounded text-amber-500 border-amber-300 focus:ring-amber-500 w-3.5 h-3.5"
+                                />
+                                <span className={`font-black uppercase tracking-tight ${isChecked ? 'text-amber-600' : 'text-slate-500'}`}>
+                                    {item.label}
+                                </span>
+                            </label>
+                        );
+                    })}
+                </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                    <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <FileText size={10} className="text-slate-300" /> Calço (Aeronave)
+                    </label>
+                    <input 
+                        type="time"
+                        value={localFlight.actualArrivalTime || ''}
+                        onChange={e => setLocalFlight({ ...localFlight, actualArrivalTime: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs px-2 py-1.5 rounded"
+                    />
+                </div>
                 <div className="space-y-1">
                     <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                         <FileText size={10} className="text-slate-300" /> Fuel Order
@@ -128,9 +179,9 @@ export const FlightReportInputModal: React.FC<FlightReportInputModalProps> = ({ 
                         className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs px-2 py-1.5 rounded"
                     />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-2 col-span-2 md:col-span-1">
                     <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <CheckCircle size={10} className="text-slate-300" /> Autorização
+                        <CheckCircle size={10} className="text-slate-300" /> Autorização / Despacho
                     </label>
                     <input 
                         type="time"

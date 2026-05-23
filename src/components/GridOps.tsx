@@ -239,8 +239,76 @@ const calculateLandingETA = (blockTime: string) => {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-const getLatestReportItem = (flight: FlightData) => {
+const getLatestArrivalOfPendingItems = (flight: FlightData) => {
   if (!flight.report) return null;
+  const { report } = flight;
+  const items = [];
+
+  if (report.missingDot && report.fuelOrderTime && report.fuelOrderTime !== "--:--" && report.fuelOrderTime !== "00:00") {
+    items.push({
+      label: "F.O (ULT)",
+      time: report.fuelOrderTime,
+      color: "text-amber-500 font-extrabold",
+      bg: "bg-amber-500/15 border border-amber-500/40 animate-[pulse_1.5s_infinite]",
+    });
+  }
+  if (report.missingMaintenance && report.mechanicTime && report.mechanicTime !== "--:--" && report.mechanicTime !== "00:00") {
+    items.push({
+      label: "MEC (ULT)",
+      time: report.mechanicTime,
+      color: "text-amber-500 font-extrabold",
+      bg: "bg-amber-500/15 border border-amber-500/40 animate-[pulse_1.5s_infinite]",
+    });
+  }
+  if (report.missingCrew && report.crewTime && report.crewTime !== "--:--" && report.crewTime !== "00:00") {
+    items.push({
+      label: "TRIP (ULT)",
+      time: report.crewTime,
+      color: "text-amber-500 font-extrabold",
+      bg: "bg-amber-500/15 border border-amber-500/40 animate-[pulse_1.5s_infinite]",
+    });
+  }
+  if (report.missingRelease && report.authorizationTime && report.authorizationTime !== "--:--" && report.authorizationTime !== "00:00") {
+    items.push({
+      label: "FOL (ULT)",
+      time: report.authorizationTime,
+      color: "text-amber-500 font-extrabold",
+      bg: "bg-amber-500/15 border border-amber-500/40 animate-[pulse_1.5s_infinite]",
+    });
+  }
+  if (report.missingAircraft && flight.actualArrivalTime && flight.actualArrivalTime !== "--:--" && flight.actualArrivalTime !== "00:00") {
+    items.push({
+      label: "CLC (ULT)",
+      time: flight.actualArrivalTime,
+      color: "text-amber-500 font-extrabold",
+      bg: "bg-amber-500/15 border border-amber-500/40 animate-[pulse_1.5s_infinite]",
+    });
+  }
+
+  if (items.length === 0) return null;
+
+  items.sort((a, b) => {
+    return a.time.localeCompare(b.time);
+  });
+
+  return items[items.length - 1];
+};
+
+const getLatestReportItem = (flight: FlightData) => {
+  const pendingLatest = getLatestArrivalOfPendingItems(flight);
+  if (pendingLatest) return pendingLatest;
+
+  if (!flight.report) {
+    if (flight.actualArrivalTime && flight.actualArrivalTime !== "--:--" && flight.actualArrivalTime !== "00:00") {
+      return {
+        label: "CLC",
+        time: flight.actualArrivalTime,
+        color: "text-purple-500 font-bold",
+        bg: "bg-purple-500/10",
+      };
+    }
+    return null;
+  }
   const { report } = flight;
 
   const items = [];
@@ -279,6 +347,14 @@ const getLatestReportItem = (flight: FlightData) => {
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
     });
+  if (flight.actualArrivalTime && flight.actualArrivalTime !== "--:--" && flight.actualArrivalTime !== "00:00") {
+    items.push({
+      label: "CLC",
+      time: flight.actualArrivalTime,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+    });
+  }
   if (report.dispensed)
     items.push({
       label: "DISP",
@@ -440,11 +516,49 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [selectedFlight, setSelectedFlight] = useState<FlightData | null>(null);
   const [clickedRowId, setClickedRowId] = useState<string | null>(null);
 
+  const isFlightPausedByMissingRep = (f: FlightData): boolean => {
+    if (!f.report) return false;
+    const hasMissingAircraft = !!f.report.missingAircraft && (!f.actualArrivalTime || f.actualArrivalTime === '--:--' || f.actualArrivalTime === '00:00');
+    const hasMissingCrew = !!f.report.missingCrew && !f.report.crewTime;
+    const hasMissingMaintenance = !!f.report.missingMaintenance && !f.report.mechanicTime;
+    const hasMissingDot = !!f.report.missingDot && !f.report.fuelOrderTime;
+    const hasMissingRelease = !!f.report.missingRelease && !f.report.authorizationTime;
+    
+    return hasMissingAircraft || hasMissingCrew || hasMissingMaintenance || hasMissingDot || hasMissingRelease;
+  };
+
+  const getMissingItemsLabels = (f: FlightData): string[] => {
+    if (!f.report) return [];
+    const missing: string[] = [];
+    if (f.report.missingAircraft && (!f.actualArrivalTime || f.actualArrivalTime === '--:--' || f.actualArrivalTime === '00:00')) {
+      missing.push("SEM AERONAVE");
+    }
+    if (f.report.missingCrew && !f.report.crewTime) {
+      missing.push("SEM TRIP");
+    }
+    if (f.report.missingMaintenance && !f.report.mechanicTime) {
+      missing.push("SEM MANUT");
+    }
+    if (f.report.missingDot && !f.report.fuelOrderTime) {
+      missing.push("SEM DOT");
+    }
+    if (f.report.missingRelease && !f.report.authorizationTime) {
+      missing.push("SEM FOLHA");
+    }
+    return missing;
+  };
+
   const getRowBgClass = (row: FlightData) => {
     if (row.id === clickedRowId) {
       return isDarkMode
         ? "border-emerald-500/80 bg-emerald-900/60"
         : "border-emerald-400 bg-emerald-300";
+    }
+
+    if (isFlightPausedByMissingRep(row)) {
+      return isDarkMode
+        ? "border-amber-500/50 bg-amber-500/10 animate-[pulse_2s_infinite] group-hover:bg-amber-500/20 group-hover:border-amber-400"
+        : "border-amber-400/70 bg-amber-500/10 animate-[pulse_2s_infinite] group-hover:bg-amber-100";
     }
 
     const minutesToETD = getMinutesDiff(row.etd, row.date);
@@ -1907,6 +2021,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const calculateSorted = (list: FlightData[]) => {
       if (!sortConfig.key || !sortConfig.direction) {
         return [...list].sort((a, b) => {
+          const aPaused = isFlightPausedByMissingRep(a);
+          const bPaused = isFlightPausedByMissingRep(b);
+          if (aPaused && !bPaused) return -1;
+          if (!aPaused && bPaused) return 1;
+
           if (a.isReforco && !b.isReforco) return -1;
           if (!a.isReforco && b.isReforco) return 1;
 
@@ -1943,6 +2062,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
       }
 
       return [...list].sort((a, b) => {
+        const aPaused = isFlightPausedByMissingRep(a);
+        const bPaused = isFlightPausedByMissingRep(b);
+        if (aPaused && !bPaused) return -1;
+        if (!aPaused && bPaused) return 1;
+
         if (a.isReforco && !b.isReforco) return -1;
         if (!a.isReforco && b.isReforco) return 1;
 
@@ -2419,6 +2543,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   const handleIntentStart = (row: FlightData, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    if (isFlightPausedByMissingRep(row)) {
+      const missing = getMissingItemsLabels(row);
+      addToast(
+        "BLOQUEADO (PENDÊNCIAS)",
+        `O abastecimento do voo ${row.flightNumber} não pode ser iniciado. Pendências ativas: ${missing.join(", ")}. Por favor, registre a chegada das mesmas no report do voo.`,
+        "warning"
+      );
+      return;
+    }
+
     const pos = row.positionId?.trim();
     if (!pos || pos === "?" || pos === "-") {
       setMissingPositionModalFlight(row);
@@ -2683,6 +2818,20 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const getDynamicStatus = (f: FlightData): any => {
     const minutesToETA = getMinutesDiff(f.eta, f.date);
     const minutesToETD = getMinutesDiff(f.etd, f.date);
+
+    if (
+      f.status !== FlightStatus.FINALIZADO &&
+      f.status !== FlightStatus.CANCELADO &&
+      isFlightPausedByMissingRep(f)
+    ) {
+      const missingLabels = getMissingItemsLabels(f);
+      return {
+        label: "PAUSADO",
+        color: "text-amber-500 bg-amber-500/10 border-amber-500/35 font-extrabold animate-[pulse_1.5s_infinite]",
+        subtitle: missingLabels.join(", "),
+        rowClass: "bg-amber-500/10 border-amber-500/30 animate-[pulse_2s_infinite]",
+      };
+    }
 
     if (
       f.status === FlightStatus.FINALIZADO ||
@@ -3132,7 +3281,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
     let bgStyle = "";
     let textStyle = "";
 
-    if (label === "PENALTY") {
+    if (label === "PAUSADO") {
+      bgStyle = isDarkMode
+        ? "bg-amber-500/10 !bg-amber-500/10 border-amber-500/30 !border-amber-500/30 animate-[pulse_1.5s_infinite]"
+        : "bg-amber-500/10 !bg-amber-500/10 border-amber-400/50 !border-amber-400/50 animate-[pulse_1.5s_infinite]";
+      textStyle = "text-amber-500 !text-amber-500 font-extrabold tracking-wider";
+      text = "PAUSADO";
+    } else if (label === "PENALTY") {
       bgStyle = isDarkMode
         ? "bg-[#E7000B] !bg-[#E7000B] border-red-50/10 !border-red-50/10"
         : "bg-[#E7000B] !bg-[#E7000B] border-red-200 !border-red-200";
@@ -4806,6 +4961,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
                               )}
                               {dynamicStatus.label}
                             </div>
+                            {dynamicStatus.subtitle && (
+                              <span className="block text-[7px] text-amber-500 font-extrabold mt-0.5 uppercase tracking-wider leading-tight text-center max-w-[120px] truncate-none">
+                                {dynamicStatus.subtitle}
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <StatusBadge
@@ -4813,7 +4973,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                             isDarkMode={isDarkMode}
                           />
                         )}
-                        {row.isStandby && (
+                        {row.isStandby && !dynamicStatus?.subtitle && (
                           <span className="block text-[7px] text-amber-500 uppercase mt-1 text-center font-bold tracking-widest">
                             {row.standbyReason}
                           </span>

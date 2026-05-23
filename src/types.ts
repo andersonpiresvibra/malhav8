@@ -146,6 +146,14 @@ export interface FlightReport {
   dispensedBy?: string;
   dispensedBadge?: string;
   observations?: string;
+  missingAircraft?: boolean;
+  missingCrew?: boolean;
+  missingMaintenance?: boolean;
+  missingDot?: boolean;
+  missingRelease?: boolean;
+  awaitingFinalRelease?: boolean;
+  requestedMoreFuel?: boolean;
+  requestedMoreFuelAmount?: number;
 }
 
 export interface FlightData {

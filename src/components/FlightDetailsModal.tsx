@@ -52,6 +52,14 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
   const { isDarkMode } = useTheme();
   const [localFlight, setLocalFlight] = useState<FlightData>(flight);
   
+  // Dispense & extra fuel states
+  const [showDispenseModal, setShowDispenseModal] = useState(false);
+  const [dispenseProf, setDispenseProf] = useState('');
+  const [dispenseColete, setDispenseColete] = useState('');
+  const [extraFuelInput, setExtraFuelInput] = useState<string>(
+    flight.report?.requestedMoreFuelAmount ? String(flight.report.requestedMoreFuelAmount) : ''
+  );
+
   // Tabs: 'DADOS' | 'TIMELINE'
   const [activeTab, setActiveTab] = useState<'DADOS' | 'TIMELINE'>(
     initialTab === 'RELATÓRIO' ? 'TIMELINE' : 'DADOS'
@@ -262,6 +270,129 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
     setLocalFlight(updated);
     onUpdate(updated);
     setIsEditingChock(false);
+  };
+
+  const handleToggleMissingItem = (key: string) => {
+    const currentReport = localFlight.report || {};
+    const previousVal = !!(currentReport as any)[key];
+    const newVal = !previousVal;
+    
+    const updatedReport = {
+      ...currentReport,
+      [key]: newVal
+    };
+
+    const labelMap: Record<string, string> = {
+      missingAircraft: 'SEM AERONAVE',
+      missingCrew: 'SEM TRIP',
+      missingMaintenance: 'SEM MANUT',
+      missingDot: 'SEM DOT',
+      missingRelease: 'SEM FOLHA'
+    };
+
+    const itemLabel = labelMap[key] || key;
+    const actionLabel = newVal ? 'ATIVADA' : 'RESOLVIDA';
+    const newLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type: 'MANUAL' as const,
+      message: `Pendência [${itemLabel}] ${actionLabel}`,
+      author: 'GESTOR_MESA'
+    };
+
+    const updated = {
+      ...localFlight,
+      report: updatedReport,
+      logs: [...(localFlight.logs || []), newLog]
+    };
+
+    setLocalFlight(updated);
+    onUpdate(updated);
+  };
+
+  const handleToggleAwaitingFinalRelease = () => {
+    const currentReport = localFlight.report || {};
+    const previousVal = !!currentReport.awaitingFinalRelease;
+    const newVal = !previousVal;
+
+    const updatedReport = {
+      ...currentReport,
+      awaitingFinalRelease: newVal
+    };
+
+    const actionLabel = newVal ? 'ATIVADO' : 'RESOLVIDO';
+    const newLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type: 'MANUAL' as const,
+      message: `Aguardando dispensação final [AGURD. FINAL] ${actionLabel}`,
+      author: 'GESTOR_MESA'
+    };
+
+    const updated = {
+      ...localFlight,
+      report: updatedReport,
+      logs: [...(localFlight.logs || []), newLog]
+    };
+
+    setLocalFlight(updated);
+    onUpdate(updated);
+  };
+
+  const handleToggleRequestedMoreFuel = () => {
+    const currentReport = localFlight.report || {};
+    const previousVal = !!currentReport.requestedMoreFuel;
+    const newVal = !previousVal;
+
+    const updatedReport = {
+      ...currentReport,
+      requestedMoreFuel: newVal,
+      requestedMoreFuelAmount: newVal ? currentReport.requestedMoreFuelAmount : undefined
+    };
+
+    const actionLabel = newVal ? 'ATIVADO' : 'RESOLVIDO';
+    const newLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type: 'MANUAL' as const,
+      message: `Solicitação de combustível extra [SOLIC. +] ${actionLabel}`,
+      author: 'GESTOR_MESA'
+    };
+
+    const updated = {
+      ...localFlight,
+      report: updatedReport,
+      logs: [...(localFlight.logs || []), newLog]
+    };
+
+    setLocalFlight(updated);
+    onUpdate(updated);
+  };
+
+  const handleSaveMoreFuelAmount = (amount: number) => {
+    const currentReport = localFlight.report || {};
+    const updatedReport = {
+      ...currentReport,
+      requestedMoreFuel: true,
+      requestedMoreFuelAmount: amount
+    };
+
+    const newLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type: 'MANUAL' as const,
+      message: `Solicitado mais combustível: ${amount} L`,
+      author: 'GESTOR_MESA'
+    };
+
+    const updated = {
+      ...localFlight,
+      report: updatedReport,
+      logs: [...(localFlight.logs || []), newLog]
+    };
+
+    setLocalFlight(updated);
+    onUpdate(updated);
   };
 
   const isFinished = localFlight.status === FlightStatus.FINALIZADO || localFlight.status === FlightStatus.CANCELADO;
@@ -710,21 +841,163 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
                 </div>
               </div>
 
-              {/* OUTRAS OBS DA EQUIPE TÁTICA */}
+              {/* PENDÊNCIAS OPERACIONAIS / CONTROLES DE ABASTECIMENTO */}
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/40">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText size={11} className={`${isDarkMode ? 'text-emerald-500/70' : 'text-slate-400'}`} />
-                  <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Observações Internas (Nota de Voo)
-                  </span>
-                </div>
-                <div className={`p-2.5 rounded-lg text-xs leading-relaxed font-normal border ${
-                  isDarkMode 
-                    ? 'bg-slate-900/30 border-slate-800 text-slate-300' 
-                    : 'bg-slate-50 border-slate-150 text-slate-600'
-                }`}>
-                  {localFlight.notes || 'Nenhuma observação de despacho ativa para este prefixo.'}
-                </div>
+                {localFlight.status === FlightStatus.ABASTECENDO ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText size={11} className={`${isDarkMode ? 'text-sky-500/70' : 'text-sky-650'}`} />
+                      <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Controles de Finalização e Abastecimento Extra
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      {/* AGURD. FINAL */}
+                      <button
+                        onClick={handleToggleAwaitingFinalRelease}
+                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left cursor-pointer transition-all active:scale-[0.97] hover:border-sky-500/50 ${
+                          localFlight.report?.awaitingFinalRelease
+                            ? 'bg-sky-500/10 border-sky-500/40 text-sky-650 dark:text-sky-400 animate-[pulse_2s_infinite]'
+                            : isDarkMode
+                            ? 'bg-slate-900/40 border-slate-800 text-slate-400'
+                            : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 w-full">
+                          <input
+                            type="checkbox"
+                            checked={!!localFlight.report?.awaitingFinalRelease}
+                            readOnly
+                            className="rounded text-sky-500 border-slate-300 dark:border-slate-700 bg-transparent focus:ring-0 focus:ring-offset-0 w-3 h-3 pointer-events-none"
+                          />
+                          <span className="text-[9px] font-black uppercase tracking-wide">AGURD. FINAL</span>
+                        </div>
+                        <span className="text-[7.5px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-1">
+                          Abastecedor não dispensado pela tripulação/cia
+                        </span>
+                      </button>
+
+                      {/* SOLIC. + */}
+                      <button
+                        onClick={handleToggleRequestedMoreFuel}
+                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left cursor-pointer transition-all active:scale-[0.97] hover:border-amber-500/50 ${
+                          localFlight.report?.requestedMoreFuel
+                            ? 'bg-amber-500/10 border-amber-500/40 text-amber-650 dark:text-amber-400'
+                            : isDarkMode
+                            ? 'bg-slate-900/40 border-slate-800 text-slate-400'
+                            : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 w-full">
+                          <input
+                            type="checkbox"
+                            checked={!!localFlight.report?.requestedMoreFuel}
+                            readOnly
+                            className="rounded text-amber-500 border-slate-300 dark:border-slate-700 bg-transparent focus:ring-0 focus:ring-offset-0 w-3 h-3 pointer-events-none"
+                          />
+                          <span className="text-[9px] font-black uppercase tracking-wide">SOLIC. +</span>
+                        </div>
+                        <span className="text-[7.5px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-1">
+                          Companhia solicita mais combustível
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* QUANTIDADE EXTRA FORM */}
+                    {localFlight.report?.requestedMoreFuel && (
+                      <div className={`p-3 rounded-lg border mb-2 slide-down ${
+                        isDarkMode ? 'bg-slate-900/20 border-slate-800' : 'bg-amber-50/30 border-amber-200/50'
+                      }`}>
+                        <label className="block text-[8px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1.5">
+                          Litros de Abastecimento Solicitado Extra
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={extraFuelInput}
+                            placeholder="Ex: 500"
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              setExtraFuelInput(val);
+                              const parsed = parseFloat(val);
+                              if (!isNaN(parsed) && parsed > 0) {
+                                handleSaveMoreFuelAmount(parsed);
+                              }
+                            }}
+                            className={`flex-1 border text-sm px-2.5 py-1.5 rounded font-mono font-bold ${
+                              isDarkMode
+                                ? 'bg-slate-950 border-slate-850 text-slate-150 focus:border-amber-500'
+                                : 'bg-white border-slate-200 text-slate-850 focus:border-amber-500'
+                            } focus:outline-none`}
+                          />
+                          <span className="text-[10px] font-extrabold text-slate-400 self-center">LITROS</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText size={11} className={`${isDarkMode ? 'text-amber-500/70' : 'text-amber-600'}`} />
+                      <span className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Controle de Pendências Operacionais (Pausar Missão)
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { key: 'missingAircraft', label: 'SEM AERONAVE', desc: 'Falta pouso/calço' },
+                        { key: 'missingCrew', label: 'SEM TRIP', desc: 'Falta tripulação' },
+                        { key: 'missingMaintenance', label: 'SEM MANUT', desc: 'Falta liberação mecânica' },
+                        { key: 'missingDot', label: 'SEM DOT', desc: 'Falta ordem combustível' },
+                        { key: 'missingRelease', label: 'SEM FOLHA', desc: 'Falta folha de despacho' }
+                      ].map((item) => {
+                        const isChecked = !!(localFlight.report?.[item.key as keyof typeof localFlight.report]);
+                        return (
+                          <button
+                            key={item.key}
+                            onClick={() => handleToggleMissingItem(item.key)}
+                            className={`flex flex-col items-start p-2 rounded-lg border text-left cursor-pointer transition-all active:scale-[0.97] hover:border-amber-500/50 ${
+                              isChecked
+                                ? 'bg-amber-500/10 border-amber-500/40 text-amber-650 dark:text-amber-400 animate-[pulse_2s_infinite]'
+                                : isDarkMode
+                                ? 'bg-slate-900/40 border-slate-800 text-slate-400'
+                                : 'bg-slate-50 border-slate-200 text-slate-500'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 w-full">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                readOnly
+                                className="rounded text-amber-500 border-slate-300 dark:border-slate-700 bg-transparent focus:ring-0 focus:ring-offset-0 w-3 h-3 pointer-events-none"
+                              />
+                              <span className="text-[9px] font-black uppercase tracking-wide">{item.label}</span>
+                            </div>
+                            <span className="text-[7.5px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-1 truncate w-full">
+                              {item.desc}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* DISPENSADO OPTION FOR TAB DESIGNADO */}
+                    {localFlight.status === FlightStatus.DESIGNADO && (
+                      <div className="mt-4 pt-3 border-t border-dashed border-slate-200 dark:border-slate-800/40">
+                        <button
+                          type="button"
+                          onClick={() => setShowDispenseModal(true)}
+                          className="w-full flex items-center justify-center gap-2 border border-rose-500/35 hover:border-rose-500 hover:bg-rose-500/10 dark:hover:bg-rose-955/10 text-rose-600 dark:text-rose-450 text-[9px] font-black uppercase tracking-widest py-2 rounded-lg cursor-pointer transition-all active:scale-[0.98]"
+                        >
+                          <CheckCircle size={12} />
+                          DISPENSAR ATENDIMENTO (VOO DISPENSADO)
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -927,6 +1200,118 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
           </div>
         </div>
       </motion.div>
+
+      {/* DISPENSE FORCED MODAL */}
+      {showDispenseModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in">
+          <div className={`w-full max-w-sm rounded-xl p-5 shadow-2xl border ${
+            isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-250 text-slate-800'
+          }`}>
+            <h3 className="text-xs font-black uppercase tracking-tight text-rose-500 flex items-center gap-1.5 mb-1.5">
+              <CheckCircle size={14} /> Dispensar Atendimento
+            </h3>
+            <p className="text-[10.5px] text-slate-400 dark:text-slate-500 font-medium mb-4 leading-relaxed uppercase">
+              Aeronave possui combustível suficiente e dispensa o atendimento de pista. Registre o operador ou responsável pela liberação:
+            </p>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                  Profissional (Quem Dispensou)
+                </label>
+                <input
+                  type="text"
+                  value={dispenseProf}
+                  onChange={(e) => setDispenseProf(e.target.value.toUpperCase())}
+                  placeholder="EX: LUIZ DA LATAM"
+                  className={`w-full text-xs px-2.5 py-2 rounded border font-bold uppercase ${
+                    isDarkMode
+                      ? 'bg-slate-950 border-slate-850 text-slate-100 focus:border-rose-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-800 focus:border-rose-450'
+                  } focus:outline-none`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                  Nº do Colete
+                </label>
+                <input
+                  type="text"
+                  value={dispenseColete}
+                  onChange={(e) => setDispenseColete(e.target.value.replace(/\D/g, ''))}
+                  placeholder="EX: 1234"
+                  maxLength={5}
+                  className={`w-full text-xs px-2.5 py-2 rounded border font-mono font-bold ${
+                    isDarkMode
+                      ? 'bg-slate-950 border-slate-850 text-slate-100 focus:border-rose-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-800 focus:border-rose-450'
+                  } focus:outline-none`}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 mt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDispenseModal(false);
+                  setDispenseProf('');
+                  setDispenseColete('');
+                }}
+                className={`flex-1 text-[9px] font-black uppercase tracking-wider py-2 rounded cursor-pointer border ${
+                  isDarkMode
+                    ? 'border-slate-800 text-slate-400 hover:bg-slate-800/45'
+                    : 'border-slate-200 text-slate-550 hover:bg-slate-50'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!dispenseProf.trim() || !dispenseColete.trim()}
+                onClick={() => {
+                  const currentReport = localFlight.report || {};
+                  const updatedReport = {
+                    ...currentReport,
+                    dispensed: true,
+                    dispensedBy: dispenseProf.trim(),
+                    dispensedBadge: dispenseColete.trim()
+                  };
+                  
+                  const newLog = {
+                    id: Date.now().toString(),
+                    timestamp: new Date(),
+                    type: 'MANUAL' as const,
+                    message: `Atendimento dispensado por ${dispenseProf.trim()} (Colete ${dispenseColete.trim()})`,
+                    author: 'GESTOR_MESA'
+                  };
+
+                  const updated = {
+                    ...localFlight,
+                    report: updatedReport,
+                    status: FlightStatus.FINALIZADO,
+                    endTime: new Date(),
+                    logs: [...(localFlight.logs || []), newLog]
+                  };
+
+                  setLocalFlight(updated);
+                  onUpdate(updated);
+                  setShowDispenseModal(false);
+                  onClose();
+                }}
+                className={`flex-1 text-[9px] font-black uppercase tracking-wider py-2 rounded cursor-pointer ${
+                  (!dispenseProf.trim() || !dispenseColete.trim())
+                    ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'
+                    : 'bg-rose-600 hover:bg-rose-500 text-white shadow-md'
+                }`}
+              >
+                Confirmar Dispensa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );
