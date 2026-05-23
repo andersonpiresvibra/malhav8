@@ -513,8 +513,10 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
 
   const timelineLogs = computeTimelineLogs();
 
-  return createPortal(
-    <div className="fixed inset-0 pointer-events-none z-[9990] flex items-center justify-center">
+  return (
+    <>
+      {createPortal(
+        <div className="fixed inset-0 pointer-events-none z-[9990] flex items-center justify-center">
       <motion.div 
         ref={modalRef}
         drag
@@ -1200,10 +1202,13 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
           </div>
         </div>
       </motion.div>
+    </div>,
+    document.body
+  )}
 
-      {/* DISPENSE FORCED MODAL */}
-      {showDispenseModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in pointer-events-auto">
+  {/* DISPENSE FORCED MODAL */}
+  {showDispenseModal && createPortal(
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in pointer-events-auto">
           <div className={`w-full max-w-sm rounded-xl p-5 shadow-2xl border ${
             isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-250 text-slate-800'
           }`}>
@@ -1310,9 +1315,9 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>,
-    document.body
+    </>
   );
 };
