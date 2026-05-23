@@ -1998,6 +1998,46 @@ export const GridOps: React.FC<GridOpsProps> = ({
   }, [filteredData, sortConfig, editingCell, flights, activeTab]);
 
   // --- ACTIONS HANDLERS (ATUALIZANDO ESTADO GLOBAL) ---
+  const handleMoveToArrival = (flight: FlightData, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // TRAVA LÓGICA: Se tem operador, não pode ir para as chegadas.
+    if (flight.operator) {
+      addToast(
+        "AÇÃO NEGADA",
+        "Voo com operador designado não pode ir para as chegadas.",
+        "warning",
+      );
+      return;
+    }
+
+    const newLog = createNewLog(
+      "MANUAL",
+      "Voo movido para CHEGADA manualmente.",
+      "GESTOR_MESA",
+    );
+    logAudit("MOVE_TO_ARRIVAL", flight, "status", flight.status, "CHEGADA");
+
+    const updated = {
+      ...flight,
+      status: FlightStatus.CHEGADA,
+      logs: [...(flight.logs || []), newLog],
+    };
+
+    onUpdateFlights((prev) =>
+      prev.map((f) => (f.id === flight.id ? updated : f)),
+    );
+    upsertFlight(updated).catch((err) =>
+      console.error("Error persisting status change:", err),
+    );
+
+    addToast(
+      "VOO EM CHEGADA",
+      `Voo ${flight.flightNumber || ""} movido para a aba de Chegada.`,
+      "success",
+    );
+  };
+
   const handleMoveToQueue = (flight: FlightData, e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -3924,18 +3964,20 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   </>
                 )}
 
-                {activeTab === "DESIGNADOS" ? (
-                  <SortableHeader
-                    label="STATUS"
-                    columnKey="status"
-                    className="text-center w-36"
-                  />
-                ) : (
-                  <SortableHeader
-                    label="STATUS"
-                    columnKey="status"
-                    className="text-center w-24"
-                  />
+                {isColVisible("status") && (
+                  activeTab === "DESIGNADOS" ? (
+                    <SortableHeader
+                      label="STATUS"
+                      columnKey="status"
+                      className="text-center w-36"
+                    />
+                  ) : (
+                    <SortableHeader
+                      label="STATUS"
+                      columnKey="status"
+                      className="text-center w-24"
+                    />
+                  )
                 )}
 
                 <th
@@ -4352,6 +4394,39 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         {/* REPORT */}
                         {renderReportCell(row)}
 
+                        {/* TAB COMMAND ACTION (INICIAR FOR DESIGNADOS, FINALIZAR FOR ABASTECENDO) */}
+                        {isColVisible("tab") && (
+                          <td
+                            className={`px-1 py-1 border-y border-l ${getRowBgClass(row)} transition-all text-center align-middle`}
+                          >
+                            {activeTab === "DESIGNADOS" ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleIntentStart(row, e);
+                                }}
+                                className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded shadow cursor-pointer active:scale-95 transition-all w-full min-h-[28px]"
+                              >
+                                <Play size={10} className="mr-1 shrink-0" />
+                                INICIAR
+                              </button>
+                            ) : activeTab === "ABASTECENDO" ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmFinishModalFlight(row);
+                                }}
+                                className="inline-flex items-center justify-center bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded shadow cursor-pointer active:scale-95 transition-all w-full min-h-[28px]"
+                              >
+                                <CheckCircle size={10} className="mr-1 shrink-0" />
+                                FINALIZAR
+                              </button>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </td>
+                        )}
+
                         {activeTab === "DESIGNADOS" && (
                           <>
                             {/* HR.D */}
@@ -4717,32 +4792,34 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     )}
 
                     {/* STATUS (PILL DESIGN RESTORED) */}
-                    <td
-                      className={`px-1.5 py-1 text-center border-y border-l ${getRowBgClass(row)} transition-all`}
-                    >
-                      {dynamicStatus ? (
-                        <div className="flex flex-col items-center justify-center gap-0.5 w-full">
-                          <div
-                            className={`flex items-center justify-center w-full min-h-[28px] px-2 rounded text-[9px] leading-[10px] py-1 font-black uppercase tracking-[0.1em] border ${dynamicStatus.color}`}
-                          >
-                            {dynamicStatus.label === "PENALTY" && (
-                              <AlertTriangle size={11} className="mr-1 text-white shrink-0 animate-bounce" />
-                            )}
-                            {dynamicStatus.label}
+                    {isColVisible("status") && (
+                      <td
+                        className={`px-1.5 py-1 text-center border-y border-l ${getRowBgClass(row)} transition-all`}
+                      >
+                        {dynamicStatus ? (
+                          <div className="flex flex-col items-center justify-center gap-0.5 w-full">
+                            <div
+                              className={`flex items-center justify-center w-full min-h-[28px] px-2 rounded text-[9px] leading-[10px] py-1 font-black uppercase tracking-[0.1em] border ${dynamicStatus.color}`}
+                            >
+                              {dynamicStatus.label === "PENALTY" && (
+                                <AlertTriangle size={11} className="mr-1 text-white shrink-0 animate-bounce" />
+                              )}
+                              {dynamicStatus.label}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <StatusBadge
-                          status={row.status}
-                          isDarkMode={isDarkMode}
-                        />
-                      )}
-                      {row.isStandby && (
-                        <span className="block text-[7px] text-amber-500 uppercase mt-1 text-center font-bold tracking-widest">
-                          {row.standbyReason}
-                        </span>
-                      )}
-                    </td>
+                        ) : (
+                          <StatusBadge
+                            status={row.status}
+                            isDarkMode={isDarkMode}
+                          />
+                        )}
+                        {row.isStandby && (
+                          <span className="block text-[7px] text-amber-500 uppercase mt-1 text-center font-bold tracking-widest">
+                            {row.standbyReason}
+                          </span>
+                        )}
+                      </td>
+                    )}
 
                     <td
                       className={`px-1.5 text-center last:rounded-r-[4px] border-y border-l border-r ${getRowBgClass(row)} transition-all`}
@@ -4860,6 +4937,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                       </button>
                                     );
 
+                                    const moveToArrivalBtn = (
+                                      <button
+                                        onClick={(e) =>
+                                          handleMoveToArrival(row, e)
+                                        }
+                                        className={btnClass}
+                                        disabled={!!row.operator}
+                                      >
+                                        <PlaneLanding size={14} /> Mover para
+                                        Chegada
+                                      </button>
+                                    );
+
 
 
                                     const inputReportBtn = (
@@ -4935,6 +5025,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                     if (activeTab === "FILA") {
                                       return (
                                         <>
+                                          {moveToArrivalBtn}
                                           {pinBtn}
                                           {cancelBtn}
                                           {delBtn}

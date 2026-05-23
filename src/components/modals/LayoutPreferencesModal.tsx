@@ -39,6 +39,7 @@ export interface UserLayoutPreferences {
     fleet?: boolean;             // Número da Viatura/Tipo (FROTA/F.TIPO)
     report?: boolean;            // Relatório operacional (REPORT)
     tab?: boolean;               // Botão tático (TAB)
+    status?: boolean;            // Status tático (STATUS)
     [key: string]: boolean | undefined;
   };
 }
@@ -78,6 +79,7 @@ export const defaultPreferences: UserLayoutPreferences = {
     fleet: true,
     report: true,
     tab: true,
+    status: true,
   }
 };
 
@@ -136,6 +138,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
           { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
           { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
           { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'status', label: 'Status da Missão (STATUS)', desc: 'Coluna de estado tático e SLAs operacionais.', isCustomizable: true },
           { key: 'report', label: 'Botões Log (REPORT)', desc: 'Histórico e auditoria de checklist.', isCustomizable: false },
           { key: 'tab', label: 'Botões Ação (TAB)', desc: 'Botão de despacho e comando operacional direto.', isCustomizable: false },
         ];
@@ -151,6 +154,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
           { key: 'eta', label: 'Prev. Pouso (ETA)', desc: 'Estimativa de pouso da aeronave.', isCustomizable: true },
           { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
           { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'status', label: 'Status da Missão (STATUS)', desc: 'Coluna de estado tático e SLAs operacionais.', isCustomizable: true },
         ];
       case 'DESIGNADOS':
         return [
@@ -164,6 +168,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
           { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
           { key: 'destination', label: 'Roteiro (ICAO/CID)', desc: 'Aeroporto correspondente e cidade.', isCustomizable: false },
           { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'status', label: 'Status da Missão (STATUS)', desc: 'Coluna de estado tático e SLAs operacionais.', isCustomizable: true },
           { key: 'report', label: 'Botões Log (REPORT)', desc: 'Histórico e auditoria de checklist.', isCustomizable: false },
           { key: 'tab', label: 'Botões Ação (TAB)', desc: 'Botão de despacho e comando operacional direto.', isCustomizable: false },
         ];
@@ -180,6 +185,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
           { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
           { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
           { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'status', label: 'Status da Missão (STATUS)', desc: 'Coluna de estado tático e SLAs operacionais.', isCustomizable: true },
           { key: 'report', label: 'Botões Log (REPORT)', desc: 'Histórico e auditoria de checklist.', isCustomizable: false },
           { key: 'tab', label: 'Botões Ação (TAB)', desc: 'Botão de despacho e comando operacional direto.', isCustomizable: false },
         ];
@@ -196,6 +202,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
           { key: 'etd', label: 'ETD / SLA Restante', desc: 'Margem de tempo e sinalização de SLA.', isCustomizable: false },
           { key: 'operator', label: 'Operador Designado', desc: 'Nome do operador de pista alocado.', isCustomizable: true },
           { key: 'fleet', label: 'Viatura (Frota & Tipo)', desc: 'Carro-tanque ou hidrante acoplado.', isCustomizable: true },
+          { key: 'status', label: 'Status da Missão (STATUS)', desc: 'Coluna de estado tático e SLAs operacionais.', isCustomizable: true },
         ];
       default:
         return [];
