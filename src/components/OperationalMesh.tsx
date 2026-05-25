@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { getBaseMeshFlights, upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos, getRootMesh } from '../services/supabaseService';
 import { formatAirlineName } from '../utils/airlineUtils';
 import { downloadTemplate } from '../utils/excelTemplateUtils';
+import { findMatchingAircraft } from '../utils/aircraftMatcher';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     if (!targetTimeStr) return 0;
@@ -308,6 +309,10 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
   const handleFieldChange = (id: string, field: MeshField, value: string) => {
     if (field === 'actions') return;
 
+    const currentFlight = meshFlights.find(f => f.id === id);
+    const flightAirline = currentFlight?.airline;
+    const flightAirlineCode = currentFlight?.airlineCode;
+
     let newValue: any = value.toUpperCase();
     if (field === 'etd' || field === 'eta' || field === 'actualArrivalTime') {
       newValue = value.replace(/[^0-9PPRRÉÉ]/g, ''); // Allow PRÉ
@@ -329,20 +334,12 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
     let autoAirlineCode: string | undefined = undefined;
 
     if (field === 'registration') {
-        const cleanInput = newValue.replace(/[^A-Z0-9]/g, '');
-        let attemptMatch: AircraftType | undefined;
-        
-        if (cleanInput.length >= 3) {
-            // Try matching suffix first (e.g. user types "MZY" matches "PT-MZY")
-            attemptMatch = aircraftsDB.find(a => {
-                const cleanPrefix = a.prefix.replace(/[^A-Z0-9]/g, '').toUpperCase();
-                return cleanPrefix === cleanInput || cleanPrefix.endsWith(cleanInput);
-            });
-        }
-        
-        if (!attemptMatch) {
-            attemptMatch = aircraftsDB.find(a => a.prefix.toUpperCase() === newValue);
-        }
+        const attemptMatch = findMatchingAircraft(
+            aircraftsDB,
+            newValue,
+            flightAirline,
+            flightAirlineCode
+        );
 
         if (attemptMatch) {
             newValue = attemptMatch.prefix;
@@ -357,7 +354,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
             else if (airlineUpper.includes('LATAM')) autoAirlineCode = 'LA';
             else if (airlineUpper.includes('AZUL')) autoAirlineCode = 'AD';
             else if (attemptMatch.airline) autoAirlineCode = attemptMatch.airline.slice(0, 3).toUpperCase();
-        } else if (cleanInput.length >= 3) {
+        } else if (newValue.replace(/[^A-Z0-9]/g, '').length >= 3) {
             autoModel = '';
         }
     }

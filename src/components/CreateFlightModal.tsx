@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { TimeConflictModal } from './TimeConflictModal';
 import { supabase } from '../lib/supabase';
 import { getDestinos } from '../services/supabaseService';
+import { findMatchingAircraft } from '../utils/aircraftMatcher';
 
 const GOL_PREFIXOS = [
   "PR-GEA", "PR-GEC", "PR-GED", "PR-GEH", "PR-GEI", "PR-GEJ", "PR-GEK", "PR-GEQ", "PR-GIH", "PR-GOQ", "PR-GOR", "PR-VBQ",
@@ -118,40 +119,38 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
       return;
     }
 
+    if (name === 'destination') {
+      const cleanIcao = newValue.trim().toUpperCase();
+      const match = destinosDB.find(d => 
+        String(d.icao || '').trim().toUpperCase() === cleanIcao || 
+        String(d.destination || '').trim().toUpperCase() === cleanIcao
+      );
+      setFormData(prev => ({ 
+        ...prev, 
+        destination: cleanIcao, 
+        city: match ? (match.city || match.cidade || '') : prev.city 
+      }));
+      return;
+    }
+
     if (name === 'registration') {
         let autoRegistration = newValue;
         let autoModel = formData.model;
         let autoAirlineCode = formData.airlineCode;
 
-        // Magic 1: If it's a suffix match (e.g. user typed "GFA" and DB has "PS-GFA")
-        if (autoRegistration.length >= 3 && !autoRegistration.includes('-')) {
-            const match = aircraftsDB.find(a => a.prefix.replace('-', '').endsWith(autoRegistration));
-            if (match) {
-                autoRegistration = match.prefix;
-                autoModel = match.model && match.model !== '--' ? match.model : autoModel;
-                
-                // Set airline code automatically if unknown or general
-                if (!autoAirlineCode || autoAirlineCode === 'OUTRA') {
-                    const airlineUpper = match.airline.toUpperCase();
-                    if (airlineUpper.includes('GOL')) autoAirlineCode = 'RG';
-                    else if (airlineUpper.includes('LATAM')) autoAirlineCode = 'LA';
-                    else if (airlineUpper.includes('AZUL')) autoAirlineCode = 'AD';
-                    else autoAirlineCode = match.airline.slice(0, 3).toUpperCase();
-                }
-            }
-        } else {
-            // Magic 2: Exact match auto-fill
-            const matchExact = aircraftsDB.find(a => a.prefix === autoRegistration);
-            if (matchExact) {
-                autoModel = matchExact.model && matchExact.model !== '--' ? matchExact.model : autoModel;
-                
-                if (!autoAirlineCode || autoAirlineCode === 'OUTRA') {
-                    const airlineUpperExact = matchExact.airline.toUpperCase();
-                    if (airlineUpperExact.includes('GOL')) autoAirlineCode = 'RG';
-                    else if (airlineUpperExact.includes('LATAM')) autoAirlineCode = 'LA';
-                    else if (airlineUpperExact.includes('AZUL')) autoAirlineCode = 'AD';
-                    else autoAirlineCode = matchExact.airline.slice(0, 3).toUpperCase();
-                }
+        // Find match using company-aware matching helper
+        const match = findMatchingAircraft(aircraftsDB, newValue, undefined, autoAirlineCode);
+        if (match) {
+            autoRegistration = match.prefix;
+            autoModel = match.model && match.model !== '--' ? match.model : autoModel;
+            
+            // Set airline code automatically if unknown or general
+            if (!autoAirlineCode || autoAirlineCode === 'OUTRA') {
+                const airlineUpper = match.airline.toUpperCase();
+                if (airlineUpper.includes('GOL')) autoAirlineCode = 'RG';
+                else if (airlineUpper.includes('LATAM')) autoAirlineCode = 'LA';
+                else if (airlineUpper.includes('AZUL')) autoAirlineCode = 'AD';
+                else autoAirlineCode = match.airline.slice(0, 3).toUpperCase();
             }
         }
 

@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { motion, useDragControls } from 'motion/react';
 import { FlightData, FlightLog, OperatorProfile, Vehicle, FlightStatus } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { findMatchingAircraft } from '../utils/aircraftMatcher';
+import { getCityName } from '../utils/destinos';
+import { getDestinos } from '../services/supabaseService';
 import { 
   Plane, X, MapPin, Clock, Hash, BusFront, Droplet, 
   UserPlus, RefreshCw, Pen, Anchor, Calendar, Tag, Activity, Users, AlertCircle, Globe, GripHorizontal,
@@ -51,6 +54,24 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
 }) => {
   const { isDarkMode } = useTheme();
   const [localFlight, setLocalFlight] = useState<FlightData>(flight);
+  
+  const [aircrafts, setAircrafts] = useState<any[]>([]);
+  const [destinosDB, setDestinosDB] = useState<any[]>([]);
+  useEffect(() => {
+    const cached = localStorage.getItem('supabase_cache_aircrafts');
+    if (cached) {
+      setAircrafts(JSON.parse(cached));
+    } else {
+      import('../lib/supabase').then(({ supabase }) => {
+        supabase.from('aeronaves').select('*').then(res => {
+          if (res.data) setAircrafts(res.data);
+        });
+      });
+    }
+    getDestinos().then(destinos => {
+      setDestinosDB(destinos);
+    });
+  }, []);
   
   // Dispense & extra fuel states
   const [showDispenseModal, setShowDispenseModal] = useState(false);
@@ -215,11 +236,29 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
   const handleSaveReg = () => {
     if (regInput === localFlight.registration) { setIsEditingReg(false); return; }
 
-    const newLog = generateAuditLog('Prefixo', localFlight.registration, regInput);
+    const match = findMatchingAircraft(
+      aircrafts,
+      regInput,
+      localFlight.airline,
+      localFlight.airlineCode
+    );
+
+    const finalReg = match ? match.prefix : regInput.toUpperCase();
+    const finalModel = match && match.model && match.model !== '--' ? match.model : localFlight.model;
+
+    const newLog = generateAuditLog('Prefixo', localFlight.registration, finalReg);
+    const logs = [...(localFlight.logs || []), newLog];
+
+    if (finalModel !== localFlight.model) {
+      const modelLog = generateAuditLog('Modelo (Auto)', localFlight.model || '--', finalModel);
+      logs.push(modelLog);
+    }
+
     const updated = { 
       ...localFlight, 
-      registration: regInput,
-      logs: [...(localFlight.logs || []), newLog]
+      registration: finalReg,
+      model: finalModel,
+      logs
     };
 
     setLocalFlight(updated);
@@ -702,7 +741,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
                     <MapPin size={10} className="opacity-70" /> CIDADE
                   </span>
                   <div className="font-mono bg-slate-100/40 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/50 text-slate-500 dark:text-slate-400 font-bold px-2 py-0.5 rounded text-xs text-center shadow-none uppercase truncate">
-                    {localFlight.destination ? (ICAO_CITIES[localFlight.destination] || 'EXTERIOR') : '--'}
+                    {localFlight.destination ? getCityName(localFlight.destination, destinosDB) : '--'}
                   </div>
                 </div>
 

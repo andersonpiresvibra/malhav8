@@ -26,7 +26,7 @@ export interface UserLayoutPreferences {
     STANDBY?: boolean;
   };
   visibleColumns: {
-    airlineCode?: boolean;       // Companhia Aérea (COMP.)
+    airlineCode?: boolean;       // Companhia Aérea (CIA)
     registration?: boolean;      // Prefixo (PREFIXO)
     model?: boolean;             // Modelo Aeronave (MODELO)
     flightNumber?: boolean;      // Voo Chegada/Saída (V.SAÍDA)
@@ -127,7 +127,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
       case 'GERAL':
       case 'CHEGADA':
         return [
-          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'airlineCode', label: 'Companhia (CIA)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
           { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula oficial da aeronave no pátio.', isCustomizable: true },
           { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave (B738, A20N, etc).', isCustomizable: true },
           { key: 'flightNumber', label: 'Voo (V.CHEG / V.SAÍDA)', desc: 'Identificação dos voos do painel.', isCustomizable: false },
@@ -144,7 +144,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
         ];
       case 'FILA':
         return [
-          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'airlineCode', label: 'Companhia (CIA)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
           { key: 'flightNumber', label: 'V.SAÍDA', desc: 'Voo de decolagem planejado na malha.', isCustomizable: false },
           { key: 'destination', label: 'Roteiro (ICAO/CID)', desc: 'Aeroporto correspondente e cidade.', isCustomizable: false },
           { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula oficial da aeronave no pátio.', isCustomizable: true },
@@ -161,7 +161,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
           { key: 'operator', label: 'Operador (HR.D / LT)', desc: 'Nome do operador e hora da designação.', isCustomizable: true },
           { key: 'flightNumber', label: 'Voo Chegada/Saída', desc: 'Identificação dos voos do painel.', isCustomizable: false },
           { key: 'positionId', label: 'Posição / Box (POS)', desc: 'Portão ou Box alocado.', isCustomizable: false },
-          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'airlineCode', label: 'Companhia (CIA)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
           { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula oficial da aeronave.', isCustomizable: true },
           { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave.', isCustomizable: true },
           { key: 'actualArrivalTime', label: 'Calço', desc: 'Horário do calço físico nos portões.', isCustomizable: false },
@@ -175,7 +175,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
       case 'ABASTECENDO':
       case 'FINALIZADO':
         return [
-          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'airlineCode', label: 'Companhia (CIA)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
           { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula de aeronave abastecida no pátio.', isCustomizable: true },
           { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave.', isCustomizable: true },
           { key: 'flightNumber', label: 'Voo Chegada/Saída', desc: 'Identificação dos voos.', isCustomizable: false },
@@ -191,7 +191,7 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
         ];
       case 'STANDBY':
         return [
-          { key: 'airlineCode', label: 'Companhia (COMP.)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
+          { key: 'airlineCode', label: 'Companhia (CIA)', desc: 'Identificação e logo da empresa aérea.', isCustomizable: true },
           { key: 'registration', label: 'Prefixo (PREFIXO)', desc: 'Matrícula de aeronave no pátio.', isCustomizable: true },
           { key: 'model', label: 'Modelo da Aeronave', desc: 'Modelo exato da aeronave.', isCustomizable: true },
           { key: 'flightNumber', label: 'Voo Chegada/Saída', desc: 'Identificação dos voos.', isCustomizable: false },

@@ -13,6 +13,7 @@ import {
   getLocalTodayDateStr,
   getLocalDateStr,
 } from "../utils/shiftUtils";
+import { formatAirlineName } from "../utils/airlineUtils";
 // Importando perfis para designação
 
 import { FlightDetailsModal } from "./FlightDetailsModal";
@@ -31,6 +32,7 @@ import {
   getDestinos,
 } from "../services/supabaseService";
 import { supabase } from "../lib/supabase";
+import { findMatchingAircraft } from "../utils/aircraftMatcher";
 import { useAuth } from "../contexts/AuthContext";
 
 import { getCityName } from "../utils/destinos";
@@ -888,52 +890,29 @@ export const GridOps: React.FC<GridOpsProps> = ({
         updatedFlight[field] = `${autoAirlineCode}-${normalizedInput}`;
       }
     } else if (field === "registration") {
-      const normalizedPrefix = String(newValue || "")
-        .replace(/[^A-Z0-9]/gi, "")
-        .toUpperCase();
-      if (normalizedPrefix.length >= 3 && !newValue.includes("-")) {
-        const match = aircrafts.find((a) =>
-          String(a.prefix)
-            .replace(/[^A-Z0-9]/gi, "")
-            .toUpperCase()
-            .endsWith(normalizedPrefix),
-        );
-        if (match) {
-          updatedFlight.registration = match.prefix;
-          updatedFlight.model =
-            match.model && match.model !== "--"
-              ? match.model
-              : updatedFlight.model;
-          if (!updatedFlight.airlineCode && !!match.airline) {
-            const airUpper = match.airline.toUpperCase();
-            if (airUpper.includes("GOL")) updatedFlight.airlineCode = "RG";
-            else if (airUpper.includes("LATAM"))
-              updatedFlight.airlineCode = "LA";
-            else if (airUpper.includes("AZUL"))
-              updatedFlight.airlineCode = "AD";
-          }
+      const match = findMatchingAircraft(
+        aircrafts,
+        newValue || "",
+        updatedFlight.airline,
+        updatedFlight.airlineCode
+      );
+      if (match) {
+        updatedFlight.registration = match.prefix;
+        updatedFlight.model =
+          match.model && match.model !== "--"
+            ? match.model
+            : updatedFlight.model;
+        if (!updatedFlight.airlineCode && !!match.airline) {
+          const airUpper = match.airline.toUpperCase();
+          if (airUpper.includes("GOL")) updatedFlight.airlineCode = "RG";
+          else if (airUpper.includes("LATAM"))
+            updatedFlight.airlineCode = "LA";
+          else if (airUpper.includes("AZUL"))
+            updatedFlight.airlineCode = "AD";
         }
-      } else if (normalizedPrefix.length >= 2) {
-        const match = aircrafts.find(
-          (a) =>
-            String(a.prefix)
-              .replace(/[^A-Z0-9]/gi, "")
-              .toUpperCase() === normalizedPrefix,
-        );
-        if (match) {
-          updatedFlight.model =
-            match.model && match.model !== "--"
-              ? match.model
-              : updatedFlight.model;
-          if (!updatedFlight.airlineCode && !!match.airline) {
-            const airUpper = match.airline.toUpperCase();
-            if (airUpper.includes("GOL")) updatedFlight.airlineCode = "RG";
-            else if (airUpper.includes("LATAM"))
-              updatedFlight.airlineCode = "LA";
-            else if (airUpper.includes("AZUL"))
-              updatedFlight.airlineCode = "AD";
-          }
-        }
+      } else {
+        // If there was no match but they typed a registration, keep their typing
+        updatedFlight.registration = String(newValue || "").toUpperCase();
       }
     }
 
@@ -1995,16 +1974,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           >
             {extraLabel}
             {colKey === "airlineCode" ? (
-              <AirlineLogo
-                airlineCode={row.airlineCode || row.airline}
-                className={
-                  isFocused && editable && isDarkMode
-                    ? "invert brightness-200 justify-start"
-                    : row.status === FlightStatus.FILA && minutesToEtd <= -60
-                      ? "grayscale opacity-55 contrast-[1.15] justify-start"
-                      : "justify-start"
-                }
-              />
+              <span className="font-extrabold uppercase text-[11px] truncate max-w-[80px]" title={row.airline || row.airlineCode}>
+                {formatAirlineName(row.airline || row.airlineCode || "")}
+              </span>
             ) : (
               value || "--"
             )}
@@ -3661,7 +3633,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   <>
                     {isColVisible("airlineCode") && (
                       <SortableHeader
-                        label="COMP."
+                        label="CIA"
                         columnKey="airlineCode"
                         className="text-center w-16"
                       />
@@ -3755,7 +3727,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   <>
                     {isColVisible("airlineCode") && (
                       <SortableHeader
-                        label="COMP."
+                        label="CIA"
                         columnKey="airlineCode"
                         className="text-center w-16"
                       />
@@ -3893,7 +3865,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   <>
                     {isColVisible("airlineCode") && (
                       <SortableHeader
-                        label="COMP."
+                        label="CIA"
                         columnKey="airlineCode"
                         className="text-center w-16"
                       />
@@ -4013,7 +3985,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   <>
                     {isColVisible("airlineCode") && (
                       <SortableHeader
-                        label="COMP."
+                        label="CIA"
                         columnKey="airlineCode"
                         className="text-center w-16"
                       />

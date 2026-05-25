@@ -8,7 +8,7 @@ import { useTheme } from './contexts/ThemeContext';
 import { useAuth } from './contexts/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
 import { AlertModal } from './components/modals/AlertModal';
-import { Table, X, AlertCircle } from 'lucide-react';
+import { Table, X, AlertCircle, ChevronLeft } from 'lucide-react';
 import { OperatorProfile } from './types';
 import { ShiftOperatorsSection } from './components/ShiftOperatorsSection';
 import { Sidebar } from './components/Sidebar';
@@ -29,7 +29,27 @@ import { LayoutPreferencesModal, UserLayoutPreferences, defaultPreferences } fro
 
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
-  const [view, setView] = useState<ViewState>('GRID_OPS');
+  const [view, setView] = useState<ViewState>(() => {
+    const hash = window.location.hash.substring(1) as ViewState;
+    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN'];
+    if (validViews.includes(hash)) {
+      return hash;
+    }
+    return 'GRID_OPS';
+  });
+  const [history, setHistory] = useState<ViewState[]>([]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.substring(1) as ViewState;
+      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN'];
+      if (validViews.includes(hash)) {
+        setView(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
   const [pendingAction, setPendingAction] = useState<'CREATE' | 'IMPORT' | null>(null);
   
   // === ESTADO DE CONFIGURAÇÃO DE LAYOUT DO USUÁRIO ===
@@ -690,10 +710,35 @@ const App: React.FC = () => {
   }, []);
 
   const handleViewChange = (newView: ViewState) => {
+    if (newView !== view) {
+      setHistory(prev => {
+        if (prev.length > 0 && prev[prev.length - 1] === view) {
+          return prev;
+        }
+        return [...prev, view];
+      });
+    }
+    window.location.hash = newView;
     setView(newView);
     if (newView !== 'REPORTS') {
       setTargetReportFlight(null);
     }
+  };
+
+  const handleGoBack = () => {
+    setHistory(prev => {
+      if (prev.length === 0) return prev;
+      const newStack = [...prev];
+      const prevView = newStack.pop();
+      if (prevView) {
+        window.location.hash = prevView;
+        setView(prevView);
+        if (prevView !== 'REPORTS') {
+          setTargetReportFlight(null);
+        }
+      }
+      return newStack;
+    });
   };
 
   const handleConfirmExit = (action: 'CANCEL' | 'EDIT') => {
@@ -823,6 +868,27 @@ const App: React.FC = () => {
 
         <main className="flex-1 flex flex-col overflow-hidden relative w-full">
           <div id="subheader-portal-target" className="w-full shrink-0 z-[60] relative"></div>
+          {history.length > 0 && (
+            <div className={`px-4 py-2 border-b flex items-center justify-between text-xs font-bold shrink-0 z-[55] relative ${isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-sm'}`}>
+              <button 
+                id="btn-nav-go-back"
+                onClick={handleGoBack}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border uppercase tracking-wider text-[10px] font-black transition-all cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700 hover:text-white' 
+                    : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-300 text-slate-700 shadow-sm'
+                }`}
+              >
+                <ChevronLeft size={14} /> Voltar para Página Anterior
+              </button>
+              <div className={`text-[10px] uppercase font-bold tracking-widest flex items-center gap-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                <span>Histórico:</span>
+                <span className={`px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-slate-800 text-indigo-400' : 'bg-white text-emerald-900 border border-slate-200 shadow-sm'}`}>
+                  {view}
+                </span>
+              </div>
+            </div>
+          )}
           {isSupabaseOffline && (
             <div className="bg-amber-500 text-slate-900 px-4 py-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider shrink-0 z-[50] border-b border-amber-600 shadow-sm animate-pulse">
               <div className="flex items-center gap-2">

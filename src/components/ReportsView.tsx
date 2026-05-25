@@ -5,6 +5,7 @@ import { FlightStatus, FlightData, OperatorProfile } from '../types';
 import { getAuditLogs, AuditLogEntry } from '../services/supabaseService';
 import { OperatorCell } from './OperatorCell';
 import { AirlineLogo } from './AirlineLogo';
+import { formatAirlineName } from '../utils/airlineUtils';
 import { 
   FileText, CheckCircle, Clock, AlertTriangle, XCircle, 
   Printer, Download, ChevronLeft, Calendar, FileBarChart,
@@ -782,7 +783,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                             <table className="w-full text-left border-collapse min-w-max">
                                 <thead className="z-40">
                                     <tr className={`h-12 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-50'}`}>
-                                    <SortableHeader label="COMP." columnKey="airlineCode" className="w-24 text-center" />
+                                    <SortableHeader label="CIA" columnKey="airlineCode" className="w-24 text-center" />
                                     <SortableHeader label="V.SAÍDA" columnKey="flightNumber" className="w-20 text-center" />
                                     <SortableHeader label="PREFIXO" columnKey="registration" className="w-24 text-center" />
                                     <SortableHeader label="DESTINO" columnKey="destination" className="w-24 text-center" />
@@ -819,8 +820,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                                             onClick={() => setSelectedFlight(flight)}
                                             className={`h-14 border-b ${isDarkMode ? 'border-slate-800/30 hover:bg-slate-900' : 'border-slate-200/50 hover:bg-slate-50'} cursor-pointer transition-colors group`}
                                         >
-                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-left`}>
-                                                <AirlineLogo airlineCode={flight.airlineCode || flight.airline} className={statusColorClass} />
+                                            <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-extrabold uppercase text-[11px] truncate max-w-[80px]`}>
+                                                {formatAirlineName(flight.airline || flight.airlineCode || '')}
                                             </td>
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center ${whiteColorClass} font-mono tracking-tighter`}>{flight.flightNumber}</td>
                                             <td className={`px-2 border-r ${isDarkMode ? 'border-slate-800/50' : 'border-slate-200/50'} text-center font-mono ${emeraldColorClass} tracking-tighter uppercase`}>{flight.registration}</td>
