@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
             return (
               <a
                 key={item.id}
-                href={`#${item.id}`}
+                href={`/${item.id}`}
                 onClick={(e) => {
                   if (e.ctrlKey || e.metaKey) return;
                   e.preventDefault();
@@ -119,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
                  {(!visibleTabs || visibleTabs.MALHA_RAIZ_ADMIN !== false) && (
                    <a
-                      href="#MALHA_RAIZ_ADMIN"
+                      href="/MALHA_RAIZ_ADMIN"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) return;
                         e.preventDefault();
@@ -138,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
                  {(!visibleTabs || visibleTabs.OPERATIONAL_MESH !== false) && (
                    <a
-                      href="#OPERATIONAL_MESH"
+                      href="/OPERATIONAL_MESH"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) return;
                         e.preventDefault();
@@ -173,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
                  {(!visibleTabs || visibleTabs.OPERATORS_ADMIN !== false) && (
                    <a
-                      href="#OPERATORS_ADMIN"
+                      href="/OPERATORS_ADMIN"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) return;
                         e.preventDefault();
@@ -192,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
                  {(!visibleTabs || visibleTabs.FLEETS_ADMIN !== false) && (
                    <a
-                      href="#FLEETS_ADMIN"
+                      href="/FLEETS_ADMIN"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) return;
                         e.preventDefault();
@@ -227,7 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
                  {(!visibleTabs || visibleTabs.AERODROMO_ADMIN !== false) && (
                    <a
-                      href="#AERODROMO_ADMIN"
+                      href="/AERODROMO_ADMIN"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) return;
                         e.preventDefault();
@@ -262,7 +262,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
                  {(!visibleTabs || visibleTabs.AIRLINES_ADMIN !== false) && (
                    <a
-                      href="#AIRLINES_ADMIN"
+                      href="/AIRLINES_ADMIN"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) return;
                         e.preventDefault();
@@ -281,7 +281,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
                  {(!visibleTabs || visibleTabs.AIRCRAFTS_ADMIN !== false) && (
                    <a
-                      href="#AIRCRAFTS_ADMIN"
+                      href="/AIRCRAFTS_ADMIN"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) return;
                         e.preventDefault();

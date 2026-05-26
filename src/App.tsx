@@ -30,25 +30,47 @@ import { LayoutPreferencesModal, UserLayoutPreferences, defaultPreferences } fro
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
   const [view, setView] = useState<ViewState>(() => {
-    const hash = window.location.hash.substring(1) as ViewState;
     const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN'];
+    
+    // Prioritize pathname suffix (e.g., "/REPORTS")
+    const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
+    const pathnamePart = cleanPathname.split('/')[0] as ViewState;
+    if (validViews.includes(pathnamePart)) {
+      return pathnamePart;
+    }
+    
+    // Fallback to hash
+    const hash = window.location.hash.substring(1).trim().toUpperCase() as ViewState;
     if (validViews.includes(hash)) {
       return hash;
     }
+    
     return 'GRID_OPS';
   });
   const [history, setHistory] = useState<ViewState[]>([]);
 
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.substring(1) as ViewState;
+    const handleUrlChange = () => {
       const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN'];
+      
+      const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
+      const pathnamePart = cleanPathname.split('/')[0] as ViewState;
+      if (validViews.includes(pathnamePart)) {
+        setView(pathnamePart);
+        return;
+      }
+      
+      const hash = window.location.hash.substring(1).trim().toUpperCase() as ViewState;
       if (validViews.includes(hash)) {
         setView(hash);
       }
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
   }, []);
   const [pendingAction, setPendingAction] = useState<'CREATE' | 'IMPORT' | null>(null);
   
@@ -718,7 +740,7 @@ const App: React.FC = () => {
         return [...prev, view];
       });
     }
-    window.location.hash = newView;
+    window.history.pushState(null, '', '/' + newView);
     setView(newView);
     if (newView !== 'REPORTS') {
       setTargetReportFlight(null);
@@ -731,7 +753,7 @@ const App: React.FC = () => {
       const newStack = [...prev];
       const prevView = newStack.pop();
       if (prevView) {
-        window.location.hash = prevView;
+        window.history.pushState(null, '', '/' + prevView);
         setView(prevView);
         if (prevView !== 'REPORTS') {
           setTargetReportFlight(null);

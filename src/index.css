@@ -1,1 +1,528 @@
 @import "tailwindcss";
+
+/* =========================================================
+   TEMA ESCURO GLOBAL - PADRAO SECAO EQUIPE
+   Aplicar no final de src/index.css
+   ========================================================= */
+
+@layer components {
+  :root {
+    --team-bg: #020717;
+    --team-bg-soft: #050b1d;
+    --team-panel: #081022;
+    --team-panel-2: #0b1428;
+    --team-header: #0b3f3a;
+    --team-header-2: #075047;
+    --team-sidebar: #071415;
+    --team-border: #1a2942;
+    --team-border-soft: rgba(148, 163, 184, 0.16);
+    --team-text: #f8fafc;
+    --team-muted: #64748b;
+    --team-muted-2: #94a3b8;
+    --team-green: #10b981;
+    --team-green-strong: #12c79a;
+    --team-yellow: #eab308;
+    --team-blue: #3b82f6;
+  }
+
+  /* Base global escura */
+  .dark,
+  .dark body {
+    background: var(--team-bg) !important;
+    color: var(--team-text) !important;
+  }
+
+  .dark .ops-shell {
+    background: var(--team-bg) !important;
+  }
+
+  /* Cabeçalho principal igual ao print */
+  .dark .ops-header,
+  .dark header {
+    background: linear-gradient(90deg, #071616 0%, var(--team-header) 48%, var(--team-header-2) 100%) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+  }
+
+  /* Sidebar igual ao print */
+  .dark .ops-sidebar,
+  .dark aside {
+    background: linear-gradient(180deg, #071415 0%, #061112 100%) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+  }
+
+  .dark .sidebar-nav-btn {
+    border-radius: 0 !important;
+  }
+
+  .dark .sidebar-nav-btn[data-active="true"] {
+    background: var(--team-green) !important;
+    color: #ecfdf5 !important;
+    box-shadow: none !important;
+  }
+
+  .dark .sidebar-nav-btn[data-active="true"]::before {
+    background: var(--team-yellow) !important;
+    box-shadow: none !important;
+  }
+
+  /* Fundo das telas/secoes */
+  .dark main,
+  .dark main > div,
+  .dark .bg-slate-950,
+  .dark .bg-slate-900 {
+    background-color: var(--team-bg) !important;
+  }
+
+  /* Subcabeçalhos de seção */
+  .dark #subheader-portal-target,
+  .dark #subheader-portal-target > *,
+  .dark [class*="h-16"][class*="border-b"] {
+    background-color: var(--team-panel) !important;
+    border-color: var(--team-border) !important;
+    color: var(--team-text) !important;
+    box-shadow: none !important;
+  }
+
+  /* Barras secundárias / índices / telemetria */
+  .dark [class*="bg-slate-950"][class*="border"],
+  .dark [class*="bg-slate-900"][class*="border"] {
+    background-color: var(--team-bg-soft) !important;
+    border-color: var(--team-border) !important;
+  }
+
+  /* Abas e segmented controls */
+  .dark button {
+    border-radius: 0.25rem !important;
+  }
+
+  .dark button[class*="bg-slate-800"],
+  .dark button[class*="bg-slate-900"],
+  .dark button[class*="bg-slate-950"] {
+    background-color: var(--team-panel-2) !important;
+    border-color: var(--team-border) !important;
+  }
+
+  .dark button[class*="text-emerald"],
+  .dark .text-emerald-400,
+  .dark .text-emerald-500 {
+    color: var(--team-green-strong) !important;
+  }
+
+  .dark .bg-emerald-500,
+  .dark .bg-emerald-600,
+  .dark .bg-teal-600 {
+    background-color: var(--team-green) !important;
+    color: #03120f !important;
+  }
+
+  /* Inputs de busca */
+  .dark input,
+  .dark textarea,
+  .dark select {
+    background-color: transparent !important;
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    color: var(--team-text) !important;
+    border-radius: 0.25rem !important;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: rgba(148, 163, 184, 0.55) !important;
+  }
+
+  .dark input:focus,
+  .dark textarea:focus,
+  .dark select:focus {
+    border-color: rgba(16, 185, 129, 0.55) !important;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.22) !important;
+    outline: none !important;
+  }
+
+  /* Tabelas */
+  .dark table {
+    background-color: var(--team-bg) !important;
+    color: var(--team-text) !important;
+  }
+
+  .dark thead,
+  .dark .grid-ops-thead,
+  .dark .grid-ops-header-th,
+  .dark th {
+    background-color: var(--team-panel) !important;
+    border-color: var(--team-border) !important;
+    color: var(--team-text) !important;
+  }
+
+  .dark td,
+  .dark tr {
+    border-color: rgba(148, 163, 184, 0.14) !important;
+  }
+
+  .dark tr:hover {
+    background-color: rgba(15, 23, 42, 0.72) !important;
+  }
+
+  /* Cards e paineis */
+  .dark .rounded-xl,
+  .dark .rounded-lg,
+  .dark .rounded-md {
+    border-radius: 0.25rem !important;
+  }
+
+  .dark [class*="shadow"] {
+    box-shadow: none !important;
+  }
+
+  .dark [class*="border-slate"] {
+    border-color: var(--team-border) !important;
+  }
+
+  .dark [class*="text-slate-700"],
+  .dark [class*="text-slate-600"],
+  .dark [class*="text-slate-500"],
+  .dark [class*="text-slate-400"] {
+    color: var(--team-muted-2) !important;
+  }
+
+  /* Cards de contadores iguais ao print */
+  .dark [class*="bg-emerald-500/5"],
+  .dark [class*="bg-emerald-500/10"] {
+    background-color: rgba(16, 185, 129, 0.06) !important;
+    border-color: rgba(16, 185, 129, 0.16) !important;
+  }
+
+  .dark [class*="bg-yellow-500/5"],
+  .dark [class*="bg-yellow-500/10"],
+  .dark [class*="bg-amber-500/10"] {
+    background-color: rgba(234, 179, 8, 0.07) !important;
+    border-color: rgba(234, 179, 8, 0.18) !important;
+  }
+
+  .dark [class*="bg-blue-500/5"],
+  .dark [class*="bg-blue-500/10"] {
+    background-color: rgba(59, 130, 246, 0.07) !important;
+    border-color: rgba(59, 130, 246, 0.18) !important;
+  }
+
+  .dark .text-yellow-500,
+  .dark .text-amber-500 {
+    color: var(--team-yellow) !important;
+  }
+
+  .dark .text-blue-400,
+  .dark .text-blue-500 {
+    color: var(--team-blue) !important;
+  }
+
+  /* Modais e dropdowns */
+  .dark [role="dialog"],
+  .dark [class*="fixed"][class*="z-"] [class*="bg-slate"],
+  .dark [class*="absolute"][class*="shadow"] {
+    background-color: var(--team-panel) !important;
+    border-color: var(--team-border) !important;
+    color: var(--team-text) !important;
+  }
+
+  /* Botao flutuante IA */
+  .dark button[title*="Copiloto"],
+  .dark button[aria-label*="Copiloto"] {
+    background-color: var(--team-green) !important;
+    color: white !important;
+  }
+}
+
+/* =========================================================
+   TEMA CLARO GLOBAL - OPERACIONAL DIURNO
+   Cole no final de src/index.css
+   ========================================================= */
+
+@layer components {
+  :root {
+    --day-bg: #f6f8fb;
+    --day-bg-soft: #ffffff;
+    --day-panel: #e9eef5;
+    --day-panel-2: #f1f5f9;
+    --day-header: #07543c;
+    --day-header-2: #08785f;
+    --day-sidebar: #0b2422;
+    --day-border: #d7e0ea;
+    --day-border-strong: #c4cfdb;
+    --day-text: #172033;
+    --day-muted: #64748b;
+    --day-muted-2: #8290a3;
+    --day-green: #007a4d;
+    --day-green-bright: #10b981;
+    --day-yellow: #f2c230;
+    --day-blue: #2563eb;
+    --day-red: #dc2626;
+  }
+
+  /* Base clara: somente quando NÃO está em modo escuro */
+  :root:not(.dark) body,
+  :root:not(.dark) .ops-shell {
+    background: var(--day-bg) !important;
+    color: var(--day-text) !important;
+  }
+
+  /* Evita que o tema claro fique verde/chapado */
+  :root:not(.dark) .ops-shell {
+    background:
+      linear-gradient(180deg, rgba(233, 238, 245, 0.95), rgba(246, 248, 251, 1)) !important;
+  }
+
+  /* Cabeçalho principal: igual ao conceito do print */
+  :root:not(.dark) .ops-header,
+  :root:not(.dark) header {
+    background: linear-gradient(90deg, #0b2c28 0%, var(--day-header) 52%, var(--day-header-2) 100%) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  :root:not(.dark) header h1,
+  :root:not(.dark) header span,
+  :root:not(.dark) header p,
+  :root:not(.dark) header button {
+    color: #ffffff;
+  }
+
+  :root:not(.dark) header [class*="text-amber"],
+  :root:not(.dark) header [class*="text-yellow"] {
+    color: var(--day-yellow) !important;
+  }
+
+  /* Sidebar: permanece escura para dar identidade */
+  :root:not(.dark) .ops-sidebar,
+  :root:not(.dark) aside {
+    background: linear-gradient(180deg, #0c2422 0%, #071615 100%) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+  }
+
+  :root:not(.dark) .sidebar-nav-btn {
+    border-radius: 0 !important;
+  }
+
+  :root:not(.dark) .sidebar-nav-btn:not([data-active="true"]) {
+    color: rgba(226, 232, 240, 0.7) !important;
+  }
+
+  :root:not(.dark) .sidebar-nav-btn:not([data-active="true"]):hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+  }
+
+  :root:not(.dark) .sidebar-nav-btn[data-active="true"] {
+    background: #ffffff !important;
+    color: var(--day-green) !important;
+    box-shadow: none !important;
+  }
+
+  :root:not(.dark) .sidebar-nav-btn[data-active="true"]::before {
+    background: var(--day-yellow) !important;
+    box-shadow: none !important;
+  }
+
+  /* Fundo principal das telas */
+  :root:not(.dark) main,
+  :root:not(.dark) main > div {
+    background: var(--day-bg) !important;
+    color: var(--day-text) !important;
+  }
+
+  /* Subcabeçalhos de seção */
+  :root:not(.dark) #subheader-portal-target,
+  :root:not(.dark) #subheader-portal-target > *,
+  :root:not(.dark) [class*="h-16"][class*="border-b"] {
+    background: var(--day-panel) !important;
+    border-color: var(--day-border-strong) !important;
+    color: var(--day-text) !important;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12) !important;
+  }
+
+  /* Barras secundárias, filtros e grupos */
+  :root:not(.dark) [class*="bg-slate-950"],
+  :root:not(.dark) [class*="bg-slate-900"],
+  :root:not(.dark) [class*="bg-slate-800"] {
+    background-color: var(--day-bg-soft) !important;
+  }
+
+  :root:not(.dark) [class*="border-slate"] {
+    border-color: var(--day-border) !important;
+  }
+
+  /* Botões técnicos */
+  :root:not(.dark) button {
+    border-radius: 0.25rem !important;
+  }
+
+  :root:not(.dark) button[class*="border"],
+  :root:not(.dark) a[class*="border"] {
+    border-color: var(--day-border-strong) !important;
+  }
+
+  :root:not(.dark) button[class*="bg-slate"],
+  :root:not(.dark) button[class*="bg-white"] {
+    background-color: #ffffff !important;
+    color: var(--day-text) !important;
+  }
+
+  :root:not(.dark) button:hover {
+    filter: none !important;
+  }
+
+  /* Botão/aba ativa verde */
+  :root:not(.dark) .bg-emerald-500,
+  :root:not(.dark) .bg-emerald-600,
+  :root:not(.dark) .bg-teal-600,
+  :root:not(.dark) button[class*="bg-emerald"],
+  :root:not(.dark) button[class*="bg-teal"] {
+    background-color: var(--day-green) !important;
+    color: #ffffff !important;
+    border-color: var(--day-green) !important;
+  }
+
+  :root:not(.dark) .text-emerald-400,
+  :root:not(.dark) .text-emerald-500,
+  :root:not(.dark) .text-emerald-600 {
+    color: var(--day-green) !important;
+  }
+
+  /* Inputs de busca */
+  :root:not(.dark) input,
+  :root:not(.dark) textarea,
+  :root:not(.dark) select {
+    background: #ffffff !important;
+    border-color: var(--day-border-strong) !important;
+    color: var(--day-text) !important;
+    border-radius: 0.25rem !important;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  :root:not(.dark) input::placeholder,
+  :root:not(.dark) textarea::placeholder {
+    color: #8a99ac !important;
+  }
+
+  :root:not(.dark) input:focus,
+  :root:not(.dark) textarea:focus,
+  :root:not(.dark) select:focus {
+    border-color: rgba(0, 122, 77, 0.65) !important;
+    box-shadow: 0 0 0 2px rgba(0, 122, 77, 0.12) !important;
+    outline: none !important;
+  }
+
+  /* Tabelas */
+  :root:not(.dark) table {
+    background: #ffffff !important;
+    color: var(--day-text) !important;
+  }
+
+  :root:not(.dark) thead,
+  :root:not(.dark) .grid-ops-thead,
+  :root:not(.dark) .grid-ops-header-th,
+  :root:not(.dark) th {
+    background: #f4f7fa !important;
+    border-color: var(--day-border) !important;
+    color: #41516a !important;
+    box-shadow: none !important;
+  }
+
+  :root:not(.dark) td,
+  :root:not(.dark) tr {
+    border-color: var(--day-border) !important;
+  }
+
+  :root:not(.dark) tr:hover {
+    background: #ecfdf5 !important;
+  }
+
+  /* Conteúdo vazio */
+  :root:not(.dark) [class*="text-slate-400"],
+  :root:not(.dark) [class*="text-slate-500"],
+  :root:not(.dark) [class*="text-slate-600"],
+  :root:not(.dark) [class*="text-slate-700"] {
+    color: var(--day-muted) !important;
+  }
+
+  /* Cards e paineis */
+  :root:not(.dark) [class*="rounded-xl"],
+  :root:not(.dark) [class*="rounded-lg"],
+  :root:not(.dark) [class*="rounded-md"] {
+    border-radius: 0.25rem !important;
+  }
+
+  :root:not(.dark) [class*="shadow"] {
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  /* Cards de índices: disponíveis, ocupados, designados */
+  :root:not(.dark) [class*="bg-emerald-500/5"],
+  :root:not(.dark) [class*="bg-emerald-500/10"],
+  :root:not(.dark) [class*="border-emerald"] {
+    background-color: #ecfdf5 !important;
+    border-color: #a7f3d0 !important;
+  }
+
+  :root:not(.dark) [class*="bg-yellow-500/5"],
+  :root:not(.dark) [class*="bg-yellow-500/10"],
+  :root:not(.dark) [class*="bg-amber-500/10"],
+  :root:not(.dark) [class*="border-yellow"],
+  :root:not(.dark) [class*="border-amber"] {
+    background-color: #fffbeb !important;
+    border-color: #fde68a !important;
+  }
+
+  :root:not(.dark) [class*="bg-blue-500/5"],
+  :root:not(.dark) [class*="bg-blue-500/10"],
+  :root:not(.dark) [class*="border-blue"] {
+    background-color: #eff6ff !important;
+    border-color: #bfdbfe !important;
+  }
+
+  :root:not(.dark) .text-yellow-500,
+  :root:not(.dark) .text-amber-500 {
+    color: #b45309 !important;
+  }
+
+  :root:not(.dark) .text-blue-400,
+  :root:not(.dark) .text-blue-500,
+  :root:not(.dark) .text-blue-600 {
+    color: var(--day-blue) !important;
+  }
+
+  /* Cards de operador/equipe */
+  :root:not(.dark) [class*="bg-emerald-500"][class*="text-slate-950"] {
+    background-color: var(--day-green-bright) !important;
+    color: #042f24 !important;
+  }
+
+  :root:not(.dark) [class*="bg-yellow-400"][class*="text-slate-950"] {
+    background-color: var(--day-yellow) !important;
+    color: #2f2300 !important;
+  }
+
+  :root:not(.dark) [class*="bg-blue-500"][class*="text-slate-950"] {
+    background-color: var(--day-blue) !important;
+    color: #ffffff !important;
+  }
+
+  /* Modais e dropdowns */
+  :root:not(.dark) [role="dialog"],
+  :root:not(.dark) [class*="absolute"][class*="shadow"],
+  :root:not(.dark) [class*="fixed"][class*="z-"] [class*="border"] {
+    background-color: #ffffff !important;
+    border-color: var(--day-border) !important;
+    color: var(--day-text) !important;
+  }
+
+  /* Botão flutuante IA */
+  :root:not(.dark) button[title*="Copiloto"],
+  :root:not(.dark) button[aria-label*="Copiloto"] {
+    background-color: var(--day-green-bright) !important;
+    color: #ffffff !important;
+    box-shadow: 0 16px 30px rgba(16, 185, 129, 0.28) !important;
+  }
+}
