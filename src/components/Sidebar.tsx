@@ -51,15 +51,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   });
 
   const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'ROOT_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AIRLINES_ADMIN' || activeView === 'MALHA_RAIZ_ADMIN' || activeView === 'AERODROMO_ADMIN';
-
+  
   return (
-    <aside className={`w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] ${
-      isDarkMode 
-        ? 'bg-slate-900 border-slate-800' 
-        : 'bg-[#617b7b] border-transparent shadow-[2px_0_8px_rgba(0,0,0,0.5)]'
-    }`}>
+    <aside className="w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] border-transparent shadow-[2px_0_8px_rgba(0,0,0,0.5)]">
       <div className="flex flex-col gap-6 w-full items-center flex-1">
-        <nav className={`flex flex-col gap-4 w-full px-2 ${!isDarkMode ? 'bg-[#617b7b]' : ''}`}>
+        <nav className="flex flex-col gap-4 w-full px-2">
           {navItems.map((item) => {
             const isActive = activeView === item.id;
             const Icon = item.icon;
@@ -78,11 +74,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                 className={`sidebar-nav-btn flex flex-col items-center justify-center p-3 rounded-xl transition-all group cursor-pointer ${
                   isActive 
                     ? isDarkMode 
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                      ? 'bg-emerald-500 text-white shadow-lg' 
                       : 'bg-white text-emerald-900 shadow-lg' 
-                    : isDarkMode
-                      ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="transition-transform group-hover:scale-110" />
@@ -328,14 +322,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             data-active={isManagementActive}
             title="Gerenciamento"
-            className={`sidebar-nav-btn flex flex-col items-center justify-center p-3 rounded-xl transition-all w-full group ${
+            className={`sidebar-nav-btn flex flex-col items-center justify-center p-3 rounded-xl transition-all w-full group cursor-pointer ${
               isManagementActive
-                ? isDarkMode 
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
-                  : 'bg-white text-emerald-900 shadow-lg' 
-                : isDarkMode
-                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
+                ? 'bg-white text-emerald-900 shadow-lg'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
           >
             <Settings size={22} strokeWidth={isManagementActive ? 2.5 : 2} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />

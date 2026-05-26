@@ -862,12 +862,20 @@ export const RootMesh: React.FC<RootMeshProps> = ({
           {/* Unified Filters Controls */}
           <div className="flex items-center gap-2 shrink-0 flex-wrap md:flex-nowrap">
             {/* Shift Selector - COMPACT */}
-            <div className="flex items-center gap-0.5 bg-black/20 p-0.5 rounded-md border border-white/5">
+            <div className={`flex items-center gap-0.5 p-0.5 rounded-md border ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-slate-200/60 border-slate-300/80'}`}>
               {(['TODOS', 'MANHA', 'TARDE', 'NOITE'] as MeshShift[]).map(shift => (
                 <button
                   key={shift}
                   onClick={() => setActiveShift(shift)}
-                  className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${activeShift === shift ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-emerald-100/60 hover:text-white hover:bg-white/10'}`}
+                  className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${
+                    activeShift === shift 
+                      ? isDarkMode 
+                        ? 'bg-emerald-500 text-slate-950 shadow-sm' 
+                        : 'bg-emerald-500 text-white shadow-sm' 
+                      : isDarkMode 
+                        ? 'text-emerald-100/60 hover:text-white hover:bg-white/10' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+                  }`}
                 >
                   {shift}
                 </button>

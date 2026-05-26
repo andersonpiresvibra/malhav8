@@ -1021,12 +1021,20 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
           {/* Unified Filters Controls */}
           <div className="flex items-center gap-2 shrink-0 flex-wrap md:flex-nowrap">
             {/* Shift Selector - COMPACT */}
-            <div className="flex items-center gap-0.5 bg-black/20 p-0.5 rounded-md border border-white/5">
+            <div className={`flex items-center gap-0.5 p-0.5 rounded-md border ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-slate-200/60 border-slate-300/80'}`}>
               {(['TODOS', 'MANHA', 'TARDE', 'NOITE'] as MeshShift[]).map(shift => (
                 <button
                   key={shift}
                   onClick={() => setActiveShift(shift)}
-                  className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${activeShift === shift ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+                  className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    activeShift === shift 
+                      ? isDarkMode 
+                        ? 'bg-white/20 text-white shadow-sm' 
+                        : 'bg-emerald-500 text-white shadow-sm' 
+                      : isDarkMode 
+                        ? 'text-white/50 hover:text-white/80 hover:bg-white/5' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+                  }`}
                 >
                   {shift}
                 </button>
@@ -1036,7 +1044,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
             <div className="h-5 w-px bg-white/10 mx-1 hidden md:block" />
 
             {/* Status Integrity Selector - COMPACT */}
-            <div className="flex items-center gap-0.5 bg-black/20 p-0.5 rounded-md border border-white/5">
+            <div className={`flex items-center gap-0.5 p-0.5 rounded-md border ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-slate-200/60 border-slate-300/80'}`}>
               {[
                 { id: 'ALL', label: 'TUDO', count: totalCount, dot: null },
                 { id: 'READY', label: 'PRONTOS', count: readyCount, dot: 'bg-emerald-400' },
@@ -1047,15 +1055,25 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                   onClick={() => setReadyStateFilter(f.id as any)}
                   className={`flex flex-col items-center justify-center px-3 py-1 rounded transition-all min-w-[64px] ${
                     readyStateFilter === f.id 
-                      ? 'bg-white/20 text-white shadow-sm' 
-                      : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                      ? isDarkMode 
+                        ? 'bg-white/20 text-white shadow-sm' 
+                        : 'bg-emerald-500 text-white shadow-sm' 
+                      : isDarkMode 
+                        ? 'text-white/50 hover:text-white/80 hover:bg-white/5' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
                   }`}
                 >
                   <div className="flex items-center gap-1.5 leading-none">
                     {f.dot && <div className={`w-1.5 h-1.5 rounded-full ${f.dot}`} />}
                     <span className="text-[10px] font-bold uppercase tracking-widest">{f.label}</span>
                   </div>
-                  <span className={`text-[10px] font-mono leading-none mt-1 ${readyStateFilter === f.id ? 'text-white/90' : 'text-white/40'}`}>{f.count || 0}</span>
+                  <span className={`text-[10px] font-mono leading-none mt-1 ${
+                    readyStateFilter === f.id 
+                      ? 'text-white/95' 
+                      : isDarkMode 
+                        ? 'text-white/40' 
+                        : 'text-slate-500'
+                  }`}>{f.count || 0}</span>
                 </button>
               ))}
             </div>

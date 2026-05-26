@@ -3483,13 +3483,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
           </button>
         </div>
 
-         <div className="flex items-center gap-2 ml-[4px] pb-[4px] mr-0 mt-0 bg-black/20 p-1 rounded border border-white/10 w-[280px] h-10">
+         <div className={`flex items-center gap-2 ml-[4px] pb-[4px] mr-0 mt-0 p-1 rounded border w-[280px] h-10 ${isDarkMode ? "bg-black/20 border-white/10" : "bg-slate-200/60 border-slate-300"}`}>
           {(["TODOS", "MANHA", "TARDE", "NOITE"] as MeshShift[]).map(
             (shift) => (
               <button
                 key={shift}
                 onClick={() => setActiveShift(shift)}
-                className={`px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-all h-full ${shift === "NOITE" ? "ml-0 mr-0 mt-0 mb-0 w-[65px] flex-none" : "flex-1"} ${activeShift === shift ? "bg-emerald-500 text-white" : "text-emerald-100/50 hover:text-white"}`}
+                className={`px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-all h-full ${shift === "NOITE" ? "ml-0 mr-0 mt-0 mb-0 w-[65px] flex-none" : "flex-1"} ${
+                  activeShift === shift 
+                    ? "bg-emerald-500 text-white" 
+                    : isDarkMode 
+                      ? "text-emerald-100/50 hover:text-white" 
+                      : "text-emerald-900/70 hover:text-emerald-950 hover:bg-white/40"
+                }`}
               >
                 {shift}
               </button>
