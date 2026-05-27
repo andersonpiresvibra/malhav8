@@ -2,13 +2,20 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertTriangle, Play, UserCheck, CheckCircle } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { FlightData } from '../../types';
 
 interface ConfirmActionModalProps {
     type: 'cancel' | 'start' | 'remove' | 'finish' | 'delete' | 'clearMesh' | 'syncPartial' | 'missingPositionVIP';
     flightNumber?: string;
     registration?: string;
     message?: string;
-    onConfirm: (data?: { startTime?: Date; clearMode?: 'all' | 'inactive' }) => void;
+    flight?: FlightData;
+    onConfirm: (data?: { 
+        startTime?: Date; 
+        clearMode?: 'all' | 'inactive';
+        resolvedReport?: any;
+        flightUpdates?: any;
+    }) => void;
     onClose: () => void;
 }
 
@@ -17,6 +24,7 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
     flightNumber,
     registration,
     message,
+    flight,
     onConfirm,
     onClose
 }) => {
@@ -24,12 +32,88 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
     const [manualTime, setManualTime] = React.useState('');
     const [useManualTime, setUseManualTime] = React.useState(false);
 
+    // Formatar hora atual em formato HH:MM
+    const nowStr = React.useMemo(() => {
+        const d = new Date();
+        const hrs = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        return `${hrs}:${mins}`;
+    }, []);
+
+    // Estados locais para digitação dos tempos de resoluções de restrições
+    const [chockTime, setChockTime] = React.useState(nowStr);
+    const [crewTimeVal, setCrewTimeVal] = React.useState(nowStr);
+    const [mechanicTimeVal, setMechanicTimeVal] = React.useState(nowStr);
+    const [fuelOrderTimeVal, setFuelOrderTimeVal] = React.useState(nowStr);
+    const [authorizationTimeVal, setAuthorizationTimeVal] = React.useState(nowStr);
+    const [clearObstruction, setClearObstruction] = React.useState(true);
+
+    const hasMissingAircraft = React.useMemo(() => {
+        return !!flight?.report?.missingAircraft && (!flight?.actualArrivalTime || flight?.actualArrivalTime === '--:--' || flight?.actualArrivalTime === '00:00');
+    }, [flight]);
+
+    const hasMissingCrew = React.useMemo(() => {
+        return !!flight?.report?.missingCrew && !flight?.report?.crewTime;
+    }, [flight]);
+
+    const hasMissingMaintenance = React.useMemo(() => {
+        return !!flight?.report?.missingMaintenance && !flight?.report?.mechanicTime;
+    }, [flight]);
+
+    const hasMissingDot = React.useMemo(() => {
+        return !!flight?.report?.missingDot && !flight?.report?.fuelOrderTime;
+    }, [flight]);
+
+    const hasMissingRelease = React.useMemo(() => {
+        return !!flight?.report?.missingRelease && !flight?.report?.authorizationTime;
+    }, [flight]);
+
+    const hasObstructedArea = React.useMemo(() => {
+        return !!flight?.report?.obstructedArea;
+    }, [flight]);
+
+    const hasAnyPending = React.useMemo(() => {
+        return hasMissingAircraft || hasMissingCrew || hasMissingMaintenance || hasMissingDot || hasMissingRelease || hasObstructedArea;
+    }, [hasMissingAircraft, hasMissingCrew, hasMissingMaintenance, hasMissingDot, hasMissingRelease, hasObstructedArea]);
+
     const handleConfirmClick = (mode?: 'all' | 'inactive') => {
-        if (type === 'start' && useManualTime && manualTime) {
-            const [hours, minutes] = manualTime.split(':').map(Number);
-            const date = new Date();
-            date.setHours(hours, minutes, 0, 0);
-            onConfirm({ startTime: date });
+        if (type === 'start') {
+            const reportUpdates: any = {};
+            const flightUpdates: any = {};
+
+            if (hasMissingAircraft) {
+                flightUpdates.actualArrivalTime = chockTime;
+            }
+            if (hasMissingCrew) {
+                reportUpdates.crewTime = crewTimeVal;
+            }
+            if (hasMissingMaintenance) {
+                reportUpdates.mechanicTime = mechanicTimeVal;
+            }
+            if (hasMissingDot) {
+                reportUpdates.fuelOrderTime = fuelOrderTimeVal;
+            }
+            if (hasMissingRelease) {
+                reportUpdates.authorizationTime = authorizationTimeVal;
+            }
+            if (hasObstructedArea && clearObstruction) {
+                reportUpdates.obstructedArea = false;
+                reportUpdates.obstructedEquipment = [];
+            }
+
+            let startTimeVal = undefined;
+            if (useManualTime && manualTime) {
+                const [hours, minutes] = manualTime.split(':').map(Number);
+                const date = new Date();
+                date.setHours(hours, minutes, 0, 0);
+                startTimeVal = date;
+            }
+
+            onConfirm({
+                startTime: startTimeVal,
+                resolvedReport: Object.keys(reportUpdates).length > 0 ? reportUpdates : undefined,
+                flightUpdates: Object.keys(flightUpdates).length > 0 ? flightUpdates : undefined
+            });
         } else if (type === 'clearMesh') {
             onConfirm({ clearMode: mode || 'all' });
         } else {
@@ -145,8 +229,9 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center animate-in fade-in zoom-in-95 duration-200 p-4">
-            <div className={`${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-slate-200'} border-[0.5px] rounded-[8px] w-[450px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden`}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+            <div className={`relative ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-slate-200'} border-[0.5px] rounded-[8px] ${hasAnyPending ? 'w-[500px]' : 'w-[450px]'} transition-all duration-300 shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden`}>
                 <div className={`${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-[#004D24] border-[#004D24]'} p-4 border-b flex justify-between items-center`}>
                     <h3 className="text-xs font-bold text-white uppercase tracking-widest">{config.title}</h3>
                     <button onClick={onClose} className={`${isDarkMode ? 'text-slate-400 hover:text-white' : 'text-emerald-100 hover:text-white'} transition-colors`}>
@@ -165,38 +250,149 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
                     </div>
 
                     {type === 'start' && (
-                        <div className={`mb-8 p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                            <div className="flex items-center justify-between mb-4">
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    Horário de Início
-                                </span>
-                                <div className="flex bg-slate-900/50 p-0.5 rounded-lg border border-slate-800">
-                                    <button 
-                                        onClick={() => setUseManualTime(false)}
-                                        className={`px-3 py-1.5 rounded-md text-[9px] font-bold uppercase transition-all ${!useManualTime ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                                    >
-                                        Agora
-                                    </button>
-                                    <button 
-                                        onClick={() => setUseManualTime(true)}
-                                        className={`px-3 py-1.5 rounded-md text-[9px] font-bold uppercase transition-all ${useManualTime ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                                    >
-                                        Retroativo
-                                    </button>
+                        <div className="space-y-4 mb-8">
+                            <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        Horário de Início
+                                    </span>
+                                    <div className="flex bg-slate-150 dark:bg-slate-900/50 p-0.5 rounded-lg border border-slate-300 dark:border-slate-800">
+                                        <button 
+                                            onClick={() => setUseManualTime(false)}
+                                            className={`px-3 py-1.5 rounded-md text-[9px] font-bold uppercase transition-all whitespace-nowrap leading-none cursor-pointer ${!useManualTime ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10' : isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-750'}`}
+                                        >
+                                            Agora
+                                        </button>
+                                        <button 
+                                            onClick={() => setUseManualTime(true)}
+                                            className={`px-3 py-1.5 rounded-md text-[9px] font-bold uppercase transition-all whitespace-nowrap leading-none cursor-pointer ${useManualTime ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10' : isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-755'}`}
+                                        >
+                                            Retroativo
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {useManualTime && (
+                                    <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <input 
+                                            type="time" 
+                                            value={manualTime}
+                                            onChange={(e) => setManualTime(e.target.value)}
+                                            className={`w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-750 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-center text-lg focus:border-emerald-500 outline-none transition-all`}
+                                        />
+                                        <p className="text-[9px] text-slate-500 mt-2 text-center uppercase font-black tracking-widest">
+                                            Informe a hora que o operador iniciou o abastecimento
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
-                            {useManualTime && (
-                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <input 
-                                        type="time" 
-                                        value={manualTime}
-                                        onChange={(e) => setManualTime(e.target.value)}
-                                        className={`w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white font-mono text-center text-lg focus:border-emerald-500 outline-none transition-all`}
-                                    />
-                                    <p className="text-[9px] text-slate-500 mt-2 text-center uppercase font-black tracking-widest">
-                                        Informe a hora que o operador iniciou o abastecimento
+                            {hasAnyPending && (
+                                <div className={`p-4 rounded-xl border animate-in fade-in duration-350 ${
+                                    isDarkMode 
+                                        ? 'bg-slate-950/60 border-amber-500/20 shadow-[inset_0_1px_4px_rgba(245,158,11,0.05)]' 
+                                        : 'bg-amber-50/40 border-amber-200 shadow-sm'
+                                }`}>
+                                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-dashed border-amber-500/10 dark:border-amber-500/15">
+                                        <AlertTriangle size={14} className="text-amber-550 dark:text-amber-500 shrink-0 animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                            Resolver Restrições Ativas
+                                        </span>
+                                    </div>
+                                    <p className={`text-[10px] font-medium mb-3.5 leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                                        Este voo possui restrições de pátio que bloqueavam o início. Insira os horários em que os ausentes se apresentaram para desobstruir e iniciar:
                                     </p>
+
+                                    <div className="grid grid-cols-2 gap-3 pb-1">
+                                        {hasMissingAircraft && (
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-extrabold uppercase tracking-wider text-amber-650 dark:text-amber-400 leading-none">
+                                                    Horário do Calço
+                                                </label>
+                                                <input 
+                                                    type="time" 
+                                                    value={chockTime}
+                                                    onChange={(e) => setChockTime(e.target.value)}
+                                                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-2.5 py-2 font-mono text-center text-xs text-slate-800 dark:text-amber-400 focus:border-amber-500 outline-none font-bold"
+                                                />
+                                            </div>
+                                        )}
+                                        {hasMissingCrew && (
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-extrabold uppercase tracking-wider text-amber-650 dark:text-amber-400 leading-none">
+                                                    Chegada Tripulação
+                                                </label>
+                                                <input 
+                                                    type="time" 
+                                                    value={crewTimeVal}
+                                                    onChange={(e) => setCrewTimeVal(e.target.value)}
+                                                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-2.5 py-2 font-mono text-center text-xs text-slate-800 dark:text-amber-400 focus:border-amber-500 outline-none font-bold"
+                                                />
+                                            </div>
+                                        )}
+                                        {hasMissingMaintenance && (
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-extrabold uppercase tracking-wider text-amber-650 dark:text-amber-400 leading-none">
+                                                    Chegada Manutenção
+                                                </label>
+                                                <input 
+                                                    type="time" 
+                                                    value={mechanicTimeVal}
+                                                    onChange={(e) => setMechanicTimeVal(e.target.value)}
+                                                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-2.5 py-2 font-mono text-center text-xs text-slate-800 dark:text-amber-400 focus:border-amber-500 outline-none font-bold"
+                                                />
+                                            </div>
+                                        )}
+                                        {hasMissingDot && (
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-extrabold uppercase tracking-wider text-amber-655 dark:text-amber-400 leading-none">
+                                                    Recebimento do DOT
+                                                </label>
+                                                <input 
+                                                    type="time" 
+                                                    value={fuelOrderTimeVal}
+                                                    onChange={(e) => setFuelOrderTimeVal(e.target.value)}
+                                                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-2.5 py-2 font-mono text-center text-xs text-slate-800 dark:text-amber-400 focus:border-amber-500 outline-none font-bold"
+                                                />
+                                            </div>
+                                        )}
+                                        {hasMissingRelease && (
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-extrabold uppercase tracking-wider text-amber-650 dark:text-amber-400 leading-none">
+                                                    Chegada da Folha
+                                                </label>
+                                                <input 
+                                                    type="time" 
+                                                    value={authorizationTimeVal}
+                                                    onChange={(e) => setAuthorizationTimeVal(e.target.value)}
+                                                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-2.5 py-2 font-mono text-center text-xs text-slate-800 dark:text-amber-400 focus:border-amber-500 outline-none font-bold"
+                                                />
+                                            </div>
+                                        )}
+                                        {hasObstructedArea && (
+                                            <div className="col-span-2 flex items-center justify-between p-2.5 bg-white dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-850 mt-1">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-450 leading-none mb-1">
+                                                        Aeronave Obstruída
+                                                    </span>
+                                                    <span className="text-[8px] text-slate-400 dark:text-slate-500 uppercase font-bold leading-none">
+                                                        Equipamentos no pátio
+                                                    </span>
+                                                </div>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setClearObstruction(!clearObstruction)}
+                                                    className={`px-3 py-1.5 text-[8.5px] font-black uppercase tracking-wider rounded transition-all active:scale-95 cursor-pointer leading-none ${
+                                                        clearObstruction 
+                                                            ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-sm font-black' 
+                                                            : 'bg-slate-100 dark:bg-slate-900 text-slate-400 hover:text-slate-300'
+                                                    }`}
+                                                >
+                                                    {clearObstruction ? 'DESOBSTRUIR RESTR (SIM)' : 'MANTER RESTRITO'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>

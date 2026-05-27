@@ -247,8 +247,9 @@ export const CreateFlightModal: React.FC<CreateFlightModalProps> = ({ onClose, o
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className={`w-full max-w-xl ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-slate-200'} border-[0.5px] rounded-[8px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className={`relative w-full max-w-xl ${isDarkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-white border-slate-200'} border-[0.5px] rounded-[8px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
         
         {/* Header */}
         <div className={`px-6 py-4 border-b ${isDarkMode ? 'border-slate-800 bg-slate-950' : 'border-transparent bg-[#004D24]'} flex justify-between items-center`}>

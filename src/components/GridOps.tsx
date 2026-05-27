@@ -17,6 +17,7 @@ import { formatAirlineName } from "../utils/airlineUtils";
 // Importando perfis para designação
 
 import { FlightDetailsModal } from "./FlightDetailsModal";
+import { DesignadosFlightDetailsModal } from "./DesignadosFlightDetailsModal";
 import { FlightReportInputModal } from "./FlightReportInputModal";
 import { TimeConflictModal } from "./TimeConflictModal";
 import { StatusBadge } from "./SharedStats";
@@ -2516,16 +2517,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const handleIntentStart = (row: FlightData, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (isFlightPausedByMissingRep(row)) {
-      const missing = getMissingItemsLabels(row);
-      addToast(
-        "BLOQUEADO (PENDÊNCIAS)",
-        `O abastecimento do voo ${row.flightNumber} não pode ser iniciado. Pendências ativas: ${missing.join(", ")}. Por favor, registre a chegada das mesmas no report do voo.`,
-        "warning"
-      );
-      return;
-    }
-
     const pos = row.positionId?.trim();
     if (!pos || pos === "?" || pos === "-") {
       setMissingPositionModalFlight(row);
@@ -2535,16 +2526,106 @@ export const GridOps: React.FC<GridOpsProps> = ({
     setOpenMenuId(null);
   };
 
-  const handleConfirmStart = (data?: { startTime?: Date }) => {
+  const handleConfirmStart = (data?: { startTime?: Date; resolvedReport?: any; flightUpdates?: any }) => {
     if (!confirmStartModalFlight) return;
+
+    let updatedFlight = { ...confirmStartModalFlight };
+
+    if (data?.flightUpdates) {
+      updatedFlight = {
+        ...updatedFlight,
+        ...data.flightUpdates
+      };
+    }
+
+    if (data?.resolvedReport) {
+      updatedFlight.report = {
+        ...(updatedFlight.report || {}),
+        ...data.resolvedReport
+      };
+
+      const newLogs: any[] = [];
+      const now = new Date();
+
+      if (data.flightUpdates?.actualArrivalTime) {
+        newLogs.push({
+          id: `log-chock-${Date.now()}`,
+          timestamp: now,
+          type: "MANUAL",
+          message: `Pendência [SEM AERONAVE] RESOLVIDA (Calço às ${data.flightUpdates.actualArrivalTime})`,
+          author: "GESTOR_MESA"
+        });
+      }
+      if (data.resolvedReport.crewTime) {
+        newLogs.push({
+          id: `log-crew-${Date.now()}`,
+          timestamp: now,
+          type: "MANUAL",
+          message: `Pendência [SEM TRIP] RESOLVIDA (Chegada às ${data.resolvedReport.crewTime})`,
+          author: "GESTOR_MESA"
+        });
+      }
+      if (data.resolvedReport.mechanicTime) {
+        newLogs.push({
+          id: `log-mech-${Date.now()}`,
+          timestamp: now,
+          type: "MANUAL",
+          message: `Pendência [SEM MANUT] RESOLVIDA (Chegada às ${data.resolvedReport.mechanicTime})`,
+          author: "GESTOR_MESA"
+        });
+      }
+      if (data.resolvedReport.fuelOrderTime) {
+        newLogs.push({
+          id: `log-dot-${Date.now()}`,
+          timestamp: now,
+          type: "MANUAL",
+          message: `Pendência [SEM DOT] RESOLVIDA (Chegada às ${data.resolvedReport.fuelOrderTime})`,
+          author: "GESTOR_MESA"
+        });
+      }
+      if (data.resolvedReport.authorizationTime) {
+        newLogs.push({
+          id: `log-release-${Date.now()}`,
+          timestamp: now,
+          type: "MANUAL",
+          message: `Pendência [SEM FOLHA] RESOLVIDA (Chegada às ${data.resolvedReport.authorizationTime})`,
+          author: "GESTOR_MESA"
+        });
+      }
+      if (data.resolvedReport.obstructedArea === false) {
+        newLogs.push({
+          id: `log-obst-${Date.now()}`,
+          timestamp: now,
+          type: "MANUAL",
+          message: `Pendência [Área Obst.] RESOLVIDA (Desobstrução no início)`,
+          author: "GESTOR_MESA"
+        });
+      }
+
+      if (newLogs.length > 0) {
+        updatedFlight.logs = [...(updatedFlight.logs || []), ...newLogs];
+      }
+    }
+
+    if (data?.flightUpdates || data?.resolvedReport) {
+      onUpdateFlights((prev) =>
+        prev.map((f) => (f.id === updatedFlight.id ? updatedFlight : f)),
+      );
+      upsertFlight(updatedFlight).catch((err) =>
+        console.error("Error saving resolved flight exceptions on start:", err),
+      );
+    }
+
     handleManualStart(
-      confirmStartModalFlight.id,
+      updatedFlight.id,
       { stopPropagation: () => {} } as React.MouseEvent,
       data?.startTime,
     );
+
+    const hasRes = data?.flightUpdates || data?.resolvedReport;
     addToast(
       "ABASTECIMENTO INICIADO",
-      `Voo ${confirmStartModalFlight.flightNumber} em abastecimento.`,
+      `Voo ${updatedFlight.flightNumber} em abastecimento${hasRes ? ' (pendências resolvidas)' : ''}.`,
       "success",
     );
     setConfirmStartModalFlight(null);
@@ -3835,7 +3916,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         </div>
                       </th>
                     )}
-                    {isColVisible("tab") && (
+                    {isColVisible("tab") && activeTab !== "DESIGNADOS" && (
                       <th
                         className={`px-1 py-1 sticky top-0 text-center z-50 grid-ops-header-th border-b border-l ${isDarkMode ? "bg-slate-950 border-slate-700/50 shadow-sm" : "bg-[#2D8E48] border-[#29824a] text-white shadow-none"} w-16`}
                       >
@@ -4528,7 +4609,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         {renderReportCell(row)}
 
                         {/* TAB COMMAND ACTION (INICIAR FOR DESIGNADOS, FINALIZAR FOR ABASTECENDO) */}
-                        {isColVisible("tab") && (
+                        {isColVisible("tab") && activeTab !== "DESIGNADOS" && (
                           <td
                             className={`px-1 py-1 border-y border-l ${getRowBgClass(row)} transition-all text-center align-middle`}
                           >
@@ -4962,7 +5043,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
                     <td
                       className={`px-1.5 text-center last:rounded-r-[4px] border-y border-l border-r ${getRowBgClass(row)} transition-all`}
                     >
-                      <div className="relative">
+                      <div className="flex items-center justify-center gap-1.5 relative">
+                        {activeTab === "DESIGNADOS" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleIntentStart(row, e);
+                            }}
+                            className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wider px-2 py-1.5 rounded shadow cursor-pointer active:scale-95 transition-all min-h-[28px]"
+                          >
+                            <Play size={10} className="mr-1 shrink-0" />
+                            Inicio
+                          </button>
+                        )}
                         <>
                           <button
                             onClick={(e) => {
@@ -5322,8 +5415,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
         ))}
       </div>
 
-      {selectedFlight && (
-        <FlightDetailsModal
+      {selectedFlight && activeTab === "DESIGNADOS" ? (
+        <DesignadosFlightDetailsModal
           flight={selectedFlight}
           onClose={() => setSelectedFlight(null)}
           onUpdate={syncFlight}
@@ -5331,7 +5424,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
           operators={getEligibleOperators(selectedFlight)}
           onOpenAssignSupport={(flight) => setAssignSupportModalFlight(flight)}
         />
-      )}
+      ) : selectedFlight ? (
+        <FlightDetailsModal
+          flight={selectedFlight}
+          onClose={() => setSelectedFlight(null)}
+          onUpdate={syncFlight}
+          vehicles={vehicles}
+          operators={getEligibleOperators(selectedFlight)}
+          onOpenAssignSupport={(flight) => setAssignSupportModalFlight(flight)}
+          onOpenAssign={(flight) => setAssignModalFlight(flight)}
+        />
+      ) : null}
 
       {reportInputFlight && (
         <FlightReportInputModal
@@ -5627,6 +5730,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         <ConfirmActionModal
           type="start"
           flightNumber={confirmStartModalFlight.flightNumber}
+          flight={confirmStartModalFlight}
           onConfirm={handleConfirmStart}
           onClose={() => setConfirmStartModalFlight(null)}
         />

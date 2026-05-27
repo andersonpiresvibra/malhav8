@@ -8,17 +8,16 @@ import { getCityName } from '../utils/destinos';
 import { getDestinos } from '../services/supabaseService';
 import { 
   Plane, X, MapPin, Clock, Hash, Anchor, AlertCircle, Globe, GripHorizontal,
-  Plus, FileText, CheckCircle, UserPlus, Users, Pen
+  Plus, FileText, CheckCircle, Trash2, ShieldAlert
 } from 'lucide-react';
 
-interface FlightDetailsModalProps {
+interface DesignadosFlightDetailsModalProps {
   flight: FlightData;
   onClose: () => void;
   onUpdate: (updatedFlight: FlightData) => void;
   vehicles: Vehicle[];
   operators: OperatorProfile[];
   onOpenAssignSupport?: (flight: FlightData) => void;
-  onOpenAssign?: (flight: FlightData) => void;
 }
 
 const abbreviateCityName = (cityName: string): string => {
@@ -68,21 +67,19 @@ const abbreviateCityName = (cityName: string): string => {
   return clean.toUpperCase();
 };
 
-export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({ 
+export const DesignadosFlightDetailsModal: React.FC<DesignadosFlightDetailsModalProps> = ({ 
   flight, 
   onClose, 
   onUpdate, 
   vehicles, 
   operators, 
-  onOpenAssignSupport,
-  onOpenAssign
+  onOpenAssignSupport 
 }) => {
   const { isDarkMode } = useTheme();
   const [localFlight, setLocalFlight] = useState<FlightData>(flight);
   
   const [aircrafts, setAircrafts] = useState<any[]>([]);
   const [destinosDB, setDestinosDB] = useState<any[]>([]);
-  
   useEffect(() => {
     const cached = localStorage.getItem('supabase_cache_aircrafts');
     if (cached) {
@@ -127,6 +124,11 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
   // Countdown States
   const [timeRemaining, setTimeRemaining] = useState<string>('--m');
   const [timeDelay, setTimeDelay] = useState<string>('--m');
+
+  // New Equipment Submodal States
+  const [showEquipModal, setShowEquipModal] = useState(false);
+  const [newEmpresa, setNewEmpresa] = useState('');
+  const [newNumEquip, setNewNumEquip] = useState('');
 
   // Sync effect
   useEffect(() => {
@@ -195,12 +197,16 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (showEquipModal) {
+          setShowEquipModal(false);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [showEquipModal, onClose]);
 
   const generateAuditLog = (field: string, oldValue: string | number | undefined, newValue: string | number | undefined): FlightLog => ({
     id: Date.now().toString(),
@@ -339,6 +345,147 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
     onUpdate(updated);
   };
 
+  const handleToggleMissingItem = (key: string) => {
+    const currentReport = localFlight.report || {};
+    const previousVal = !!(currentReport as any)[key];
+    const newVal = !previousVal;
+    
+    // If we click "Área Obst." (which will use obstructedArea), trigger the sub-modal immediately on activation
+    if (key === 'obstructedArea') {
+      const updatedReport = {
+        ...currentReport,
+        obstructedArea: newVal
+      };
+      const actionLabel = newVal ? 'ATIVADA' : 'RESOLVIDA';
+      const newLog = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'MANUAL' as const,
+        message: `Pendência [Área Obst.] ${actionLabel}`,
+        author: 'GESTOR_MESA'
+      };
+      const updated = {
+        ...localFlight,
+        report: updatedReport,
+        logs: [...(localFlight.logs || []), newLog]
+      };
+      setLocalFlight(updated);
+      onUpdate(updated);
+
+      if (newVal) {
+        setShowEquipModal(true);
+      }
+      return;
+    }
+
+    const updatedReport = {
+      ...currentReport,
+      [key]: newVal
+    };
+
+    const labelMap: Record<string, string> = {
+      missingCrew: 'SEM TRIP',
+      missingMaintenance: 'SEM MANUT',
+      missingDot: 'SEM DOT',
+      missingRelease: 'SEM FOLHA'
+    };
+
+    const itemLabel = labelMap[key] || key;
+    const actionLabel = newVal ? 'ATIVADA' : 'RESOLVIDA';
+    const newLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type: 'MANUAL' as const,
+      message: `Pendência [${itemLabel}] ${actionLabel}`,
+      author: 'GESTOR_MESA'
+    };
+
+    const updated = {
+      ...localFlight,
+      report: updatedReport,
+      logs: [...(localFlight.logs || []), newLog]
+    };
+
+    setLocalFlight(updated);
+    onUpdate(updated);
+  };
+
+  // Add Equipment to Obstructed Area list
+  const handleAddEquipment = () => {
+    if (!newEmpresa.trim() || !newNumEquip.trim()) return;
+
+    const currentReport = localFlight.report || {};
+    const currentList = (currentReport as any).obstructedEquipment || [];
+    
+    const newItem = {
+      id: Date.now().toString(),
+      empresa: newEmpresa.toUpperCase(),
+      numEquip: newNumEquip.toUpperCase()
+    };
+
+    const updatedList = [...currentList, newItem];
+    const updatedReport = {
+      ...currentReport,
+      obstructedArea: true, // Force to true if equipment exists
+      obstructedEquipment: updatedList
+    };
+
+    const newLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type: 'MANUAL' as const,
+      message: `Equipamento adicionado: ${newItem.empresa} - ${newItem.numEquip}`,
+      author: 'GESTOR_MESA'
+    };
+
+    const updated = {
+      ...localFlight,
+      report: updatedReport,
+      logs: [...(localFlight.logs || []), newLog]
+    };
+
+    setLocalFlight(updated);
+    onUpdate(updated);
+    
+    // Clear inputs
+    setNewEmpresa('');
+    setNewNumEquip('');
+  };
+
+  const handleRemoveEquipment = (id: string) => {
+    const currentReport = localFlight.report || {};
+    const currentList = (currentReport as any).obstructedEquipment || [];
+    const itemToRemove = currentList.find((x: any) => x.id === id);
+    if (!itemToRemove) return;
+
+    const updatedList = currentList.filter((x: any) => x.id !== id);
+    const updatedReport = {
+      ...currentReport,
+      obstructedEquipment: updatedList,
+      obstructedArea: updatedList.length > 0 // Turn off if empty
+    };
+
+    const newLog = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      type: 'MANUAL' as const,
+      message: `Equipamento removido: ${itemToRemove.empresa} - ${itemToRemove.numEquip}`,
+      author: 'GESTOR_MESA'
+    };
+
+    const updated = {
+      ...localFlight,
+      report: updatedReport,
+      logs: [...(localFlight.logs || []), newLog]
+    };
+
+    setLocalFlight(updated);
+    onUpdate(updated);
+  };
+
+  // List of active equipment
+  const activeEquipments = (localFlight.report as any)?.obstructedEquipment || [];
+
   return (
     <>
       {createPortal(
@@ -400,10 +547,10 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
                     </span>
                     <span className={`text-[9px] font-bold font-mono px-1 py-0.2 rounded border uppercase font-black ${
                       isDarkMode 
-                        ? 'bg-slate-950 border-slate-800 text-slate-400' 
+                        ? 'bg-slate-900 border-slate-800 text-slate-400' 
                         : 'bg-slate-100 border-slate-200 text-slate-600'
                     }`}>
-                      FILA
+                      DESIGNADO
                     </span>
                   </div>
                 </div>
@@ -441,7 +588,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
                   <div className={`h-px flex-1 ${isDarkMode ? 'bg-slate-850' : 'bg-slate-150'}`} />
                 </div>
 
-                {/* PRIMEIRA LINHA */}
+                {/* PRIMEIRA LINHA: Voo Saida, Icao, Cidade (Abreviado), Prefixo */}
                 <div className="grid grid-cols-4 gap-2">
                   {/* VOO SAÍDA */}
                   <div className="flex flex-col gap-1">
@@ -527,7 +674,7 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
                   </div>
                 </div>
 
-                {/* SEGUNDA LINHA */}
+                {/* SEGUNDA LINHA: Posição, ETD, Calço, Tem. Rest. */}
                 <div className="grid grid-cols-4 gap-2 pt-1 font-mono">
                   {/* POSIÇÃO */}
                   <div className="flex flex-col gap-1">
@@ -617,24 +764,63 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
                 </div>
               </div>
 
-              {/* SECTION 2: Espaço vazio com a legenda "Em edição" */}
+              {/* SECTION 2: Condições do voo - Report Ausências */}
               <div className="pt-2.5 space-y-2.5">
                 <div className="flex items-center gap-2">
                   <h3 className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-amber-400' : 'text-amber-700'}`}>
-                    Controle de Pendências
+                    Condições do voo - Report Ausências
                   </h3>
                   <div className={`h-px flex-1 ${isDarkMode ? 'bg-slate-850' : 'bg-slate-150'}`} />
                 </div>
 
-                <div className={`p-8 text-center rounded-lg border border-dashed flex flex-col items-center justify-center gap-2 ${
-                  isDarkMode ? 'bg-slate-900/20 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-450'
-                }`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isDarkMode ? 'bg-slate-900 text-slate-500' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Pen size={12} className="animate-pulse text-amber-500" />
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest">Em edição</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {/* CHECKS CONFIG */}
+                  {[
+                    { key: 'missingCrew', label: 'Trip', desc: 'Sem tripulação' },
+                    { key: 'missingMaintenance', label: 'Manut', desc: 'Sem Mecânica' },
+                    { key: 'missingDot', label: 'Dot', desc: 'Sem Ordem' },
+                    { key: 'missingRelease', label: 'Doc', desc: 'Sem Despacho' },
+                    { key: 'obstructedArea', label: 'Área Obst.', desc: 'Área com equipamentos' }
+                  ].map((item) => {
+                    const isChecked = !!(localFlight.report?.[item.key as keyof typeof localFlight.report]);
+
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => handleToggleMissingItem(item.key)}
+                        className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all active:scale-[0.97] hover:border-amber-500/50 ${
+                          isChecked
+                            ? 'bg-amber-500/10 border-amber-500/40 text-amber-650 dark:text-amber-400'
+                            : isDarkMode
+                            ? 'bg-slate-900/40 border-slate-800 text-slate-400'
+                            : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            readOnly
+                            className="rounded text-amber-500 border-slate-300 dark:border-slate-700 bg-transparent focus:ring-0 focus:ring-offset-0 w-3 h-3 pointer-events-none"
+                          />
+                          <span className="text-[10px] font-black uppercase tracking-wide truncate">{item.label}</span>
+                        </div>
+                        
+                        {item.key === 'obstructedArea' && isChecked && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowEquipModal(true);
+                            }}
+                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black font-mono text-[7.5px] px-1.5 py-0.5 rounded shrink-0 cursor-pointer active:scale-95 transition-all"
+                            title="Gerenciar equipamentos registrados"
+                          >
+                            {activeEquipments.length > 0 ? activeEquipments.length : '+'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -662,115 +848,160 @@ export const FlightDetailsModal: React.FC<FlightDetailsModalProps> = ({
               </div>
             </div>
 
-            {/* FOOTER: EQUIPE DESIGNADA & BOTÕES HABILITADOS */}
-            <div className={`p-4 border-t ${
-              isDarkMode ? 'bg-slate-950/80 border-slate-900' : 'bg-slate-50/80 border-slate-150'
+            {/* FOOTER */}
+            <div className={`px-4 py-3 flex gap-2 justify-end border-t ${
+              isDarkMode 
+                ? 'bg-slate-950/80 border-slate-850' 
+                : 'bg-slate-50 border-slate-150'
             }`}>
-              <div className="grid grid-cols-2 gap-3 mb-3.5">
-                {/* LÍDER DESIGNADO */}
-                <div className="flex flex-col gap-1.5 font-mono">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <UserPlus size={10} className="text-indigo-400" /> OPERADOR LÍDER
-                  </span>
-                  
-                  {localFlight.operator ? (
-                    <div 
-                      onClick={() => onOpenAssign && onOpenAssign(localFlight)}
-                      className={`flex items-center gap-2 rounded-lg border p-2 cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-505/5 transition-all transition-colors ${
-                        isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-200 hover:bg-slate-900' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black bg-indigo-500/15 text-indigo-400 font-mono">
-                        {localFlight.operator.charAt(0)}
-                      </div>
-                      <div className="truncate flex flex-col justify-center flex-1">
-                        <span className="text-[10px] uppercase font-black tracking-tight">{localFlight.operator}</span>
-                        <span className="text-[7px] font-mono font-bold tracking-widest opacity-60">
-                          {localFlight.fleet ? `FLUXO ${localFlight.fleet}` : 'S/ TRATOR'}
-                        </span>
-                      </div>
-                      <Pen size={10} className="text-slate-450 mr-1" />
-                    </div>
-                  ) : (
-                    <button 
-                      type="button"
-                      onClick={() => onOpenAssign && onOpenAssign(localFlight)}
-                      className={`h-11 border border-dashed rounded-lg flex flex-col items-center justify-center hover:bg-indigo-500/5 hover:border-indigo-500/30 transition-all select-none cursor-pointer ${
-                        isDarkMode ? 'bg-slate-900/20 border-slate-850 text-slate-500 hover:text-indigo-400' : 'bg-slate-50 border-slate-250 text-slate-600 hover:text-indigo-600'
-                      }`}
-                    >
-                      <UserPlus size={12} className="text-indigo-400 mb-0.5" />
-                      <span className="text-[7px] font-black tracking-widest uppercase">Designar Operador</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* AUXILIAR DE APOIO */}
-                <div className="flex flex-col gap-1.5 font-mono">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <Users size={10} className="text-emerald-500" /> APOIO AUXILIAR
-                  </span>
-
-                  {localFlight.supportOperator ? (
-                    <div 
-                      onClick={() => onOpenAssignSupport && onOpenAssignSupport(localFlight)}
-                      className={`flex items-center gap-2 rounded-lg border p-2 cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-505/5 transition-all transition-colors ${
-                        isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-200 hover:bg-slate-900' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black bg-emerald-500/15 text-emerald-400 font-mono">
-                        {localFlight.supportOperator.charAt(0)}
-                      </div>
-                      <div className="truncate flex flex-col justify-center flex-1">
-                        <span className="text-[10px] uppercase font-black tracking-tight">{localFlight.supportOperator}</span>
-                        <span className="text-[7px] font-mono font-bold tracking-widest opacity-60">CO-PILOTO</span>
-                      </div>
-                      <Pen size={10} className="text-slate-450 mr-1" />
-                    </div>
-                  ) : (
-                    <button 
-                      type="button"
-                      onClick={() => onOpenAssignSupport && onOpenAssignSupport(localFlight)}
-                      className={`h-11 border border-dashed rounded-lg flex flex-col items-center justify-center hover:bg-emerald-500/5 hover:border-emerald-500/30 transition-all select-none cursor-pointer ${
-                        isDarkMode ? 'bg-slate-900/20 border-slate-850 text-slate-500 hover:text-emerald-450' : 'bg-slate-50 border-slate-250 text-slate-600 hover:text-emerald-650'
-                      }`}
-                    >
-                      <Plus size={12} className="text-emerald-500 mb-0.5" />
-                      <span className="text-[7px] font-black tracking-widest uppercase">Vincular Apoio</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* BOTÕES DE CONFIRMAÇÃO DO MODAL */}
-              <div className="flex gap-2.5">
-                <button 
-                  type="button"
-                  onClick={onClose}
-                  className={`flex-1 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.01] active:scale-95 text-center ${
-                    isDarkMode 
-                      ? 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300' 
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => {
-                    onUpdate(localFlight);
-                    onClose();
-                  }}
-                  className="flex-1 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] transition-all hover:scale-[1.01] active:scale-95 shadow-[0_4px_12px_rgba(16,185,129,0.2)] text-center flex items-center justify-center gap-1"
-                >
-                  <CheckCircle size={11} />
-                  Concluído
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all hover:bg-slate-500/10 cursor-pointer ${
+                  isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-lg flex items-center justify-center shadow-lg hover:shadow-emerald-500/10 transition-all cursor-pointer"
+              >
+                Concluído
+              </button>
             </div>
           </motion.div>
         </div>,
         document.body
+      )}
+
+      {/* SUB-MODAL: REGISTRO DE EQUIPAMENTOS */}
+      {showEquipModal && (
+        <div className="fixed inset-0 pointer-events-auto bg-black/60 backdrop-blur-sm z-[9995] flex items-center justify-center">
+          <div className={`w-[380px] rounded-xl shadow-2xl border flex flex-col overflow-hidden max-h-[85vh] ${
+            isDarkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            {/* Header */}
+            <div className={`px-4 py-3 flex justify-between items-center border-b ${
+              isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="text-amber-500" size={16} />
+                <span className="text-xs font-black uppercase tracking-widest">Equipamentos - Área Obst.</span>
+              </div>
+              <button 
+                onClick={() => setShowEquipModal(false)}
+                className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-800/20 transition-all text-slate-400 hover:text-slate-100"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
+                Lista de Registro de Equipamentos
+              </span>
+
+              {activeEquipments.length === 0 ? (
+                <div className={`p-4 text-center rounded-lg border border-dashed ${
+                  isDarkMode ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'
+                } text-[11px]`}>
+                  Sem equipamentos registrados na área obstaculizada.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                  {activeEquipments.map((item: any) => (
+                    <div 
+                      key={item.id}
+                      className={`flex justify-between items-center px-3 py-2 rounded-lg border text-xs font-mono font-bold ${
+                        isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {item.empresa}
+                        </span>
+                        <span className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
+                          {item.numEquip}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEquipment(item.id)}
+                        className="p-1 hover:bg-rose-500/15 text-rose-500 hover:text-rose-450 rounded transition-all"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Form de Adicionar */}
+              <div className={`p-3 rounded-lg border space-y-3 ${
+                isDarkMode ? 'bg-slate-900/10 border-slate-850' : 'bg-slate-50 border-slate-100'
+              }`}>
+                <span className="text-[8.5px] font-black uppercase tracking-widest text-amber-500 block">
+                  CADASTRAR NOVO EQUIPAMENTO
+                </span>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Empresa</label>
+                    <input 
+                      value={newEmpresa}
+                      onChange={(e) => setNewEmpresa(e.target.value)}
+                      placeholder="Nome da Empresa"
+                      className={`text-xs px-2 py-1.5 border rounded font-bold font-mono outline-none ${
+                        isDarkMode 
+                          ? 'bg-slate-950 border-slate-850 text-white focus:border-amber-500' 
+                          : 'bg-white border-slate-200 text-slate-900 focus:border-amber-500'
+                      }`}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">N° equip.</label>
+                    <input 
+                      value={newNumEquip}
+                      onChange={(e) => setNewNumEquip(e.target.value)}
+                      placeholder="Ex: BCT1234"
+                      className={`text-xs px-2 py-1.5 border rounded font-bold font-mono outline-none ${
+                        isDarkMode 
+                          ? 'bg-slate-950 border-slate-850 text-white focus:border-amber-500' 
+                          : 'bg-white border-slate-200 text-slate-900 focus:border-amber-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddEquipment}
+                  className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[9px] font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                >
+                  <Plus size={11} /> ADICIONAR NA LISTA
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className={`px-4 py-3 flex justify-end border-t ${
+              isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <button 
+                onClick={() => setShowEquipModal(false)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
