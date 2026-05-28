@@ -346,12 +346,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!user) return; // Only sync if authenticated
     
-    const syncInterval = setInterval(() => {
-      if (isEditingRef.current) return;
+    const performSync = (force: boolean = false) => {
+      if (isEditingRef.current && !force) return;
       
       // Cooldown de 8 segundos após ação manual para evitar race conditions
       const timeSinceLastAction = Date.now() - lastManualActionRef.current;
-      if (timeSinceLastAction < 8000) {
+      if (timeSinceLastAction < 8000 && !force) {
         return;
       }
       
@@ -434,9 +434,19 @@ const App: React.FC = () => {
           console.error("Auto-sync failed:", e);
         }
       });
-    }, 10000); // 10 seconds auto-refresh Real-Time
+    };
+
+    const syncInterval = setInterval(() => performSync(false), 10000); // 10 seconds auto-refresh Real-Time
     
-    return () => clearInterval(syncInterval);
+    const handleForceRefresh = () => {
+      performSync(true);
+    };
+    window.addEventListener('supabase-force-refresh', handleForceRefresh);
+    
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('supabase-force-refresh', handleForceRefresh);
+    };
   }, [user, currentMeshDate]);
 
   useEffect(() => {
