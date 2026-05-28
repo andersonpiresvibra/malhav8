@@ -15,16 +15,28 @@ interface DashboardHeaderProps {
   setLtName: (name: string) => void;
   operators?: any[];
   onOpenLayoutPrefs?: () => void;
+  density: number;
+  setDensity: (val: number) => void;
+  temperature: number;
+  setTemperature: (val: number) => void;
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName, operators = [], onOpenLayoutPrefs }) => {
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName, operators = [], onOpenLayoutPrefs, density, setDensity, temperature, setTemperature }) => {
   const { signOut } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [editingField, setEditingField] = useState<'density' | 'temperature' | 'ltName' | null>(null);
-  const [densityN, setDensityN] = useState(0.803);
-  const [temperature, setTemperature] = useState(24.5);
+  const [densityN, setDensityN] = useState(String(density));
+  const [tempN, setTempN] = useState(String(temperature));
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setDensityN(String(density));
+  }, [density]);
+
+  useEffect(() => {
+    setTempN(String(temperature));
+  }, [temperature]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -217,17 +229,19 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                               onChange={(e) => {
                                   const val = e.target.value.replace(',', '.');
                                   if (!isNaN(Number(val)) || val === '' || val === '.') {
-                                      setDensityN(val as any);
+                                      setDensityN(val);
                                   }
                               }}
                               onBlur={() => {
                                   setEditingField(null);
-                                  setDensityN(Number(densityN) || 0.803);
+                                  const valNum = Number(densityN) || 0.803;
+                                  setDensity(valNum);
                               }}
                               onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
                                       setEditingField(null);
-                                      setDensityN(Number(densityN) || 0.803);
+                                      const valNum = Number(densityN) || 0.803;
+                                      setDensity(valNum);
                                   }
                               }}
                               autoFocus
@@ -238,7 +252,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                               className="font-mono font-bold text-white text-lg cursor-pointer hover:text-emerald-200 transition-colors w-16 inline-block"
                               onClick={() => setEditingField('density')}
                           >
-                              {Number(densityN).toFixed(3)}
+                              {density.toFixed(3)}
                           </span>
                       )}
                   </div>
@@ -248,21 +262,23 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                           <input 
                               type="text"
                               inputMode="decimal"
-                              value={temperature} 
+                              value={tempN} 
                               onChange={(e) => {
                                   const val = e.target.value.replace(',', '.');
                                   if (!isNaN(Number(val)) || val === '' || val === '-' || val === '.') {
-                                      setTemperature(val as any);
+                                      setTempN(val);
                                   }
                               }}
                               onBlur={() => {
                                   setEditingField(null);
-                                  setTemperature(Number(temperature) || 24.5);
+                                  const valNum = Number(tempN) || 24.5;
+                                  setTemperature(valNum);
                               }}
                               onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
                                       setEditingField(null);
-                                      setTemperature(Number(temperature) || 24.5);
+                                      const valNum = Number(tempN) || 24.5;
+                                      setTemperature(valNum);
                                   }
                               }}
                               autoFocus
@@ -273,7 +289,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
                               className="font-mono font-bold text-white text-lg cursor-pointer hover:text-emerald-200 transition-colors w-16 inline-block"
                               onClick={() => setEditingField('temperature')}
                           >
-                              {Number(temperature).toFixed(1)}°C
+                              {temperature.toFixed(1)}°C
                           </span>
                       )}
                   </div>

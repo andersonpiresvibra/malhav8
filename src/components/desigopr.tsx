@@ -49,13 +49,40 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, selectedOperatorId]);
 
+    const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+    const processedOperators = useMemo(() => {
+        return operators
+            .map(p => {
+                const dayEntry = p.workDays?.find(wd => wd.date === todayStr);
+                const isNotWorking = dayEntry && ['FOLGA', 'AT', 'AF', 'FÉRIAS', 'AFAST.', 'FOLG.'].includes(dayEntry.type);
+                const isOnSchedule = !isNotWorking;
+
+                // Only show scheduled working operators for today ("operadores do dia")
+                if (!dayEntry || !isOnSchedule) {
+                    return null;
+                }
+
+                let finalStatus = p.status || 'DISPONÍVEL';
+                if (finalStatus === 'ATIVO' || finalStatus === 'FOLGA' || finalStatus === 'DESCONECTADO') {
+                    finalStatus = 'DISPONÍVEL';
+                }
+
+                return {
+                    ...p,
+                    status: finalStatus
+                };
+            })
+            .filter(Boolean) as OperatorProfile[];
+    }, [operators, todayStr]);
+
     const categorizedOperators = useMemo(() => {
         return {
-            DISPONIVEIS: operators.filter(op => op.status === 'DISPONÍVEL'),
-            DESIGNADOS: operators.filter(op => op.status === 'DESIGNADO' || (op.status as any) === 'ALOCADO'),
-            OCUPADOS: operators.filter(op => op.status === 'OCUPADO' || op.status === 'ENCHIMENTO'),
+            DISPONIVEIS: processedOperators.filter(op => op.status === 'DISPONÍVEL'),
+            DESIGNADOS: processedOperators.filter(op => op.status === 'DESIGNADO' || (op.status as any) === 'ALOCADO'),
+            OCUPADOS: processedOperators.filter(op => op.status === 'OCUPADO' || op.status === 'ENCHIMENTO'),
         };
-    }, [operators]);
+    }, [processedOperators]);
 
     const currentList = categorizedOperators[activeTab];
 
@@ -68,9 +95,9 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
 
     return (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={handleClose}>
-            <div className="bg-[#0f172a] border border-slate-800 w-full max-w-md rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
                 
-                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-[#020617]">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500 border border-indigo-500/20"><UserPlus size={16} /></div>
                         <div>
@@ -100,7 +127,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
                     })}
                 </div>
 
-                <div className="flex-1 p-4 min-h-[300px] max-h-[400px] overflow-y-auto bg-[#0f172a]">
+                <div className="flex-1 p-4 min-h-[140px] max-h-[260px] overflow-y-auto bg-slate-900">
                     {currentList.length > 0 ? (
                         <div className="grid grid-cols-1 gap-2">
                             {currentList.map(op => {
@@ -129,7 +156,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({ isOpen, onClose, flight, veh
                     )}
                 </div>
 
-                <div className="p-4 border-t border-slate-800 bg-[#020617] flex gap-3">
+                <div className="p-4 border-t border-slate-800 bg-slate-950 flex gap-3">
                     <button onClick={handleClose} className="flex-1 py-3 rounded-lg border border-slate-750 text-slate-400 font-bold text-[10px] hover:bg-slate-800 transition-all uppercase font-mono">Cancelar</button>
                     <button onClick={handleConfirm} disabled={!selectedOperatorId} className="flex-1 py-3 rounded-lg bg-indigo-600 text-white font-black text-[10px] hover:bg-indigo-550 transition-all uppercase shadow-lg disabled:opacity-40">Confirmar Designação</button>
                 </div>

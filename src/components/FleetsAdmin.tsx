@@ -20,6 +20,7 @@ interface FleetAdminItem {
   fleetNumber: string;
   type: string;
   operado: string;
+  operatorId?: string;
   manufacturer: string;
   status: string;
   maxFlowRate: number;
@@ -28,6 +29,11 @@ interface FleetAdminItem {
   plate: string;
   atve: string;
   observations: string;
+  currentVolume?: number;
+  currentPosition?: string;
+  lastPosition?: string;
+  counterInitial?: number;
+  counterFinal?: number;
 }
 
 const COLUMNS: { key: FleetField; label: string; width: string; isVariable: boolean }[] = [
@@ -81,6 +87,7 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
           fleetNumber: v.fleet_number || '',
           type: v.type || 'SERVIDOR',
           operado: v.operadores_geral?.war_name || '--',
+          operatorId: v.operator_id || undefined,
           manufacturer: v.manufacturer || '',
           status: v.status || 'INATIVO',
           maxFlowRate: v.max_flow_rate || 0,
@@ -88,7 +95,12 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
           capacity: v.capacity || 0,
           plate: v.plate || '',
           atve: v.atve || '',
-          observations: v.observations || ''
+          observations: v.observations || '',
+          currentVolume: v.current_volume !== undefined ? v.current_volume : 0,
+          currentPosition: v.current_position || '',
+          lastPosition: v.last_position || '',
+          counterInitial: v.counter_initial || undefined,
+          counterFinal: v.counter_final || undefined
         } as FleetAdminItem));
         return [...newUnsaved, ...fetched];
       });
@@ -123,6 +135,15 @@ export const FleetsAdmin: React.FC<FleetsAdminProps> = ({ isDarkMode, globalVehi
       maxFlowRate: f.maxFlowRate,
       hasPlatform: f.hasPlatform === 'SIM',
       capacity: f.capacity,
+      currentVolume: f.currentVolume !== undefined ? f.currentVolume : 0,
+      currentPosition: f.currentPosition || '',
+      lastPosition: f.lastPosition || '',
+      operatorId: f.operatorId,
+      operatorName: f.operado !== '--' ? f.operado : undefined,
+      counterInitial: f.counterInitial,
+      counterFinal: f.counterFinal,
+      observations: f.observations || '',
+      isActive: f.status !== 'INATIVO'
     }));
     onUpdateGlobalVehicles(mappedVehicles);
   }, [fleets]);

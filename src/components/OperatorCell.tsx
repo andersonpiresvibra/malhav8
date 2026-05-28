@@ -6,23 +6,32 @@ interface OperatorCellProps {
   operatorName?: string;
   className?: string;
   showName?: boolean;
+  operators?: OperatorProfile[];
 }
 
 export const OperatorCell: React.FC<OperatorCellProps> = ({ 
   operatorName, 
   className = "",
-  showName = true 
+  showName = true,
+  operators
 }) => {
   const [imageError, setImageError] = useState(false);
   const [profile, setProfile] = useState<OperatorProfile | null>(null);
 
   useEffect(() => {
     if (operatorName) {
+      if (operators && operators.length > 0) {
+        const match = operators.find(p => p.warName === operatorName || p.fullName === operatorName || p.id === operatorName);
+        if (match) {
+          setProfile(match);
+          return;
+        }
+      }
       try {
         const cached = localStorage.getItem('supabase_cache_operators');
         if (cached) {
           const list: OperatorProfile[] = JSON.parse(cached);
-          const match = list.find(p => p.warName === operatorName || p.fullName === operatorName);
+          const match = list.find(p => p.warName === operatorName || p.fullName === operatorName || p.id === operatorName);
           if (match) {
             setProfile(match);
           }
@@ -31,7 +40,7 @@ export const OperatorCell: React.FC<OperatorCellProps> = ({
         console.error('Erro ao ler cache de operadores em OperatorCell:', e);
       }
     }
-  }, [operatorName]);
+  }, [operatorName, operators]);
 
   if (!operatorName) return <span className="text-slate-600 font-mono">---</span>;
   

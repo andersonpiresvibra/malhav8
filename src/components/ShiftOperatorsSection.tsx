@@ -522,7 +522,7 @@ export const ShiftOperatorsSection: React.FC<ShiftOperatorsSectionProps> = ({
                                                     'bg-slate-400'
                                                 }`} />
                                                 <span className="text-[10px] font-black uppercase tracking-widest">
-                                                    {mission ? (mission.status === 'ABASTECENDO' ? 'ENCHIMENTO' : 'DESIGNADO') : op.status}
+                                                    {mission ? (mission.status === 'ABASTECENDO' ? 'ABASTECENDO' : 'DESIGNADO') : op.status}
                                                 </span>
                                             </div>
                                         </td>

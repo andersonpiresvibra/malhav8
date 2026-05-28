@@ -7,6 +7,7 @@ import {
 import { Vehicle, VehicleType, VehicleStatus, OperatorProfile, FlightData } from '../types';
 import { VehicleActionModal } from './VehicleActionModal';
 import { OperatorCell } from './OperatorCell';
+import { updateVehicle } from '../services/supabaseService';
 
 interface OperatorManagerProps {
   density: number;
@@ -34,21 +35,35 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
 
   const syncedVehicles = useMemo(() => {
       return vehicles.map(v => {
+          const matchedOp = v.operatorId ? operators.find(op => op.id === v.operatorId) : null;
+          const resolvedOperatorName = matchedOp ? matchedOp.warName : v.operatorName;
+
           const activeFlight = flights.find(f => f.fleet === v.id && f.status !== 'FINALIZADO' && f.status !== 'CANCELADO');
           if (activeFlight) {
               return {
                   ...v,
-                  status: activeFlight.status === 'ABASTECENDO' ? 'ENCHIMENTO' : 'OCUPADO',
-                  operatorName: activeFlight.operator || v.operatorName,
+                  status: 'OCUPADO',
+                  operatorId: activeFlight.operatorId || v.operatorId,
+                  operatorName: activeFlight.operator || resolvedOperatorName,
                   currentPosition: activeFlight.positionId || v.currentPosition
               } as Vehicle;
           }
-          if (v.status === 'OCUPADO' || v.status === 'ENCHIMENTO') {
-               return { ...v, status: 'DISPONÍVEL' } as Vehicle;
+          
+          let status = v.status;
+          if (v.status === 'OCUPADO') {
+               status = 'DISPONÍVEL';
           }
-          return v;
+          if (v.type === 'SERVIDOR' && v.status === 'ENCHIMENTO') {
+               status = 'DISPONÍVEL';
+          }
+          
+          return {
+              ...v,
+              status,
+              operatorName: resolvedOperatorName
+          } as Vehicle;
       });
-  }, [vehicles, flights]);
+  }, [vehicles, flights, operators]);
 
   const filteredVehicles = useMemo(() => {
     return syncedVehicles.filter(v => {
@@ -85,9 +100,16 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
             }
             return 0;
         });
+    } else if (activeTab === 'CTA') {
+        // Classificação automática da esquerda para a direita (maior para menor volume)
+        sortableItems.sort((a, b) => {
+            const volA = a.currentVolume || 0;
+            const volB = b.currentVolume || 0;
+            return volB - volA;
+        });
     }
     return sortableItems;
-  }, [filteredVehicles, sortConfig]);
+  }, [filteredVehicles, sortConfig, activeTab]);
 
   const requestSort = (key: keyof Vehicle | string) => {
     let direction: 'ascending' | 'descending' = 'ascending';
@@ -97,8 +119,19 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
     setSortConfig({ key, direction });
   };
 
-  const handleUpdateVehicle = (updatedVehicle: Vehicle) => {
+  const handleUpdateVehicle = async (updatedVehicle: Vehicle) => {
     onUpdateVehicles(vehicles.map(v => v.id === updatedVehicle.id ? updatedVehicle : v));
+    try {
+        await updateVehicle(updatedVehicle.id, {
+            isActive: updatedVehicle.isActive,
+            status: updatedVehicle.status,
+            observations: updatedVehicle.observations,
+            currentVolume: updatedVehicle.currentVolume,
+            operatorName: updatedVehicle.operatorName,
+        });
+    } catch (e) {
+        console.error("Failed to update vehicle remotely:", e);
+    }
   };
 
   const getStatusColor = (status: VehicleStatus) => {
@@ -163,6 +196,23 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
     );
   };
 
+  const renderOperations = (vehicle: Vehicle) => {
+    const activeFlights = flights.filter(f => f.fleet === vehicle.id && (f.status === 'EM_ATENDIMENTO' || f.status === 'DESLOCAMENTO' || f.status === 'ABASTECENDO' || f.status === 'DESIGNADO'));
+    if (activeFlights.length === 0) return null;
+
+    return (
+        <div className="mt-3 space-y-1">
+            <span className="text-[10px] uppercase font-black tracking-widest text-slate-500 block mb-1">Operações Ativas</span>
+            {activeFlights.map(f => (
+                <div key={f.id} className="bg-slate-950 px-2 py-1.5 border border-slate-800 rounded flex justify-between items-center text-[9px] font-mono shadow-sm">
+                    <span className="text-white font-bold">{f.flightNumber} <span className="text-indigo-400">({f.aircraft})</span></span>
+                    <span className="text-slate-400">{f.positionId || f.parkingState}</span>
+                </div>
+            ))}
+        </div>
+    );
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-slate-950 overflow-hidden relative">
       <VehicleActionModal 
@@ -178,7 +228,7 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
           <div className="flex items-center gap-6">
             <h2 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-2"><Truck className="text-amber-500" size={24} /> MONITOR FROTAS</h2>
             <div className="flex items-center gap-1 bg-slate-950/50 p-1 rounded-md border border-slate-800/50">
-              <button onClick={() => setActiveTab('SERVIDOR')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'SERVIDOR' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500 hover:text-slate-300'}`}>SERVIDORES</button>
+              <button onClick={() => setActiveTab('SERVIDOR')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'SERVIDOR' ? 'bg-white text-slate-950 font-black' : 'text-slate-500 hover:text-slate-300'}`}>SERVIDORES</button>
               <button onClick={() => setActiveTab('CTA')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'CTA' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500 hover:text-slate-300'}`}>CTAs</button>
             </div>
           </div>
@@ -201,7 +251,7 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
               <option value="DISPONÍVEL">DISPONÍVEL</option>
               <option value="OCUPADO">OCUPADO</option>
               <option value="INATIVO">INATIVO</option>
-              <option value="ENCHIMENTO">ENCHIMENTO</option>
+              {activeTab === 'CTA' && <option value="ENCHIMENTO">ENCHIMENTO</option>}
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -220,10 +270,10 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
             {sortedVehicles.map((vehicle) => {
               if (activeTab === 'CTA') {
                 return (
-                  <div key={vehicle.id} onClick={() => setSelectedVehicle(vehicle)} className="bg-[#0a0f1d] border border-slate-800 rounded-md p-4 flex flex-col justify-between hover:border-amber-500/30 cursor-pointer shadow-xl">
+                  <div key={vehicle.id} onClick={() => setSelectedVehicle(vehicle)} className="bg-slate-900 border border-slate-800 rounded-md p-4 flex flex-col justify-between hover:border-amber-500/30 cursor-pointer shadow-xl">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <span className="text-3xl font-black text-white font-mono tracking-tighter leading-none">{vehicle.id}</span>
+                        <span className="text-3xl font-black text-amber-500 font-mono tracking-tighter leading-none">{vehicle.id}</span>
                         <p className="text-xs font-bold text-blue-400 font-mono mt-1">{getCtaPosition(vehicle)}</p>
                       </div>
                       <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${getStatusColor(vehicle.status)}`}>{vehicle.status}</div>
@@ -235,34 +285,45 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                             <div className="flex-1 flex flex-col justify-between gap-2">
                                 <div className="bg-slate-900/40 rounded-lg p-2 border border-slate-800/60">
                                     <div className="text-[9px] font-black text-slate-400 uppercase mb-1 text-center font-mono">LITROS</div>
-                                    <div className="flex justify-between text-xs">
-                                        <div className="flex flex-col"><span className="text-[7px] text-slate-500 uppercase font-black">Contável</span><span className="font-mono text-white">{(vehicle.currentVolume || 0).toLocaleString()}</span></div>
-                                        <div className="flex flex-col text-right"><span className="text-[7px] text-slate-500 uppercase font-black">Real</span><span className="font-mono text-emerald-400">{(Math.max(0, (vehicle.currentVolume || 0) - 300)).toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-xs px-1">
+                                        <div className="flex flex-col"><span className="text-[7px] text-slate-500 uppercase font-black">Contável</span><span className="font-mono text-white font-bold">{(vehicle.currentVolume || 0).toLocaleString()}</span></div>
+                                        <div className="flex flex-col text-right"><span className="text-[7px] text-slate-500 uppercase font-black">Real</span><span className="font-mono text-emerald-400 font-bold">{(Math.max(0, (vehicle.currentVolume || 0) - 300)).toLocaleString()}</span></div>
                                     </div>
                                 </div>
                                 <div className="bg-slate-900/40 rounded-lg p-2 border border-slate-800/60">
                                     <div className="text-[9px] font-black text-slate-400 uppercase mb-1 text-center font-mono">KILOS</div>
-                                    <div className="flex justify-between text-xs">
-                                        <div className="flex flex-col"><span className="text-[7px] text-slate-500 uppercase font-black">Contável</span><span className="font-mono text-amber-500">{((vehicle.currentVolume || 0) * density).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
-                                        <div className="flex flex-col text-right"><span className="text-[7px] text-slate-500 uppercase font-black">Real</span><span className="font-mono text-amber-400">{(Math.max(0, (vehicle.currentVolume || 0) - 300) * density).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
+                                    <div className="flex justify-between text-xs px-1">
+                                        <div className="flex flex-col"><span className="text-[7px] text-slate-500 uppercase font-black">Contável</span><span className="font-mono text-amber-500 font-bold">{Math.round((vehicle.currentVolume || 0) * density).toLocaleString()}</span></div>
+                                        <div className="flex flex-col text-right"><span className="text-[7px] text-slate-500 uppercase font-black">Real</span><span className="font-mono text-amber-400 font-bold">{Math.round(Math.max(0, (vehicle.currentVolume || 0) - 300) * density).toLocaleString()}</span></div>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900/40 rounded-lg p-2 border border-slate-800/60">
+                                    <div className="text-[9px] font-black text-slate-400 uppercase mb-1 text-center font-mono">LIBRAS</div>
+                                    <div className="flex justify-between text-xs px-1">
+                                        <div className="flex flex-col"><span className="text-[7px] text-slate-500 uppercase font-black">Contável</span><span className="font-mono text-amber-500 font-bold">{Math.round((vehicle.currentVolume || 0) * density * 2.20462).toLocaleString()}</span></div>
+                                        <div className="flex flex-col text-right"><span className="text-[7px] text-slate-500 uppercase font-black">Real</span><span className="font-mono text-amber-400 font-bold">{Math.round(Math.max(0, (vehicle.currentVolume || 0) - 300) * density * 2.20462).toLocaleString()}</span></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
+                    <div className="mb-4">
+                        {renderOperations(vehicle)}
+                    </div>
+
                     <div className="flex justify-between items-center pt-3 border-t border-slate-800">
-                      <OperatorCell operatorName={vehicle.operatorName} />
+                      <OperatorCell operatorName={vehicle.operatorName} operators={operators} />
                       <button className={`p-2 rounded-md ${vehicle.isActive === false ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}><Power size={14} /></button>
                     </div>
                   </div>
                 )
               } else {
                 return (
-                  <div key={vehicle.id} onClick={() => { setSelectedVehicle(vehicle); setIsStatusModalOnly(false); }} className="bg-[#0a0f1d] border border-slate-800 rounded-md flex flex-col justify-between hover:border-amber-500/30 cursor-pointer shadow-xl">
+                  <div key={vehicle.id} onClick={() => { setSelectedVehicle(vehicle); setIsStatusModalOnly(false); }} className="bg-slate-900 border border-slate-800 rounded-md flex flex-col justify-between hover:border-amber-500/30 cursor-pointer shadow-xl">
                     <div className="flex justify-between items-start p-4">
                       <div>
-                        <span className="text-3xl font-black text-amber-500 font-mono tracking-tighter leading-none">{vehicle.id}</span>
+                        <span className="text-3xl font-black text-white font-mono tracking-tighter leading-none">{vehicle.id}</span>
                         <p className="text-xs font-bold text-slate-500 font-sans mt-1">{vehicle.manufacturer}</p>
                       </div>
                       <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${getStatusColor(vehicle.status)}`}>{vehicle.status}</div>
@@ -275,7 +336,7 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                         </div>
                       ) : vehicle.operatorName ? (
                         <div className="flex items-center gap-3 w-full justify-start">
-                            <OperatorCell operatorName={vehicle.operatorName} />
+                            <OperatorCell operatorName={vehicle.operatorName} operators={operators} />
                             <span className="text-[10px] font-mono text-blue-400">| {vehicle.currentPosition || 'PÁTIO'}</span>
                         </div>
                       ) : (
@@ -283,6 +344,10 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                           <MousePointer2 size={16} className="text-slate-600 mx-auto mb-1"/><span className="text-[10px] font-black text-slate-600">AGUARDANDO</span>
                         </div>
                       )}
+                    </div>
+
+                    <div className="px-4 pb-2">
+                        {renderOperations(vehicle)}
                     </div>
 
                     <div className="grid grid-cols-2">
@@ -295,16 +360,17 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
             })}
           </div>
         ) : (
-          <div className="overflow-auto flex-1 bg-[#020617] rounded-xl border border-slate-900">
+          <div className="overflow-auto flex-1 bg-slate-950 rounded-xl border border-slate-800">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="sticky top-0 bg-[#0a0f1d] border-b border-slate-800">
+              <thead className="sticky top-0 bg-slate-900 border-b border-slate-800">
                 <tr>
                   <th className="px-4 py-3 font-mono text-slate-500 font-bold uppercase cursor-pointer" onClick={() => requestSort('id')}>Frota</th>
                   <th className="px-4 py-3 text-slate-500 font-bold uppercase cursor-pointer" onClick={() => requestSort('manufacturer')}>Fabricante</th>
                   <th className="px-4 py-3 text-slate-500 font-bold uppercase cursor-pointer" onClick={() => requestSort('operatorName')}>Operador</th>
                   <th className="px-4 py-3 text-slate-500 font-bold uppercase cursor-pointer" onClick={() => requestSort('currentPosition')}>Posição</th>
-                  {activeTab === 'CTA' && <th className="px-4 py-3 text-slate-500 font-bold uppercase text-right">V. Atual (L)</th>}
-                  {activeTab === 'CTA' && <th className="px-4 py-3 text-slate-500 font-bold uppercase text-right">V. Real (L)</th>}
+                  {activeTab === 'CTA' && <th className="px-4 py-3 text-slate-500 font-bold uppercase text-right font-mono">V. Litros</th>}
+                  {activeTab === 'CTA' && <th className="px-4 py-3 text-slate-500 font-bold uppercase text-right font-mono">V. kg.</th>}
+                  {activeTab === 'CTA' && <th className="px-4 py-3 text-slate-500 font-bold uppercase text-right font-mono">V. Libras</th>}
                   <th className="px-4 py-3 text-slate-500 font-bold text-right">Vazão Máxima</th>
                   <th className="px-4 py-3 text-slate-500 font-bold text-center">Status</th>
                   <th className="px-4 py-3 text-slate-500 font-bold text-center">Ação</th>
@@ -315,10 +381,11 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                   <tr key={v.id} onClick={() => { setSelectedVehicle(v); setIsStatusModalOnly(false); }} className="border-b border-slate-800/40 hover:bg-slate-800/20 cursor-pointer">
                     <td className="px-4 py-3 font-mono font-black text-white text-sm">{v.id}</td>
                     <td className="px-4 py-3 text-slate-400 font-bold">{v.manufacturer}</td>
-                    <td className="px-4 py-3"><OperatorCell operatorName={v.operatorName} /></td>
+                    <td className="px-4 py-3"><OperatorCell operatorName={v.operatorName} operators={operators} /></td>
                     <td className="px-4 py-3 font-mono text-blue-400 font-bold">{v.currentPosition || '--'}</td>
-                    {activeTab === 'CTA' && <td className="px-4 py-3 font-mono text-right text-white">{v.currentVolume?.toLocaleString()}</td>}
-                    {activeTab === 'CTA' && <td className="px-4 py-3 font-mono text-right text-emerald-400 font-bold">{(Math.max(0, (v.currentVolume || 0) - 300)).toLocaleString()}</td>}
+                    {activeTab === 'CTA' && <td className="px-4 py-3 font-mono text-right text-white">{(v.currentVolume || 0).toLocaleString()}</td>}
+                    {activeTab === 'CTA' && <td className="px-4 py-3 font-mono text-right text-amber-500 font-bold">{Math.round((v.currentVolume || 0) * density).toLocaleString()}</td>}
+                    {activeTab === 'CTA' && <td className="px-4 py-3 font-mono text-right text-amber-400 font-bold">{Math.round((v.currentVolume || 0) * density * 2.20462).toLocaleString()}</td>}
                     <td className="px-4 py-3 font-mono text-right text-slate-300 font-bold">{v.maxFlowRate} L/min</td>
                     <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${getStatusColor(v.status)}`}>{v.status}</span></td>
                     <td className="px-4 py-3 text-center"><button onClick={(e) => { e.stopPropagation(); setSelectedVehicle(v); setIsStatusModalOnly(true); }} className="p-1 px-2 text-[10px] bg-slate-800 font-bold rounded-md hover:bg-slate-700 text-slate-350"><Power size={12}/></button></td>

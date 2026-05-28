@@ -55,7 +55,7 @@ export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ vehicle,
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-[#0a0f1d] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-slate-800">
           <div className="flex items-center gap-4">
             <span className="text-3xl font-black text-amber-500 font-mono">{vehicle.id}</span>
@@ -119,7 +119,7 @@ export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ vehicle,
 
       {isDeactivationModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] shadow-2xl" onClick={() => setIsDeactivationModalOpen(false)}>
-            <div className="bg-[#0a0f1d] border border-red-500/40 rounded-xl p-6 w-96 space-y-4 animate-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-slate-900 border border-red-500/40 rounded-xl p-6 w-96 space-y-4 animate-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
                 <h3 className='text-sm font-black text-red-400 uppercase tracking-wider font-mono'>Selecione o Motivo</h3>
                 <select onChange={(e) => setDeactivationReason(e.target.value)} className='w-full bg-slate-900 border border-slate-800 p-2.5 rounded-lg text-white font-mono text-xs'>
                     <option value="Manutenção preventiva">Manutenção Preventiva</option>
@@ -135,7 +135,7 @@ export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ vehicle,
 
       {isActivationModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] shadow-2xl" onClick={() => setIsActivationModalOpen(false)}>
-            <div className="bg-[#0a0f1d] border border-emerald-500/40 rounded-xl p-6 w-96 space-y-4 animate-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-6 w-96 space-y-4 animate-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
                 <h3 className='text-sm font-black text-emerald-400 uppercase tracking-wider font-mono'>Responsável pela Liberação</h3>
                 <input type="text" placeholder='Nome do Engenheiro/Técnico...' onChange={(e) => setActivationReason(e.target.value)} className='w-full bg-slate-900 border border-slate-800 p-2.5 rounded-lg text-white font-mono text-xs' />
                 <button onClick={handleActivate} className='w-full bg-emerald-500 text-slate-950 p-3 rounded-lg font-bold hover:bg-emerald-450 tracking-wider text-xs font-black uppercase'>REATIVAR CABINE</button>

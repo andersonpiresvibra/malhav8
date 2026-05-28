@@ -145,6 +145,9 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
       maxFlowRate: v.max_flow_rate || 1000,
       hasPlatform: v.has_platform,
       capacity: v.capacity,
+      currentVolume: v.current_volume !== undefined ? v.current_volume : 0,
+      currentPosition: v.current_position || '',
+      lastPosition: v.last_position || '',
       counterInitial: v.counter_initial,
       counterFinal: v.counter_final,
       isActive: v.status !== 'INATIVO',
@@ -191,7 +194,12 @@ export const updateVehicleOperator = async (vehicleFleetNumber: string | null, o
       if (vehicle) {
         await supabase.from('frotas').update({ operator_id: null }).eq('id', vehicle.id);
       } else {
-        await supabase.from('frotas').update({ operator_id: null }).eq('id', vehicleFleetNumber); // Fallback caso venha ID direto
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(vehicleFleetNumber);
+        if (isUuid) {
+          await supabase.from('frotas').update({ operator_id: null }).eq('id', vehicleFleetNumber);
+        } else {
+          await supabase.from('frotas').update({ operator_id: null }).eq('fleet_number', cleanVehicleId);
+        }
       }
       return;
   }
@@ -209,9 +217,60 @@ export const updateVehicleOperator = async (vehicleFleetNumber: string | null, o
       await supabase.from('frotas').update({ operator_id: operatorId }).eq('id', vehicle.id);
     } else {
       // Fallback
-      await supabase.from('frotas').update({ operator_id: operatorId }).eq('id', vehicleFleetNumber);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(vehicleFleetNumber);
+      if (isUuid) {
+        await supabase.from('frotas').update({ operator_id: operatorId }).eq('id', vehicleFleetNumber);
+      } else {
+        await supabase.from('frotas').update({ operator_id: operatorId }).eq('fleet_number', cleanVehicleId);
+      }
     }
   }
+};
+
+export const updateVehicle = async (vehicleId: string, updates: any) => {
+  if (!isSupabaseConfigured()) return;
+  
+  // Extrai o ID limpo se vier no formato SRV-XXX ou CTA-XXX
+  const cleanVehicleId = vehicleId.replace('SRV-', '').replace('CTA-', '');
+  let idToUpdate = vehicleId;
+
+  if (vehiclesCache && vehiclesCache.length > 0) {
+     const vehicle = vehiclesCache.find(v => v.fleetNumber === cleanVehicleId || v.id === vehicleId);
+     if (vehicle) idToUpdate = vehicle.id;
+  }
+
+  // Prepara os campos para a tabela do DB:
+  const dbUpdates: any = {};
+  if ('isActive' in updates) dbUpdates.status = updates.isActive ? 'DISPONÍVEL' : 'INATIVO';
+  if ('status' in updates) dbUpdates.status = updates.status;
+  if ('observations' in updates) dbUpdates.observations = updates.observations;
+  if ('currentVolume' in updates) dbUpdates.current_volume = updates.currentVolume;
+  if ('currentPosition' in updates) dbUpdates.current_position = updates.currentPosition;
+  if ('lastPosition' in updates) dbUpdates.last_position = updates.lastPosition;
+  
+  if ('operatorId' in updates) {
+    dbUpdates.operator_id = (updates.operatorId === null || updates.operatorId === undefined || updates.operatorId === '') ? null : updates.operatorId;
+  } else if ('operatorName' in updates) {
+    if (updates.operatorName === null || updates.operatorName === undefined || updates.operatorName === '') {
+      dbUpdates.operator_id = null;
+    } else {
+      const match = operatorsCache.find(o => o.warName === updates.operatorName || o.id === updates.operatorName);
+      if (match) {
+        dbUpdates.operator_id = match.id;
+      }
+    }
+  }
+  
+  let query = supabase.from('frotas').update(dbUpdates);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idToUpdate);
+  if (isUuid) {
+    query = query.eq('id', idToUpdate);
+  } else {
+    query = query.eq('fleet_number', cleanVehicleId);
+  }
+  
+  const { error } = await query;
+  if (error) console.error("Error updating vehicle in db:", error);
 };
 
 export const getOperators = async (): Promise<OperatorProfile[]> => {

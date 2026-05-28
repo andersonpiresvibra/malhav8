@@ -21,6 +21,7 @@ import { AircraftsAdmin } from './components/AircraftsAdmin';
 import { AirlinesAdmin } from './components/AirlinesAdmin';
 import { MalhaRaizAdmin } from './components/MalhaRaizAdmin';
 import { Aerodromo } from './components/Aerodromo';
+import { OperatorManager } from './components/OperatorManager';
 import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './constants/aerodromoConfig';
 
 import { GridOps } from './components/GridOps';
@@ -218,6 +219,26 @@ const App: React.FC = () => {
     return [];
   });
 
+  const [sessionDensity, setSessionDensity] = useState(() => {
+    const cached = localStorage.getItem('session_density');
+    return cached ? Number(cached) : 0.803;
+  });
+
+  const [sessionTemperature, setSessionTemperature] = useState(() => {
+    const cached = localStorage.getItem('session_temp');
+    return cached ? Number(cached) : 24.5;
+  });
+
+  const updateDensity = useCallback((val: number) => {
+    setSessionDensity(val);
+    localStorage.setItem('session_density', String(val));
+  }, []);
+
+  const updateTemperature = useCallback((val: number) => {
+    setSessionTemperature(val);
+    localStorage.setItem('session_temp', String(val));
+  }, []);
+
   const [globalVehicles, setGlobalVehicles] = useState<Vehicle[]>([]);
   const [globalOperators, setGlobalOperators] = useState<OperatorProfile[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -254,13 +275,21 @@ const App: React.FC = () => {
           getAerodromoConfig()
         ]);
         
-        if (vehicles && vehicles.length > 0) {
-          setGlobalVehicles(vehicles);
+        let enrichedVehicles = vehicles || [];
+        if (vehicles && vehicles.length > 0 && operators && operators.length > 0) {
+          enrichedVehicles = vehicles.map(v => {
+            const op = operators.find(o => o.id === v.operatorId);
+            return { ...v, operatorName: op ? op.warName : undefined };
+          });
+        }
+
+        if (enrichedVehicles && enrichedVehicles.length > 0) {
+          setGlobalVehicles(enrichedVehicles);
         }
 
         if (operators && operators.length > 0) {
           const mappedOperators = operators.map(op => {
-             const assignedVeh = vehicles?.find(v => v.operatorId === op.id);
+             const assignedVeh = enrichedVehicles?.find(v => v.operatorId === op.id);
              return { ...op, assignedVehicle: assignedVeh ? `${assignedVeh.type === 'CTA' ? 'CTA' : 'SRV'}-${assignedVeh.id}` : undefined };
           });
           setGlobalOperators(mappedOperators);
@@ -376,9 +405,17 @@ const App: React.FC = () => {
             });
           }
           
+          let enrichedVehicles = vehicles || [];
+          if (vehicles && vehicles.length > 0 && operators && operators.length > 0) {
+            enrichedVehicles = vehicles.map(v => {
+              const op = operators.find(o => o.id === v.operatorId);
+              return { ...v, operatorName: op ? op.warName : undefined };
+            });
+          }
+
           if (operators && operators.length > 0) {
             const mappedOperators = operators.map(op => {
-               const assignedVeh = vehicles?.find(v => v.operatorId === op.id);
+               const assignedVeh = enrichedVehicles?.find(v => v.operatorId === op.id);
                return { ...op, assignedVehicle: assignedVeh ? `${assignedVeh.type === 'CTA' ? 'CTA' : 'SRV'}-${assignedVeh.id}` : undefined };
             });
             setGlobalOperators(prev => {
@@ -387,10 +424,10 @@ const App: React.FC = () => {
             });
           }
 
-          if (vehicles && vehicles.length > 0) {
+          if (enrichedVehicles && enrichedVehicles.length > 0) {
             setGlobalVehicles(prev => {
-              const isDifferent = JSON.stringify(prev) !== JSON.stringify(vehicles);
-              return isDifferent ? vehicles : prev;
+              const isDifferent = JSON.stringify(prev) !== JSON.stringify(enrichedVehicles);
+              return isDifferent ? enrichedVehicles : prev;
             });
           }
         } catch (e) {
@@ -803,6 +840,10 @@ const App: React.FC = () => {
         setLtName={setLtName}
         operators={globalOperators}
         onOpenLayoutPrefs={() => setLayoutModalOpen(true)}
+        density={sessionDensity}
+        setDensity={updateDensity}
+        temperature={sessionTemperature}
+        setTemperature={updateTemperature}
       />
 
       {supabaseError && (
@@ -1031,6 +1072,15 @@ const App: React.FC = () => {
                 )}
                 {view === 'REPORTS' && (
                   <ReportsView flights={globalFlights} initialFlight={targetReportFlight} />
+                )}
+                {view === 'FLEET' && (
+                  <OperatorManager
+                    density={sessionDensity}
+                    vehicles={globalVehicles}
+                    onUpdateVehicles={setGlobalVehicles}
+                    operators={globalOperators}
+                    flights={globalFlights}
+                  />
                 )}
                 {view === 'OPERATORS_ADMIN' && (
                   <OperatorsAdmin 
