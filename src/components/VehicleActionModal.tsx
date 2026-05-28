@@ -76,7 +76,18 @@ export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ vehicle,
                 <div className="grid grid-cols-3 gap-4">
                     <div className='bg-slate-900 p-2 rounded-lg text-center'>
                         <label className="text-[10px] text-slate-550 font-bold uppercase font-mono">Vol. (Litros)</label>
-                        <input type="text" value={currentVolume} onChange={handleVolumeChange} className="w-full bg-transparent text-center text-lg font-mono text-white outline-none border-b border-slate-850 focus:border-amber-500" />
+                        <input 
+                          type="text" 
+                          value={currentVolume} 
+                          onChange={handleVolumeChange} 
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSave();
+                            }
+                          }}
+                          className="w-full bg-transparent text-center text-lg font-mono text-white outline-none border-b border-slate-850 focus:border-amber-500" 
+                        />
                     </div>
                     <div className='bg-slate-900 p-2 rounded-lg text-center'>
                         <p className="text-[10px] text-slate-550 font-bold uppercase font-mono">Vol. Kg</p>
@@ -112,7 +123,7 @@ export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ vehicle,
         {!showStatusOnly && (
           <div className="flex gap-3 justify-end p-4 bg-slate-950/50 border-t border-slate-800 rounded-b-2xl">
               <button onClick={onClose} className="flex-1 bg-slate-800 text-slate-400 p-3 rounded-lg text-xs font-black uppercase tracking-widest">Cancelar</button>
-              <button onClick={handleSave} className="flex-1 bg-emerald-500 text-slate-950 hover:bg-emerald-400 p-3 rounded-lg text-xs font-black uppercase tracking-widest shadow-md">Salvar</button>
+              <button onClick={handleSave} className="flex-1 bg-emerald-500 text-slate-950 hover:bg-emerald-400 p-3 rounded-lg text-xs font-black uppercase tracking-widest shadow-md">Concluido</button>
           </div>
         )}
       </div>

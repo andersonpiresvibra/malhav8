@@ -554,8 +554,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const getRowBgClass = (row: FlightData) => {
     if (row.id === clickedRowId) {
       return isDarkMode
-        ? "border-emerald-500/80 bg-emerald-900/60"
-        : "border-emerald-400 bg-emerald-300";
+        ? "!border-emerald-500/80 !bg-[#052312] !text-white"
+        : "!border-emerald-400 !bg-emerald-100/80 !text-slate-900";
     }
 
     if (isFlightPausedByMissingRep(row)) {
@@ -1193,6 +1193,12 @@ export const GridOps: React.FC<GridOpsProps> = ({
     useState<FlightData | null>(null);
   const [confirmFinishModalFlight, setConfirmFinishModalFlight] =
     useState<FlightData | null>(null);
+  const [ctaFinishVolumeModal, setCtaFinishVolumeModal] = useState<{
+    flight: FlightData;
+    vehicleId: string;
+    delayJustification?: string;
+  } | null>(null);
+  const [ctaNewVolume, setCtaNewVolume] = useState<number>(0);
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
 
   const isEditingAny = useMemo(() => {
@@ -1214,7 +1220,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
       confirmStartModalFlight ||
       missingPositionModalFlight ||
       confirmRemoveOperatorFlight ||
-      confirmFinishModalFlight
+      confirmFinishModalFlight ||
+      ctaFinishVolumeModal
     );
   }, [
     editingCell,
@@ -1235,6 +1242,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     missingPositionModalFlight,
     confirmRemoveOperatorFlight,
     confirmFinishModalFlight,
+    ctaFinishVolumeModal,
   ]);
 
   useEffect(() => {
@@ -2208,7 +2216,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
   };
 
-  const handleManualFinish = (flight: FlightData, e: React.MouseEvent) => {
+  const handleManualFinish = (flight: FlightData, e: React.MouseEvent, volumeAlreadySaved: boolean = false) => {
     e.stopPropagation();
     const minutesToETD = getMinutesDiff(flight.etd, flight.date);
     if (minutesToETD < 0) {
@@ -2217,7 +2225,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       setDelayReasonDetail("");
       return;
     }
-    confirmFinish(flight.id, flight.flightNumber);
+    confirmFinish(flight.id, flight.flightNumber, undefined, volumeAlreadySaved);
   };
 
   const handleCancelFlight = (flight: FlightData, e: React.MouseEvent) => {
@@ -2317,14 +2325,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
     setOpenMenuId(null);
   };
 
-  const confirmFinish = (
-    id: string,
-    flightNumber: string,
-    delayJustification?: string,
-  ) => {
+  const executeFinalize = (flight: FlightData, delayJustification?: string) => {
     let newLog: FlightLog;
-    const flight = flights.find((f) => f.id === id);
-
     if (delayJustification) {
       newLog = createNewLog(
         "ATRASO",
@@ -2339,12 +2341,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
       );
     }
 
-    if (flight) {
-      logAudit("FINISH_FLIGHT", flight, "status", flight.status, "FINALIZADO", {
-        delayJustification,
-        hasDelay: !!delayJustification,
-      });
-    }
+    logAudit("FINISH_FLIGHT", flight, "status", flight.status, "FINALIZADO", {
+      delayJustification,
+      hasDelay: !!delayJustification,
+    });
 
     const updated = {
       ...flight,
@@ -2354,17 +2354,69 @@ export const GridOps: React.FC<GridOpsProps> = ({
       logs: [...(flight.logs || []), newLog],
     };
 
-    onUpdateFlights((prev) => prev.map((f) => (f.id === id ? updated : f)));
+    onUpdateFlights((prev) => prev.map((f) => (f.id === flight.id ? updated : f)));
     upsertFlight(updated).catch((err) =>
       console.error("Error persisting finish:", err),
     );
 
     addToast(
       delayJustification ? "ATRASO REGISTRADO" : "OPERAÇÃO CONCLUÍDA",
-      `Voo ${flightNumber} finalizado${delayJustification ? " com relatório de atraso" : ""}.`,
+      `Voo ${flight.flightNumber} finalizado${delayJustification ? " com relatório de atraso" : ""}.`,
       delayJustification ? "warning" : "success",
     );
     setDelayModalFlightId(null);
+  };
+
+  const confirmFinish = (
+    id: string,
+    flightNumber: string,
+    delayJustification?: string,
+    volumeAlreadySaved: boolean = false,
+  ) => {
+    const flight = flights.find((f) => f.id === id);
+    if (!flight) return;
+
+    const linkedVehicle = vehicles.find((v) => v.id === flight.vehicleId);
+    const isCTA =
+      flight.vehicleType === "CTA" ||
+      (linkedVehicle && linkedVehicle.type === "CTA");
+
+    if (isCTA && flight.vehicleId && !volumeAlreadySaved) {
+      // Intercepta e abre o modal de volume de encerramento do CTA
+      setCtaFinishVolumeModal({
+        flight,
+        vehicleId: flight.vehicleId,
+        delayJustification,
+      });
+      setCtaNewVolume(linkedVehicle?.currentVolume || 0);
+      return;
+    }
+
+    executeFinalize(flight, delayJustification);
+  };
+
+  const handleSaveCtaVolume = async () => {
+    if (!ctaFinishVolumeModal) return;
+    const { flight, vehicleId, delayJustification } = ctaFinishVolumeModal;
+
+    try {
+      const { error } = await supabase
+        .from('frotas')
+        .update({ current_volume: ctaNewVolume })
+        .eq('fleet_number', vehicleId);
+
+      if (error) {
+        console.error("Erro ao atualizar o volume do CTA no banco:", error);
+        addToast("ERRO DE CONEXÃO", "Não foi possível salvar o novo saldo do caminhão no banco de dados.", "warning");
+      } else {
+        addToast("SALDO ATUALIZADO", `Caminhão ${vehicleId} atualizado para ${ctaNewVolume.toLocaleString()} Litros.`, "success");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    executeFinalize(flight, delayJustification);
+    setCtaFinishVolumeModal(null);
   };
 
   const handleSubmitDelay = (finalCode?: string, finalDetail?: string) => {
@@ -2376,7 +2428,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
       const flight = flights.find((f) => f.id === delayModalFlightId);
       if (flight) {
         const justification = `${code}${detail ? ` - ${detail}` : ""}`;
-        confirmFinish(delayModalFlightId, flight.flightNumber, justification);
+        confirmFinish(delayModalFlightId, flight.flightNumber, justification, true);
       }
     }
   };
@@ -2665,11 +2717,40 @@ export const GridOps: React.FC<GridOpsProps> = ({
     setConfirmRemoveOperatorFlight(null);
   };
 
-  const handleConfirmFinish = () => {
+  const handleConfirmFinish = (ctaVolume?: number) => {
     if (!confirmFinishModalFlight) return;
-    handleManualFinish(confirmFinishModalFlight, {
-      stopPropagation: () => {},
-    } as React.MouseEvent);
+
+    let hasCta = false;
+    if (ctaVolume !== undefined) {
+      hasCta = true;
+      setCtaNewVolume(ctaVolume);
+      const vehicleId = confirmFinishModalFlight.vehicleId;
+      if (vehicleId) {
+        supabase
+          .from("frotas")
+          .update({ current_volume: ctaVolume })
+          .eq("fleet_number", vehicleId)
+          .then(({ error }) => {
+            if (error) {
+              console.error("Erro ao atualizar o volume do CTA no banco:", error);
+            } else {
+              addToast(
+                "SALDO ATUALIZADO",
+                `Caminhão ${vehicleId} atualizado para ${ctaVolume.toLocaleString()} Litros.`,
+                "success",
+              );
+            }
+          });
+      }
+    }
+
+    handleManualFinish(
+      confirmFinishModalFlight,
+      {
+        stopPropagation: () => {},
+      } as React.MouseEvent,
+      hasCta,
+    );
     setConfirmFinishModalFlight(null);
   };
 
@@ -5751,9 +5832,102 @@ export const GridOps: React.FC<GridOpsProps> = ({
         <ConfirmActionModal
           type="finish"
           flightNumber={confirmFinishModalFlight.flightNumber}
-          onConfirm={handleConfirmFinish}
+          flight={confirmFinishModalFlight}
+          isCta={(() => {
+            const f = confirmFinishModalFlight;
+            const linkedVehicle = vehicles.find((v) => v.id === f.vehicleId);
+            return (
+              f.vehicleType === "CTA" ||
+              f.fleetType === "CTA" ||
+              !!(f.fleet && f.fleet.toUpperCase().includes("CTA")) ||
+              !!(f.vehicleId && f.vehicleId.toUpperCase().includes("CTA")) ||
+              !!(linkedVehicle && linkedVehicle.type === "CTA")
+            );
+          })()}
+          initialCtaVolume={
+            vehicles.find(v => v.id === confirmFinishModalFlight.vehicleId)?.currentVolume
+          }
+          onConfirm={(data) => handleConfirmFinish(data?.ctaVolume)}
           onClose={() => setConfirmFinishModalFlight(null)}
         />
+      )}
+
+      {/* CTA FINISH VOLUME MODAL */}
+      {ctaFinishVolumeModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[9999] backdrop-blur-sm" onClick={() => setCtaFinishVolumeModal(null)}>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-950 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
+                  <span className="text-xs font-black">CTA</span>
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-tight">SALDO FINAL DO CAMINHÃO {ctaFinishVolumeModal.vehicleId}</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Voo {ctaFinishVolumeModal.flight.flightNumber} • Finalização de Abastecimento</p>
+                </div>
+              </div>
+              <button onClick={() => setCtaFinishVolumeModal(null)} className="p-1 text-slate-500 hover:text-white rounded-md hover:bg-slate-800 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-3">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Inserir Volume de Retorno (Litros)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={ctaNewVolume || ""}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setCtaNewVolume(Number(val));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveCtaVolume();
+                      }
+                    }}
+                    placeholder="Volume em Litros..."
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 outline-none p-3 rounded-lg text-center text-2xl font-mono text-white tracking-widest"
+                  />
+                  <span className="absolute right-3 top-3.5 text-xs font-bold text-slate-500 font-mono">LTS</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-950/35 p-3 rounded-lg text-center border border-slate-850">
+                  <span className="block text-[8px] font-bold text-slate-550 uppercase font-mono">Conversão Aérea Kg</span>
+                  <span className="text-lg font-mono text-slate-350">
+                    {Number((ctaNewVolume * 0.800).toFixed(0)).toLocaleString()} kg
+                  </span>
+                </div>
+                <div className="bg-slate-950/35 p-3 rounded-lg text-center border border-slate-850">
+                  <span className="block text-[8px] font-bold text-slate-550 uppercase font-mono">Conversão Aérea Lbs</span>
+                  <span className="text-lg font-mono text-slate-350">
+                    {Number((ctaNewVolume * 0.800 * 2.20462).toFixed(0)).toLocaleString()} lbs
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end p-4 bg-slate-950/50 border-t border-slate-800 rounded-b-2xl">
+              <button
+                onClick={() => setCtaFinishVolumeModal(null)}
+                className="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-400 p-3 rounded-lg text-xs font-black uppercase tracking-widest font-mono transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveCtaVolume}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-450 text-slate-950 p-3 rounded-lg text-xs font-black uppercase tracking-widest font-mono transition-colors shadow-md shadow-emerald-950/20"
+              >
+                Concluido
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showClearAllConfirm && (

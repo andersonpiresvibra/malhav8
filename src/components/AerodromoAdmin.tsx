@@ -395,10 +395,10 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
             const isRemota = metadata?.type === 'REMOTA';
             
             const getRestrictionColor = () => {
-              if (isDisabled) return isDarkMode ? 'border-red-900/50 bg-red-950/20' : 'border-red-100 bg-red-50/50';
-              if (restriction === 'CTA') return isDarkMode ? 'border-yellow-900/50 bg-yellow-950/20' : 'border-yellow-100 bg-yellow-50/50';
-              if (restriction === 'SRV') return isDarkMode ? 'border-indigo-900/50 bg-indigo-950/20' : 'border-indigo-100 bg-indigo-50/50';
-              return isDarkMode ? 'border-emerald-900/50 bg-emerald-950/20' : 'border-emerald-100 bg-emerald-50/50';
+              if (isDisabled) return isDarkMode ? 'border-red-500/35 bg-slate-900/90 shadow-lg' : 'border-red-100 bg-red-50/50';
+              if (restriction === 'CTA') return isDarkMode ? 'border-yellow-500/35 bg-slate-900/90 shadow-lg' : 'border-yellow-100 bg-yellow-50/50';
+              if (restriction === 'SRV') return isDarkMode ? 'border-indigo-500/35 bg-slate-900/90 shadow-lg' : 'border-indigo-100 bg-indigo-50/50';
+              return isDarkMode ? 'border-emerald-500/35 bg-slate-900/90 shadow-lg' : 'border-emerald-100 bg-emerald-50/50';
             };
 
             const getRestrictionLabel = () => {

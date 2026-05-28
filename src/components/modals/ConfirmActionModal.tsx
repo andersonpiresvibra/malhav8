@@ -10,11 +10,14 @@ interface ConfirmActionModalProps {
     registration?: string;
     message?: string;
     flight?: FlightData;
+    initialCtaVolume?: number;
+    isCta?: boolean;
     onConfirm: (data?: { 
         startTime?: Date; 
         clearMode?: 'all' | 'inactive';
         resolvedReport?: any;
         flightUpdates?: any;
+        ctaVolume?: number;
     }) => void;
     onClose: () => void;
 }
@@ -25,12 +28,33 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
     registration,
     message,
     flight,
+    initialCtaVolume,
+    isCta,
     onConfirm,
     onClose
 }) => {
     const { isDarkMode } = useTheme();
     const [manualTime, setManualTime] = React.useState('');
     const [useManualTime, setUseManualTime] = React.useState(false);
+    
+    const [ctaVolumeValue, setCtaVolumeValue] = React.useState<number | ''>('');
+
+    React.useEffect(() => {
+        if (initialCtaVolume !== undefined) {
+            setCtaVolumeValue(initialCtaVolume);
+        }
+    }, [initialCtaVolume]);
+
+    const isCTA = React.useMemo(() => {
+        if (isCta !== undefined) return isCta;
+        if (!flight) return false;
+        return (
+            flight.vehicleType === 'CTA' || 
+            flight.fleetType === 'CTA' ||
+            !!(flight.fleet && flight.fleet.toUpperCase().includes('CTA')) ||
+            !!(flight.vehicleId && flight.vehicleId.toUpperCase().includes('CTA'))
+        );
+    }, [flight, isCta]);
 
     // Formatar hora atual em formato HH:MM
     const nowStr = React.useMemo(() => {
@@ -116,6 +140,10 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
             });
         } else if (type === 'clearMesh') {
             onConfirm({ clearMode: mode || 'all' });
+        } else if (type === 'finish') {
+            onConfirm({
+                ctaVolume: isCTA && ctaVolumeValue !== '' ? Number(ctaVolumeValue) : undefined
+            });
         } else {
             onConfirm();
         }
@@ -395,6 +423,52 @@ export const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+                    
+                    {type === 'finish' && isCTA && (
+                        <div className="space-y-4 mb-8">
+                            <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                                {flight?.vehicleId && (
+                                    <div className="flex justify-center mb-4">
+                                        <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-500/15 border-2 border-amber-500 rounded-lg text-sm font-black font-mono text-amber-500 uppercase tracking-widest shadow-md">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                                            FROTA: {flight.vehicleId}
+                                        </div>
+                                    </div>
+                                )}
+                                <label className={`block text-[10px] font-black uppercase tracking-widest text-center mb-3 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    Volume de Retorno do Caminhão (Litros)
+                                </label>
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        autoFocus
+                                        value={ctaVolumeValue === '' ? '' : ctaVolumeValue}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/\D/g, "");
+                                            setCtaVolumeValue(val === '' ? '' : Number(val));
+                                        }}
+                                        placeholder="Volume em Litros..."
+                                        className={`w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-750 focus:border-amber-500 outline-none p-3 rounded-lg text-center text-xl font-mono text-slate-900 dark:text-white tracking-widest`}
+                                    />
+                                    <span className="absolute right-3 top-3.5 text-xs font-bold text-slate-500 font-mono">LTS</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 mt-4">
+                                    <div className={`p-3 rounded-lg text-center border ${isDarkMode ? 'bg-slate-950/35 border-slate-850' : 'bg-slate-100/30 border-slate-200'}`}>
+                                        <span className={`block text-[8px] font-bold uppercase font-mono ${isDarkMode ? 'text-slate-550' : 'text-slate-500'}`}>Conversão Aérea Kg</span>
+                                        <span className={`text-sm font-mono font-bold ${isDarkMode ? 'text-slate-350' : 'text-slate-700'}`}>
+                                            {Number(((Number(ctaVolumeValue) || 0) * 0.800).toFixed(0)).toLocaleString()} kg
+                                        </span>
+                                    </div>
+                                    <div className={`p-3 rounded-lg text-center border ${isDarkMode ? 'bg-slate-950/35 border-slate-850' : 'bg-slate-100/30 border-slate-200'}`}>
+                                        <span className={`block text-[8px] font-bold uppercase font-mono ${isDarkMode ? 'text-slate-550' : 'text-slate-500'}`}>Conversão Aérea Lbs</span>
+                                        <span className={`text-sm font-mono font-bold ${isDarkMode ? 'text-slate-350' : 'text-slate-700'}`}>
+                                            {Number(((Number(ctaVolumeValue) || 0) * 0.800 * 2.20462).toFixed(0)).toLocaleString()} lbs
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                     
