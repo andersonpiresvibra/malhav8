@@ -31,6 +31,43 @@ interface ExternalSnapshot {
     updatedAt: string;
 }
 
+const parsePos = (pos: string) => {
+    const regex = /^([A-Z]*)(\d+)([A-Z]*)$/;
+    const match = pos.match(regex);
+    if (match) {
+        return { 
+            prefix: match[1] || '', 
+            num: parseInt(match[2], 10), 
+            suffix: match[3] || '' 
+        };
+    }
+    return { prefix: pos, num: 0, suffix: '' };
+};
+
+const getSuffixWeight = (suffix: string): number => {
+    switch (suffix) {
+        case 'L': return 1;
+        case '':  return 2;  // meio / centro
+        case 'R': return 3;  // direita
+        default:  return 4;
+    }
+};
+
+const comparePositionsLogically = (a: string, b: string): number => {
+    const infoA = parsePos(a);
+    const infoB = parsePos(b);
+
+    if (infoA.prefix !== infoB.prefix) {
+        return infoA.prefix.localeCompare(infoB.prefix);
+    }
+    if (infoA.num !== infoB.num) {
+        return infoA.num - infoB.num;
+    }
+    const weightA = getSuffixWeight(infoA.suffix);
+    const weightB = getSuffixWeight(infoB.suffix);
+    return weightA - weightB;
+};
+
 export const Aerodromo: React.FC<AerodromoProps> = ({ 
   operators = [], 
   flights = [], 
@@ -44,6 +81,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
   const [externalSnapshot, setExternalSnapshot] = useState<Map<string, ExternalSnapshot>>(new Map());
 
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
+  const [occupancyFilter, setOccupancyFilter] = useState<'OCUPADAS' | 'TODAS'>('OCUPADAS');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [activePatioId, setActivePatioId] = useState('2');
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,8 +151,16 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
     const listToFilter = searchTerm ? allPositions : currentPositions;
     let filtered = listToFilter;
 
+    if (occupancyFilter === 'OCUPADAS') {
+        filtered = filtered.filter(posId => {
+            const flight = positionData.get(posId);
+            const externalFlight = externalSnapshot.get(posId);
+            return !!flight || !!externalFlight;
+        });
+    }
+
     if (searchTerm) {
-        filtered = listToFilter.filter(posId => {
+        filtered = filtered.filter(posId => {
             if (posId.includes(searchTerm)) return true;
             const flight = positionData.get(posId);
             if (flight) {
@@ -133,15 +179,22 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
         });
     }
 
-    if (!sortConfig) return filtered;
+    // Sort logically by default
+    const sortedBase = [...filtered].sort(comparePositionsLogically);
+
+    if (!sortConfig) return sortedBase;
 
     return [...filtered].sort((a, b) => {
+        if (sortConfig.key === 'pos') {
+            const comp = comparePositionsLogically(a, b);
+            return sortConfig.direction === 'asc' ? comp : -comp;
+        }
+
         const flightA = positionData.get(a);
         const flightB = positionData.get(b);
         
         const getVal = (posId: string, flight?: FlightData) => {
             switch (sortConfig.key) {
-                case 'pos': return posId;
                 case 'flightNumber': return flight?.flightNumber || '';
                 case 'airline': return flight?.airline || '';
                 case 'registration': return flight?.registration || '';
@@ -161,7 +214,7 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
     });
-  }, [allPositions, currentPositions, searchTerm, positionData, sortConfig]);
+  }, [allPositions, currentPositions, searchTerm, positionData, sortConfig, occupancyFilter, externalSnapshot]);
 
   const handleSort = (key: string) => {
       setSortConfig(prev => {
@@ -278,6 +331,25 @@ export const Aerodromo: React.FC<AerodromoProps> = ({
                 title="Visualização em Tabela"
               >
                   <List size={12} /> TABELA
+              </button>
+          </div>
+
+          <div className="w-px h-6 bg-white/20 mx-2"></div>
+
+          <div className="flex items-center bg-black/20 p-0.5 rounded border border-white/10 h-8 gap-0.5">
+              <button 
+                onClick={() => setOccupancyFilter('OCUPADAS')} 
+                className={`flex items-center gap-1.5 px-3 py-1 rounded text-[10px] h-full font-black uppercase tracking-widest transition-all ${occupancyFilter === 'OCUPADAS' ? (isDarkMode ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-[#3CA317] shadow-sm') : 'text-white hover:bg-white/10'}`}
+                title="Mostrar Apenas Posições Ocupadas"
+              >
+                  OCUPADAS
+              </button>
+              <button 
+                onClick={() => setOccupancyFilter('TODAS')} 
+                className={`flex items-center gap-1.5 px-3 py-1 rounded text-[10px] h-full font-black uppercase tracking-widest transition-all ${occupancyFilter === 'TODAS' ? (isDarkMode ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-[#3CA317] shadow-sm') : 'text-white hover:bg-white/10'}`}
+                title="Mostrar Todas as Posições"
+              >
+                  TODAS
               </button>
           </div>
         </div>
