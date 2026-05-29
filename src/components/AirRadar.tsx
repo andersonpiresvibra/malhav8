@@ -48,7 +48,7 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
   const selectedMarkerRef = useRef<L.Circle | null>(null);
 
   // Map configurations
-  const [mapStyle, setMapStyle] = useState<'voyager' | 'dark'>('voyager'); // 'voyager' uses OpenStreetMap Light, 'dark' uses Dark tiles
+  const [mapStyle, setMapStyle] = useState<'google-roadmap' | 'google-hybrid' | 'voyager' | 'dark'>('google-roadmap'); 
   const tileLayerRef = useRef<L.TileLayer | null>(null);
 
   const polylinesRef = useRef<Record<string, L.Polyline>>({});
@@ -182,16 +182,24 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
       tileLayerRef.current.remove();
     }
 
-    // Default: Premium Bright OpenStreetMap standard tile layer for clear navigation
-    // Dark: CARTO CDN custom eye-safe dark layer
-    const url = mapStyle === 'voyager'
-      ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-      : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    // Default to Google Maps Roteiro, Google Híbrido, OSM Voyager, or CartoDB Dark
+    let url = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+    let attribution = '&copy; Google Maps';
+
+    if (mapStyle === 'google-hybrid') {
+      url = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+    } else if (mapStyle === 'voyager') {
+      url = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      attribution = '&copy; OpenStreetMap contributors';
+    } else if (mapStyle === 'dark') {
+      url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      attribution = '&copy; CartoDB contributors';
+    }
 
     tileLayerRef.current = L.tileLayer(url, {
-      maxZoom: 18,
+      maxZoom: 20,
       minZoom: 5,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: attribution
     }).addTo(map);
   }, [mapStyle]);
 
@@ -514,26 +522,46 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
         {/* Map Switcher Controls and Recenter (Overlaid on the map) */}
         <div className="absolute top-4 right-4 z-[900] flex flex-col gap-2 select-none">
           {/* Tile Layer switcher */}
-          <div className="bg-slate-950/95 border border-slate-800 p-1 rounded-lg flex gap-1 shadow-xl backdrop-blur">
+          <div className="bg-slate-950/95 border border-slate-800 p-1.5 rounded-lg flex items-center gap-1 shadow-xl backdrop-blur">
+            <button
+              onClick={() => setMapStyle('google-roadmap')}
+              className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                mapStyle === 'google-roadmap'
+                  ? 'bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
+            >
+              Google Roteiro
+            </button>
+            <button
+              onClick={() => setMapStyle('google-hybrid')}
+              className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                mapStyle === 'google-hybrid'
+                  ? 'bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
+            >
+              Google Satélite
+            </button>
             <button
               onClick={() => setMapStyle('voyager')}
-              className={`px-3 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 mapStyle === 'voyager'
                   ? 'bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.3)]'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
               }`}
             >
-              Mapa Claro
+              OSM Claro
             </button>
             <button
               onClick={() => setMapStyle('dark')}
-              className={`px-3 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 mapStyle === 'dark'
                   ? 'bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.3)]'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
               }`}
             >
-              Mapa Escuro
+              Radar Noturno
             </button>
           </div>
 
