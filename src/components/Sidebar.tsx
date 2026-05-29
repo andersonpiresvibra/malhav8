@@ -40,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
+    { id: 'RADAR_AEREO' as ViewState, icon: Plane, label: 'Radar' },
     { id: 'AERODROMO' as ViewState, icon: MapPin, label: 'Aeródromo' },
     { id: 'FLEET' as ViewState, icon: BusFront, label: 'Frotas' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório', adminOnly: true },

@@ -22,6 +22,7 @@ import { AirlinesAdmin } from './components/AirlinesAdmin';
 import { MalhaRaizAdmin } from './components/MalhaRaizAdmin';
 import { Aerodromo } from './components/Aerodromo';
 import { OperatorManager } from './components/OperatorManager';
+import { AirRadar } from './components/AirRadar';
 import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './constants/aerodromoConfig';
 
 import { GridOps } from './components/GridOps';
@@ -31,7 +32,7 @@ import { LayoutPreferencesModal, UserLayoutPreferences, defaultPreferences } fro
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
   const [view, setView] = useState<ViewState>(() => {
-    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN'];
+    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN', 'RADAR_AEREO'];
     
     // Prioritize pathname suffix (e.g., "/REPORTS")
     const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
@@ -52,7 +53,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleUrlChange = () => {
-      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN'];
+      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN', 'RADAR_AEREO'];
       
       const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
       const pathnamePart = cleanPathname.split('/')[0] as ViewState;
@@ -1121,6 +1122,9 @@ const App: React.FC = () => {
                 )}
                 {view === 'MALHA_RAIZ_ADMIN' && (
                   <MalhaRaizAdmin isDarkMode={isDarkMode} />
+                )}
+                {view === 'RADAR_AEREO' && (
+                  <AirRadar isDarkMode={isDarkMode} />
                 )}
                 {view === 'AERODROMO' && (
                   <Aerodromo 

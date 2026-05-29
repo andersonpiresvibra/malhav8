@@ -235,7 +235,7 @@ export interface MeshFlight {
   date?: string; // Add date field for time overrides
 }
 
-export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN' | 'MALHA_RAIZ_ADMIN' | 'AIRLINES_ADMIN';
+export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN' | 'MALHA_RAIZ_ADMIN' | 'AIRLINES_ADMIN' | 'RADAR_AEREO';
 
 export interface AirlineType {
   id: string;
