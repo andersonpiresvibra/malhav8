@@ -2400,17 +2400,24 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const { flight, vehicleId, delayJustification } = ctaFinishVolumeModal;
 
     try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(vehicleId);
       const cleanVehicleId = vehicleId.replace('SRV-', '').replace('CTA-', '');
-      const { error } = await supabase
-        .from('frotas')
-        .update({ current_volume: ctaNewVolume })
-        .eq('fleet_number', cleanVehicleId);
+      
+      let query = supabase.from('frotas').update({ current_volume: ctaNewVolume });
+      if (isUUID) {
+        query = query.eq('id', vehicleId);
+      } else {
+        query = query.eq('fleet_number', cleanVehicleId);
+      }
+      
+      const { error } = await query;
 
       if (error) {
         console.error("Erro ao atualizar o volume do CTA no banco:", error);
         addToast("ERRO DE CONEXÃO", "Não foi possível salvar o novo saldo do caminhão no banco de dados.", "warning");
       } else {
-        addToast("SALDO ATUALIZADO", `Caminhão ${cleanVehicleId} atualizado para ${ctaNewVolume.toLocaleString()} Litros.`, "success");
+        const displayId = isUUID ? (vehicles.find(v => v.id === vehicleId)?.id || cleanVehicleId) : cleanVehicleId;
+        addToast("SALDO ATUALIZADO", `Caminhão ${displayId} atualizado para ${ctaNewVolume.toLocaleString()} Litros.`, "success");
         // Forçar atualização do estado global instantaneamente
         window.dispatchEvent(new Event('supabase-force-refresh'));
       }
@@ -2729,24 +2736,30 @@ export const GridOps: React.FC<GridOpsProps> = ({
       setCtaNewVolume(ctaVolume);
       const vehicleId = confirmFinishModalFlight.vehicleId;
       if (vehicleId) {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(vehicleId);
         const cleanVehicleId = vehicleId.replace('SRV-', '').replace('CTA-', '');
-        supabase
-          .from("frotas")
-          .update({ current_volume: ctaVolume })
-          .eq("fleet_number", cleanVehicleId)
-          .then(({ error }) => {
-            if (error) {
-              console.error("Erro ao atualizar o volume do CTA no banco:", error);
-            } else {
-              addToast(
-                "SALDO ATUALIZADO",
-                `Caminhão ${cleanVehicleId} atualizado para ${ctaVolume.toLocaleString()} Litros.`,
-                "success",
-              );
-              // Forçar atualização do estado global instantaneamente
-              window.dispatchEvent(new Event('supabase-force-refresh'));
-            }
-          });
+        
+        let query = supabase.from("frotas").update({ current_volume: ctaVolume });
+        if (isUUID) {
+          query = query.eq("id", vehicleId);
+        } else {
+          query = query.eq("fleet_number", cleanVehicleId);
+        }
+        
+        query.then(({ error }) => {
+          if (error) {
+            console.error("Erro ao atualizar o volume do CTA no banco:", error);
+          } else {
+            const displayId = isUUID ? (vehicles.find(v => v.id === vehicleId)?.id || cleanVehicleId) : cleanVehicleId;
+            addToast(
+              "SALDO ATUALIZADO",
+              `Caminhão ${displayId} atualizado para ${ctaVolume.toLocaleString()} Litros.`,
+              "success",
+            );
+            // Forçar atualização do estado global instantaneamente
+            window.dispatchEvent(new Event('supabase-force-refresh'));
+          }
+        });
       }
     }
 
