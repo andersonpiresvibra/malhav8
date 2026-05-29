@@ -954,12 +954,14 @@ const App: React.FC = () => {
               >
                 <ChevronLeft size={14} /> Voltar para Página Anterior
               </button>
-              <div className={`text-[10px] uppercase font-bold tracking-widest flex items-center gap-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                <span>Histórico:</span>
-                <span className={`px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-slate-800 text-indigo-400' : 'bg-white text-emerald-900 border border-slate-200 shadow-sm'}`}>
-                  {view}
-                </span>
-              </div>
+              {view !== 'FLEET' && (
+                <div className={`text-[10px] uppercase font-bold tracking-widest flex items-center gap-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <span>Histórico:</span>
+                  <span className={`px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-slate-800 text-indigo-400' : 'bg-white text-emerald-900 border border-slate-200 shadow-sm'}`}>
+                    {view}
+                  </span>
+                </div>
+              )}
             </div>
           )}
           {isSupabaseOffline && (

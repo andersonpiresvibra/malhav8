@@ -9,6 +9,44 @@ import { VehicleActionModal } from './VehicleActionModal';
 import { OperatorCell } from './OperatorCell';
 import { updateVehicle } from '../services/supabaseService';
 
+const OperatorHeaderCard: React.FC<{
+  operatorName: string;
+  status: VehicleStatus;
+  operators: OperatorProfile[];
+}> = ({ operatorName, status, operators }) => {
+  const [imageError, setImageError] = useState(false);
+  const profile = operators.find(p => p.warName === operatorName || p.fullName === operatorName || p.id === operatorName);
+
+  return (
+    <div className="flex items-center gap-2 select-none">
+      <div className="text-right flex flex-col justify-center min-w-0">
+        <span className="text-[12px] font-black text-slate-100 uppercase tracking-tight leading-none truncate max-w-[120px]">
+          {operatorName}
+        </span>
+        <span className="text-[10px] font-black uppercase tracking-wider mt-1.5 leading-none font-mono">
+          <span className={status === 'DISPONÍVEL' ? 'text-emerald-400' : status === 'OCUPADO' ? 'text-blue-400' : status === 'INATIVO' ? 'text-red-400' : 'text-amber-400'}>
+            {status}
+          </span>
+        </span>
+      </div>
+      
+      <div className="w-[30px] h-[40px] bg-slate-950 border border-slate-700 overflow-hidden shrink-0 flex items-end justify-center rounded shadow-inner">
+        {profile?.photoUrl && !imageError ? (
+          <img 
+            src={profile.photoUrl} 
+            alt={operatorName} 
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <User size={18} className="text-slate-500 mb-0.5" />
+        )}
+      </div>
+    </div>
+  );
+};
+
 interface OperatorManagerProps {
   density: number;
   vehicles: Vehicle[];
@@ -224,12 +262,25 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
         showStatusOnly={isStatusModalOnly}
       />
       <header className="px-8 py-3 border-b border-slate-800/60 bg-slate-900/40 shrink-0">
-        <div className="flex items-center justify-between gap-6 mb-4">
+        <div className="flex items-center justify-between gap-6">
           <div className="flex items-center gap-6">
             <h2 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-2"><Truck className="text-amber-500" size={24} /> MONITOR FROTAS</h2>
             <div className="flex items-center gap-1 bg-slate-950/50 p-1 rounded-md border border-slate-800/50">
-              <button onClick={() => setActiveTab('SERVIDOR')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'SERVIDOR' ? 'bg-white text-slate-950 font-black' : 'text-slate-500 hover:text-slate-300'}`}>SERVIDORES</button>
+              <button onClick={() => setActiveTab('SERVIDOR')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'SERVIDOR' ? 'bg-white text-slate-950 font-black' : 'text-slate-500 hover:text-slate-300'}`}>SRV's</button>
               <button onClick={() => setActiveTab('CTA')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'CTA' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500 hover:text-slate-300'}`}>CTAs</button>
+            </div>
+
+            <div className="w-px h-6 bg-slate-800/60"></div>
+
+            <div className="flex items-center gap-2 bg-slate-950/40 px-3 py-1.5 rounded-lg border border-slate-800/40">
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Status:</span>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="bg-transparent text-[10px] font-bold text-slate-400 outline-none cursor-pointer">
+                <option value="ALL">TODOS</option>
+                <option value="DISPONÍVEL">DISPONÍVEL</option>
+                <option value="OCUPADO">OCUPADO</option>
+                <option value="INATIVO">INATIVO</option>
+                {activeTab === 'CTA' && <option value="ENCHIMENTO">ENCHIMENTO</option>}
+              </select>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -241,25 +292,6 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
               <input type="text" placeholder="Localizar frota..." className="w-40 bg-slate-950 border border-slate-800 rounded-md pl-10 pr-4 py-2 text-[11px] text-white outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 pt-2 border-t border-slate-800/30">
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Status:</span>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="bg-transparent text-[10px] font-bold text-slate-400 outline-none">
-              <option value="ALL">TODOS</option>
-              <option value="DISPONÍVEL">DISPONÍVEL</option>
-              <option value="OCUPADO">OCUPADO</option>
-              <option value="INATIVO">INATIVO</option>
-              {activeTab === 'CTA' && <option value="ENCHIMENTO">ENCHIMENTO</option>}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Fabricante:</span>
-            <select value={manufacturerFilter} onChange={(e) => setManufacturerFilter(e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-400 outline-none">
-              <option value="ALL">TODOS</option>
-              {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
           </div>
         </div>
       </header>
@@ -276,7 +308,11 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                         <span className="text-3xl font-black text-amber-500 font-mono tracking-tighter leading-none">{vehicle.id}</span>
                         <p className="text-xs font-bold text-blue-400 font-mono mt-1">{getCtaPosition(vehicle)}</p>
                       </div>
-                      <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${getStatusColor(vehicle.status)}`}>{vehicle.status}</div>
+                      {vehicle.operatorName ? (
+                        <OperatorHeaderCard operatorName={vehicle.operatorName} status={vehicle.status} operators={operators} />
+                      ) : (
+                        <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${getStatusColor(vehicle.status)}`}>{vehicle.status}</div>
+                      )}
                     </div>
 
                     <div className="flex-1 flex items-stretch justify-center my-4">
@@ -308,13 +344,8 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                         </div>
                     </div>
 
-                    <div className="mb-4">
+                    <div className="mb-0">
                         {renderOperations(vehicle)}
-                    </div>
-
-                    <div className="flex justify-between items-center pt-3 border-t border-slate-800">
-                      <OperatorCell operatorName={vehicle.operatorName} operators={operators} />
-                      <button className={`p-2 rounded-md ${vehicle.isActive === false ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}><Power size={14} /></button>
                     </div>
                   </div>
                 )
@@ -326,7 +357,11 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                         <span className="text-3xl font-black text-white font-mono tracking-tighter leading-none">{vehicle.id}</span>
                         <p className="text-xs font-bold text-slate-500 font-sans mt-1">{vehicle.manufacturer}</p>
                       </div>
-                      <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${getStatusColor(vehicle.status)}`}>{vehicle.status}</div>
+                      {vehicle.operatorName ? (
+                        <OperatorHeaderCard operatorName={vehicle.operatorName} status={vehicle.status} operators={operators} />
+                      ) : (
+                        <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${getStatusColor(vehicle.status)}`}>{vehicle.status}</div>
+                      )}
                     </div>
 
                     <div className="border-y border-dashed border-slate-800 px-4 py-2 flex items-center justify-center min-h-[60px]">
