@@ -60,16 +60,8 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
   const sbgrMarkerRef = useRef<L.Marker | null>(null);
   const sbgrCircleRef = useRef<L.Circle | null>(null);
 
-  // Inject Leaflet CSS once
+  // Inject Leaflet Custom Styles once (Leaflet base CSS is now bundled in index.css)
   useEffect(() => {
-    if (!document.getElementById('leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
-
     if (!document.getElementById('leaflet-custom-popup-styles')) {
       const style = document.createElement('style');
       style.id = 'leaflet-custom-popup-styles';
