@@ -118,6 +118,61 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
     }
   }, []);
 
+  // Generate high-fidelity client-side simulated flights as robust fallback if Express backend is offline
+  const generateClientSimulatedFlights = (): FlightTelemetry[] => {
+    const sbgrLat = -23.4356;
+    const sbgrLon = -46.4731;
+    const standardMockFlights = [
+      { flightNumber: 'LA3831', origin: 'SCL', aircraftType: 'B773', registration: 'PR-XPD', isMalha: true },
+      { flightNumber: 'LA3001', origin: 'BSB', aircraftType: 'A321', registration: 'PR-YRE', isMalha: true },
+      { flightNumber: 'G32044', origin: 'GIG', aircraftType: 'B738', registration: 'PR-GUX', isMalha: false },
+      { flightNumber: 'AD4112', origin: 'CNF', aircraftType: 'E295', registration: 'PR-AYN', isMalha: false },
+      { flightNumber: 'TP082', origin: 'LIS', aircraftType: 'A339', registration: 'CS-TVI', isMalha: true },
+      { flightNumber: 'AF454', origin: 'CDG', aircraftType: 'B772', registration: 'F-GSPZ', isMalha: true },
+      { flightNumber: 'AA951', origin: 'MIA', aircraftType: 'B773', registration: 'N721AN', isMalha: false }
+    ];
+
+    return standardMockFlights.map((m, idx) => {
+      const hash = m.flightNumber.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const angle = (hash * 47) % 360;
+      const angleRad = angle * Math.PI / 180;
+      const durationMs = 15 * 60 * 1000;
+      const timeOffset = (hash * 33333) % durationMs;
+      const progress = ((Date.now() + timeOffset) % durationMs) / durationMs;
+
+      const altitude = Math.round(28000 - (24900 * progress));
+      const speed = Math.round(410 - (268 * progress));
+      const maxDistance = 1.3;
+      const currentDistance = maxDistance * (1.0 - progress) + 0.015;
+
+      const lat = sbgrLat + Math.cos(angleRad) * currentDistance;
+      const lon = sbgrLon + Math.sin(angleRad) * currentDistance;
+
+      const dy = sbgrLat - lat;
+      const dx = sbgrLon - lon;
+      let heading = Math.round(Math.atan2(dx, dy) * 180 / Math.PI);
+      if (heading < 0) heading += 360;
+
+      return {
+        flightNumber: m.flightNumber,
+        callsign: m.flightNumber,
+        origin: m.origin,
+        destination: 'GRU',
+        lat,
+        lon,
+        altitude,
+        speed,
+        heading,
+        aircraftType: m.aircraftType,
+        registration: m.registration,
+        eta: new Date(Date.now() + (durationMs * (1.0 - progress))).toISOString(),
+        isReal: false,
+        isGruEvent: true,
+        isMalha: m.isMalha
+      };
+    });
+  };
+
   // Fetch flight statistics
   const fetchRadarData = async () => {
     setIsLoading(true);
@@ -127,7 +182,7 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           JSON.stringify({
-            code: errorData.error || 'SERVER_ERROR',
+            code: errorData.error || `HTTP_${response.status}`,
             message: errorData.message || 'Erro ao carregar telemetria de voos do radar.'
           })
         );
@@ -148,13 +203,19 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
       }
     } catch (err: any) {
       console.error('[AirRadar Fetch Error]:', err);
+      
+      // Load fallback simulated flights client-side to keep map fully operational
+      const fallbackFlights = generateClientSimulatedFlights();
+      setFlights(fallbackFlights);
+      setIsRealTimeAPI(false);
+
       try {
         const errorDetails = JSON.parse(err.message);
         setErrorState({ code: errorDetails.code, message: errorDetails.message });
       } catch {
         setErrorState({
           code: 'CONNECTION_FAILED',
-          message: 'Falha ao conectar com o serviço de telemetria.'
+          message: 'Falha ao conectar com o serviço de telemetria do backend Express.'
         });
       }
     } finally {
@@ -596,7 +657,7 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
             className="p-1 px-3 rounded text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-all flex items-center gap-1.5 border border-slate-800 bg-slate-950/40 cursor-pointer disabled:opacity-50 font-bold"
           >
             <RefreshCw size={11} className={isLoading ? 'animate-spin' : ''} />
-            <span className="text-[9px] font-black uppercase tracking-wider">Altunizar</span>
+            <span className="text-[9px] font-black uppercase tracking-wider">Atualizar</span>
           </button>
         </div>
       </div>
@@ -604,6 +665,28 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
       {/* 2. Map Module in 100% Full Open View (Mapa Mais Aberto) */}
       <div className="flex-1 bg-slate-900 overflow-hidden relative min-h-0 w-full">
         
+        {/* Environment-related technical diagnostic alerts overlay banner from Bob */}
+        {errorState && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[990] w-[94%] max-w-2xl bg-amber-950/95 border border-amber-800/80 p-3.5 rounded-xl shadow-2xl flex items-start gap-3.5 backdrop-blur-md">
+            <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={18} />
+            <div className="flex-1 text-[11px] font-medium leading-relaxed">
+              <span className="font-extrabold text-white uppercase block mb-1 tracking-wider text-xs">DIAGNÓSTICO ARQUITETURAL NOC • SISTEMA MALHA</span>
+              <p className="text-amber-300 font-extrabold mb-1">
+                Conexão com a rota Express falhou ({errorState.code}). Simulação cliente-side de alta fidelidade ativada.
+              </p>
+              <p className="text-slate-300 select-all">
+                Dica técnica do Bob: Se você estiver hospedando no <span className="text-emerald-400 font-bold">Cloudflare Pages (plano de CDN estático)</span>, o servidor Express backend `/server.ts` não é compilado diretamente na infraestrutura de borda (edge CDN). Para sincronizar dados reais do Flightradar24 usando seu Token de API, certifique-se de executar em um ecossistema full-stack compatível com Node (como Cloud Run, VPS ou usando Cloudflare Workers proxy).
+              </p>
+            </div>
+            <button 
+              onClick={() => setErrorState(null)} 
+              className="px-2.5 py-1 bg-amber-900/50 hover:bg-amber-900 text-amber-305 font-black rounded uppercase text-[9px] cursor-pointer tracking-wider shrink-0 transition-colors"
+            >
+              Excluir Alerta
+            </button>
+          </div>
+        )}
+
         {/* Leaflet Anchor */}
         <div id="air-radar-leaflet-map" ref={mapContainerRef} className="w-full h-full z-10" />
 
