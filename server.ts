@@ -82,33 +82,23 @@ async function startServer() {
     const sbgrLat = -23.4356;
     const sbgrLon = -46.4731;
 
-    // Helper to generate a realistic simulated flight heading to Guarulhos (SBGR)
+    // Helper to generate a realistic simulated flight heading to Guarulhos (SBGR) - only used for mock fallback!
     const generateSimulatedFlight = (flightNumber: string, origin: string, aircraftType: string, registration: string, index: number) => {
-      // Deterministic angle and speed based on string hash
       const hash = flightNumber.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
       const angle = (hash * 47) % 360;
       const angleRad = angle * Math.PI / 180;
-
-      // Loop duration representing total approach time (e.g., 10 minutes)
       const durationMs = 10 * 60 * 1000;
-      // Stagger flights in time
       const timeOffset = (hash * 33333) % durationMs;
-      const progress = ((Date.now() + timeOffset) % durationMs) / durationMs; // 0.0 to 1.0
+      const progress = ((Date.now() + timeOffset) % durationMs) / durationMs;
 
-      // Altitude descends from 28,000 FT down to 3,100 FT
       const altitude = Math.round(28000 - (24900 * progress));
-      // Speed slows from 410 KT down to 142 KT
       const speed = Math.round(410 - (268 * progress));
-
-      // Starting distance (up to 1.6 degrees out, down to 0.015 near landing)
       const maxDistance = 1.6;
       const currentDistance = maxDistance * (1.0 - progress) + 0.015;
 
-      // Lat/lon vector
       const lat = sbgrLat + Math.cos(angleRad) * currentDistance;
       const lon = sbgrLon + Math.sin(angleRad) * currentDistance;
 
-      // Heading vector calculation to point directly to SBGR airport runways
       const dy = sbgrLat - lat;
       const dx = sbgrLon - lon;
       let heading = Math.round(Math.atan2(dx, dy) * 180 / Math.PI);
@@ -126,11 +116,14 @@ async function startServer() {
         heading,
         aircraftType,
         registration,
-        eta: new Date(Date.now() + (durationMs * (1.0 - progress))).toISOString()
+        eta: new Date(Date.now() + (durationMs * (1.0 - progress))).toISOString(),
+        isReal: false,
+        isGruEvent: true,
+        isMalha: true
       };
     };
 
-    // Standard list of active flights arriving at SBGR/Guarulhos
+    // Standard list of active flights arriving at SBGR/Guarulhos (utilized ONLY during offline/mock fallback modes)
     const standardMockFlights = [
       { flightNumber: "LA3831", origin: "SCL", aircraftType: "B773", registration: "PR-XPD" },
       { flightNumber: "LA3001", origin: "BSB", aircraftType: "A321", registration: "PR-YRE" },
@@ -142,18 +135,20 @@ async function startServer() {
     ];
 
     try {
-      // Fetch user's operational db flight list
+      // Fetch user's active flight list from operational database
       const dbFlights = await getMalhaFlights();
       const cleanNum = (s: string) => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
       const dbFlightsClean = dbFlights.map(cleanNum);
 
       let apiFlights: any[] = [];
       let apiSuccess = false;
+      let apiErrorDetail = "";
 
-      // If token exists, attempt to pull real-world entries
+      // If token exists, attempt to pull real-world entries from Flightradar24 Live Positions API
       if (token && token.trim() !== "" && token !== "YOUR_FR24_KEY") {
         try {
-          const bounds = "-22.7,-24.3,-47.7,-45.4";
+          // Bounding box centered around Guarulhos SBGR - extending roughly 120km to capture all terminal approach patterns/entries (TMA São Paulo)
+          const bounds = "-22.5,-24.3,-47.6,-45.3";
           const fr24Url = `https://fr24api.flightradar24.com/api/live/flight-positions/full?bounds=${bounds}&limit=100`;
 
           const response = await fetch(fr24Url, {
@@ -171,18 +166,26 @@ async function startServer() {
             const rawFlights = json.data || [];
 
             apiFlights = rawFlights.map((f: any) => {
-              const flightNumber = f.flight || f.flightNumber || f.callsign || "";
-              const callsign = f.callsign || "";
+              // Real keys check to safeguard accuracy based on actual Flightradar24 API specification responses
+              const flightNumber = f.flight || f.flightNumber || f.callsign || "N/A";
+              const callsign = f.callsign || f.flight || "";
               const origin = f.orig_iata || f.orig_icao || f.origin || "N/A";
               const destination = f.dest_iata || f.dest_icao || f.destination || "N/A";
-              const lat = f.latitude || f.lat || 0;
-              const lon = f.longitude || f.lon || 0;
-              const altitude = f.altitude || 0;
-              const speed = f.speed || f.ground_speed || f.groundspeed || 0;
-              const heading = f.heading || f.track || 0;
-              const aircraftType = f.aircraft_type || f.aircraft_type_icao || f.aircraftType || "N/A";
-              const registration = f.registration || f.reg || "N/A";
+              const lat = typeof f.lat === 'number' ? f.lat : (f.latitude || 0);
+              const lon = typeof f.lon === 'number' ? f.lon : (f.longitude || 0);
+              const altitude = typeof f.alt === 'number' ? f.alt : (f.altitude || 0);
+              const speed = typeof f.gspeed === 'number' ? f.gspeed : (f.speed || f.ground_speed || 0);
+              const heading = typeof f.track === 'number' ? f.track : (f.heading || 0);
+              const aircraftType = f.type || f.aircraft_type || f.aircraftType || "N/A";
+              const registration = f.reg || f.registration || "N/A";
               const eta = f.eta || f.estimated_arrival || f.estimated || null;
+
+              const fClean = cleanNum(flightNumber);
+              const cClean = cleanNum(callsign);
+              
+              // Verify context relative to the active airport of GRU/SBGR & operational schedule
+              const isGruEvent = destination === "GRU" || destination === "SBGR" || origin === "GRU" || origin === "SBGR" || callsign.toUpperCase().includes("GRU") || flightNumber.toUpperCase().includes("GRU");
+              const isMalha = dbFlightsClean.includes(fClean) || dbFlightsClean.includes(cClean);
 
               return {
                 flightNumber,
@@ -196,66 +199,68 @@ async function startServer() {
                 heading,
                 aircraftType,
                 registration,
-                eta
+                eta,
+                isReal: true,
+                isGruEvent,
+                isMalha
               };
-            }).filter((f: any) => {
-              // Standard route destination to Guarulhos
-              return f.destination === "GRU" || f.destination === "SBGR" || f.callsign.includes("GRU");
             });
 
             apiSuccess = true;
           } else {
-            console.warn(`[FR24 Backend Error] FR24 API returned code ${response.status}. Falling back to simulation.`);
+            apiErrorDetail = `HTTP ${response.status} ${response.statusText}`;
+            const errorText = await response.text().catch(() => "");
+            console.warn(`[FR24 Backend Error] FR24 API returned code ${response.status}. Detail: ${errorText}`);
           }
-        } catch (apiErr) {
+        } catch (apiErr: any) {
+          apiErrorDetail = apiErr.message || "Erro de rede";
           console.error("[FR24 Backend API Request Failed]:", apiErr);
         }
       }
 
-      // Generate simulation models for standard list and database entries
-      const simulatedFlightsList: any[] = [];
-      const usedFlightNumbers = new Set<string>();
+      // Final decision logic:
+      // If the real API works, we serve *ONLY* the real flights in the sector! No fake/mock flights are mixed in at all.
+      // If the API fails or is unconfigured, we then use simulated flights as a robust graceful backup but flag it flagrantly.
+      let finalFlightList: any[] = [];
+      if (apiSuccess) {
+        finalFlightList = apiFlights;
+      } else {
+        const usedFlightNumbers = new Set<string>();
 
-      // 1. Gather all API flights if we successfully fetched them
-      apiFlights.forEach(f => {
-        simulatedFlightsList.push(f);
-        usedFlightNumbers.add(cleanNum(f.flightNumber));
-      });
+        // 1. Gather simulated standard mock flights
+        standardMockFlights.forEach((m, idx) => {
+          const cleanF = cleanNum(m.flightNumber);
+          if (!usedFlightNumbers.has(cleanF)) {
+            const simF = generateSimulatedFlight(m.flightNumber, m.origin, m.aircraftType, m.registration, idx);
+            finalFlightList.push(simF);
+            usedFlightNumbers.add(cleanF);
+          }
+        });
 
-      // 2. Mix in requested standard mock arrivals (including LA3831, LA3001, etc.)
-      standardMockFlights.forEach((m, idx) => {
-        const cleanF = cleanNum(m.flightNumber);
-        if (!usedFlightNumbers.has(cleanF)) {
-          const simF = generateSimulatedFlight(m.flightNumber, m.origin, m.aircraftType, m.registration, idx);
-          simulatedFlightsList.push(simF);
-          usedFlightNumbers.add(cleanF);
-        }
-      });
+        // 2. Mix in schedule DB flights (only as backup!)
+        dbFlights.forEach((fNo, idx) => {
+          const cleanF = cleanNum(fNo);
+          if (!usedFlightNumbers.has(cleanF)) {
+            let aircraft = "A320";
+            let carrier = "GRU";
+            if (cleanF.startsWith("AD")) { aircraft = "E295"; carrier = "VCP"; }
+            else if (cleanF.startsWith("G3")) { aircraft = "B738"; carrier = "SDU"; }
+            else if (cleanF.startsWith("LA")) { aircraft = "A321"; carrier = "BSB"; }
 
-      // 3. Keep DB malha flights represented (generate if they don't exist in live list)
-      dbFlights.forEach((fNo, idx) => {
-        const cleanF = cleanNum(fNo);
-        if (!usedFlightNumbers.has(cleanF)) {
-          // Parse airline context
-          let aircraft = "A320";
-          let carrier = "GRU";
-          if (cleanF.startsWith("AD")) { aircraft = "E295"; carrier = "VCP"; }
-          else if (cleanF.startsWith("G3")) { aircraft = "B738"; carrier = "SDU"; }
-          else if (cleanF.startsWith("LA")) { aircraft = "A321"; carrier = "BSB"; }
+            const simF = generateSimulatedFlight(fNo, carrier, aircraft, `PR-${cleanF.slice(-3)}`, idx + 10);
+            finalFlightList.push(simF);
+            usedFlightNumbers.add(cleanF);
+          }
+        });
+      }
 
-          const simF = generateSimulatedFlight(fNo, carrier, aircraft, `PR-${cleanF.slice(-3)}`, idx + 10);
-          simulatedFlightsList.push(simF);
-          usedFlightNumbers.add(cleanF);
-        }
-      });
-
-      // Perfect! No hard 500 block. Always serving beautiful real/sim planes!
       return res.json({
         success: true,
-        data: simulatedFlightsList,
+        data: finalFlightList,
         malhaSize: dbFlights.length,
-        totalFetched: apiFlights.length,
-        apiSuccess
+        totalFetched: apiSuccess ? apiFlights.length : 0,
+        apiSuccess,
+        apiErrorDetail: apiSuccess ? "" : apiErrorDetail
       });
 
     } catch (error: any) {

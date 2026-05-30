@@ -28,6 +28,9 @@ interface FlightTelemetry {
   aircraftType: string;
   registration: string;
   eta: string | null;
+  isReal?: boolean;
+  isGruEvent?: boolean;
+  isMalha?: boolean;
 }
 
 interface AirRadarProps {
@@ -41,6 +44,7 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
   const [selectedFlight, setSelectedFlight] = useState<FlightTelemetry | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [isRealTimeAPI, setIsRealTimeAPI] = useState<boolean>(false);
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -88,7 +92,26 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
           box-shadow: none !important;
         }
         .gliding-glowing-route-trail {
-          filter: drop-shadow(0 0 4px #10b981);
+          filter: drop-shadow(0 0 5px #10b981);
+        }
+        .custom-flight-vector-marker {
+          background: transparent !important;
+          border: none !important;
+          overflow: visible !important;
+        }
+        .flight-label-tag {
+          opacity: 0;
+          visibility: hidden;
+          transition: opacity 0.15s ease-in-out, visibility 0.15s ease-in-out;
+          pointer-events: none;
+        }
+        .custom-flight-vector-marker:hover .flight-label-tag {
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
+        .flight-label-tag.persistent-label {
+          opacity: 1 !important;
+          visibility: visible !important;
         }
       `;
       document.head.appendChild(style);
@@ -112,6 +135,7 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
       const result = await response.json();
       const fetchedFlights: FlightTelemetry[] = result.data || [];
       setFlights(fetchedFlights);
+      setIsRealTimeAPI(!!result.apiSuccess);
       setErrorState(null);
       setLastRefreshed(new Date());
 
@@ -293,61 +317,115 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
     // Plot flights and their corresponding airway route paths (dashed direct line + historical curve trail)
     flights.forEach(flight => {
       const isSelected = selectedFlight?.flightNumber === flight.flightNumber;
+      const isMalha = !!flight.isMalha;
+      const isGruEvent = !!flight.isGruEvent;
       
-      // Airway lines drawing
-      const trailPoints = getFlightPathPoints(flight);
-      
-      // 1. Trail path (Historical curve line route)
-      const trailPoly = L.polyline(trailPoints, {
-        color: isSelected ? '#10b981' : '#f59e0b',
-        weight: isSelected ? 3.5 : 1.8,
-        opacity: isSelected ? 0.95 : 0.45,
-        className: isSelected ? 'gliding-glowing-route-trail' : ''
-      }).addTo(map);
-      polylinesRef.current[flight.flightNumber] = trailPoly;
+      // Plot lines ONLY if this flight is selected, keeping the map clean and uncluttered!
+      if (isSelected) {
+        // Airway lines drawing
+        const trailPoints = getFlightPathPoints(flight);
+        
+        // 1. Trail path (Historical curve line route)
+        const trailPoly = L.polyline(trailPoints, {
+          color: '#10b981',
+          weight: 3.5,
+          opacity: 0.95,
+          className: 'gliding-glowing-route-trail'
+        }).addTo(map);
+        polylinesRef.current[flight.flightNumber] = trailPoly;
 
-      // 2. Direct approach vectors (Dashed line to SBGR runways center)
-      const directPoints: L.LatLngTuple[] = [
-        [flight.lat, flight.lon],
-        [-23.4356, -46.4731]
-      ];
-      const directPoly = L.polyline(directPoints, {
-        color: isSelected ? '#34d399' : '#f59e0b',
-        weight: isSelected ? 2.5 : 1.0,
-        dashArray: isSelected ? '5, 5' : '3, 6',
-        opacity: isSelected ? 0.85 : 0.25
-      }).addTo(map);
-      directLinesRef.current[flight.flightNumber] = directPoly;
+        // 2. Direct approach vectors (Dashed line to SBGR runways center)
+        const directPoints: L.LatLngTuple[] = [
+          [flight.lat, flight.lon],
+          [-23.4356, -46.4731]
+        ];
+        const directPoly = L.polyline(directPoints, {
+          color: '#34d399',
+          weight: 2.5,
+          dashArray: '5, 5',
+          opacity: 0.85
+        }).addTo(map);
+        directLinesRef.current[flight.flightNumber] = directPoly;
+      }
 
-      // Marker Icon creation (Amber by default, bright neon emerald when picked)
+      let etaFormatted = 'Sem ETA';
+      if (flight.eta) {
+        try {
+          etaFormatted = new Date(flight.eta).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        } catch {
+          etaFormatted = String(flight.eta);
+        }
+      }
+
+      // Advanced altitude-based 3D shadow offset calculation to match the visual elevation feeling
+      const shadowOffset = Math.max(2, Math.min(8, 2 + (flight.altitude / 4500)));
+      const shadowBlur = Math.max(0.5, Math.min(4, 0.5 + (flight.altitude / 6500)));
+      const shadowOpacity = Math.max(0.2, Math.min(0.65, 0.65 - (flight.altitude / 60000)));
+
+      // Dynamic color selection matching their operational hierarchy
+      let planeColorClass = 'text-slate-500 hover:text-slate-300'; // Default: General TMA traffic (CGH SBSP, overflights)
+      let tagBorderClass = 'border-slate-800 text-slate-400 bg-slate-950/80';
+      let labelNameColorClass = 'text-slate-400';
+      let tagPersistentClass = '';
+
+      if (isSelected) {
+        planeColorClass = 'text-emerald-400 scale-110 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]';
+        tagBorderClass = 'border-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.4)] bg-slate-950/95';
+        labelNameColorClass = 'text-emerald-400 font-extrabold';
+        tagPersistentClass = 'persistent-label';
+      } else if (isMalha) {
+        // Operational flights in active schedule! Solid pulsing Emerald highlight
+        planeColorClass = 'text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.5)] animate-pulse';
+        tagBorderClass = 'border-emerald-600/80 text-emerald-300 bg-slate-950/95 shadow-[0_0_6px_rgba(16,185,129,0.25)]';
+        labelNameColorClass = 'text-emerald-400 font-extrabold';
+        tagPersistentClass = 'persistent-label'; // Always display text for our fleet planes!
+      } else if (isGruEvent) {
+        // General Arrivals/Departures from SBGR Guarulhos
+        planeColorClass = 'text-yellow-400 hover:text-emerald-300';
+        tagBorderClass = 'border-amber-700 text-slate-300 bg-slate-950/90';
+        labelNameColorClass = 'text-amber-400';
+      }
+ 
+      // Advanced FR24 style plane labels flanking the aircraft tracking path node with 3D shadow layers
       const htmlIcon = `
-        <div style="transform: rotate(${flight.heading}deg); transition: transform 0.4s ease-out; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-          <svg viewBox="0 0 24 24" class="w-8 h-8 ${
-            isSelected 
-              ? 'text-emerald-500 drop-shadow-[0_0_10px_#10b981] scale-110' 
-              : 'text-amber-500 hover:text-emerald-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)] hover:scale-105'
-          }" fill="currentColor" style="transition: all 0.2s ease;">
-            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5z"/>
-          </svg>
+        <div class="flex items-center select-none" style="width: 154px; height: 34px; pointer-events: auto;">
+          <!-- 1. Custom 3D Layered Plane Icon (Plane + realistic offset drop shadow) -->
+          <div class="relative w-[34px] h-[34px] shrink-0" style="cursor: pointer;">
+            <!-- Shadow layer (offset to simulate flight altitude!) -->
+            <div style="position: absolute; top: ${shadowOffset}px; left: ${shadowOffset}px; transform: rotate(${flight.heading}deg); transition: transform 0.4s ease-out, top 0.4s ease-out, left 0.4s ease-out; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; opacity: ${shadowOpacity}; filter: blur(${shadowBlur}px); pointer-events: none;">
+              <svg viewBox="0 0 24 24" class="w-8 h-8 text-black" fill="currentColor">
+                <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5z"/>
+              </svg>
+            </div>
+            <!-- Plane body layer (solid bright color according to role) -->
+            <div style="position: absolute; top: 0; left: 0; transform: rotate(${flight.heading}deg); transition: transform 0.4s ease-out; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
+              <svg viewBox="0 0 24 24" class="w-8 h-8 ${planeColorClass}" fill="currentColor" style="transition: all 0.2s ease;">
+                <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5z"/>
+              </svg>
+            </div>
+          </div>
+          
+          <!-- 2. Horizontal Flight Label Tag (Hover-only or persistent depending on priority!) -->
+          <div class="flight-label-tag ml-1 px-1.5 py-0.5 backdrop-blur-sm border ${tagBorderClass} ${tagPersistentClass} rounded text-[8px] font-bold font-mono tracking-wider flex flex-col leading-tight select-none min-w-[75px]">
+            <div class="${labelNameColorClass} leading-tight">${flight.flightNumber}</div>
+            <div class="text-slate-400 leading-tight">${flight.registration} (${flight.aircraftType})</div>
+            <div class="text-slate-300 leading-tight flex items-center justify-between gap-1 mt-0.5">
+              <span>H: ${flight.altitude} FT</span>
+              <span class="text-sky-400">${flight.speed} KT</span>
+            </div>
+          </div>
         </div>
       `;
 
       const planeIcon = L.divIcon({
         html: htmlIcon,
         className: 'custom-flight-vector-marker',
-        iconSize: [34, 34],
-        iconAnchor: [17, 17]
+        iconSize: [154, 34],
+        iconAnchor: [17, 17] // Centers the 34x34 plane container precisely at [17, 17], letting the label sit naturally to the right!
       });
 
       const position: L.LatLngExpression = [flight.lat, flight.lon];
-      const etaFormatted = flight.eta 
-        ? new Date(flight.eta).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) 
-        : 'Sem ETA';
 
-      // Highly compact and precise metadata label containing ONLY what Anderson requested:
-      // - flightNumber
-      // - registration (prefixo)
-      // - eta (hora de chegada)
       const popupContent = `
         <div class="text-slate-100 bg-slate-950 font-sans text-[11px] font-medium leading-normal flex flex-col gap-0.5">
           <div class="font-black text-amber-400 text-xs font-mono tracking-widest">${flight.flightNumber}</div>
@@ -497,8 +575,18 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
 
         {/* Dynamic status count and Refresh trigger button */}
         <div className="flex items-center gap-3 shrink-0">
+          {/* Realtime API status indicator badge */}
+          <div className={`text-[10px] px-2.5 py-1 border rounded-md font-mono hidden md:flex items-center gap-1.5 transition-all ${
+            isRealTimeAPI 
+              ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' 
+              : 'bg-amber-950/40 border-amber-800 text-amber-500'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${isRealTimeAPI ? 'bg-emerald-400 animate-ping' : 'bg-amber-500 animate-pulse'}`}></span>
+            <span>{isRealTimeAPI ? 'LIVE: FR24 ATIVADO' : 'MOCK: TELEMETRIA ATIVA'}</span>
+          </div>
+
           <div className="text-[10px] bg-slate-950 px-2.5 py-1 border border-slate-800 rounded-md font-mono text-slate-400 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             <span>{flights.length} Aeronaves Radar</span>
           </div>
 
@@ -633,18 +721,22 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
         )}
 
         {/* Simple map legends (Bottom-left overlay) */}
-        <div className="absolute bottom-4 left-4 z-[900] bg-slate-950/95 border border-slate-800 p-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-4 shadow-xl select-none">
+        <div className="absolute bottom-4 left-4 z-[900] bg-slate-950/95 border border-slate-800 p-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-400 flex flex-wrap items-center gap-4 shadow-xl select-none">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 bg-amber-500 rounded-sm inline-block shrink-0"></span>
-            <span>Tráfego Aeroporto</span>
+            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-sm inline-block shrink-0 shadow-[0_0_5px_rgba(16,185,129,0.7)] animate-pulse"></span>
+            <span className="text-emerald-400 font-extrabold">FROTA EM MALHA</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-sm inline-block shrink-0 shadow-[0_0_5px_#10b981]"></span>
-            <span>Voo Selecionado</span>
+          <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+            <span className="w-2.5 h-2.5 bg-yellow-400 rounded-sm inline-block shrink-0"></span>
+            <span>MOVIMENTOS GRU</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+            <span className="w-2.5 h-2.5 bg-slate-500 rounded-sm inline-block shrink-0"></span>
+            <span>GERAL TMA-SP</span>
           </div>
           <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
             <MapPin size={10} className="text-emerald-400 shrink-0 animate-bounce" />
-            <span>SBGR Guarulhos</span>
+            <span>SBGR GUARULHOS</span>
           </div>
         </div>
       </div>
