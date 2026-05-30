@@ -45,12 +45,13 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
   const [selectedFlight, setSelectedFlight] = useState<FlightTelemetry | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [isRealTimeAPI, setIsRealTimeAPI] = useState<boolean>(false);
+  const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
   const selectedMarkerRef = useRef<L.Circle | null>(null);
-
+  
   // Map configurations
   const [mapStyle, setMapStyle] = useState<'google-roadmap' | 'google-hybrid' | 'voyager' | 'dark'>('google-roadmap'); 
   const tileLayerRef = useRef<L.TileLayer | null>(null);
@@ -104,6 +105,9 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
         .flight-label-tag.persistent-label {
           opacity: 1 !important;
           visibility: visible !important;
+        }
+        .gliding-glowing-route-trail {
+          filter: drop-shadow(0 0 5.5px #10b981);
         }
       `;
       document.head.appendChild(style);
@@ -170,8 +174,13 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/fr24/guarulhos-arrivals');
+      const contentType = response.headers.get("content-type") || "";
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData: any = {};
+        if (contentType.includes("application/json")) {
+          errorData = await response.json().catch(() => ({}));
+        }
         throw new Error(
           JSON.stringify({
             code: errorData.error || `HTTP_${response.status}`,
@@ -179,6 +188,16 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
           })
         );
       }
+
+      if (!contentType.includes("application/json")) {
+        throw new Error(
+          JSON.stringify({
+            code: "NOT_JSON_RESPONSE",
+            message: "A rota /api/fr24/guarulhos-arrivals retornou um conteúdo que não é JSON (provavelmente redirecionamento HTML ou erro do servidor de borda)."
+          })
+        );
+      }
+
       const result = await response.json();
       const fetchedFlights: FlightTelemetry[] = result.data || [];
       setFlights(fetchedFlights);
@@ -207,7 +226,7 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
       } catch {
         setErrorState({
           code: 'CONNECTION_FAILED',
-          message: 'Falha ao conectar com o serviço de telemetria do backend Express.'
+          message: 'Falha ao processar resposta do serviço de telemetria (Resposta não-JSON ou erro de conexão).'
         });
       }
     } finally {
@@ -628,15 +647,26 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
 
         {/* Dynamic status count and Refresh trigger button */}
         <div className="flex items-center gap-3 shrink-0">
-          {/* Realtime API status indicator badge */}
-          <div className={`text-[10px] px-2.5 py-1 border rounded-md font-mono hidden md:flex items-center gap-1.5 transition-all ${
-            isRealTimeAPI 
-              ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' 
-              : 'bg-amber-950/40 border-amber-800 text-amber-500'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${isRealTimeAPI ? 'bg-emerald-400 animate-ping' : 'bg-amber-500 animate-pulse'}`}></span>
+          {/* Realtime API status indicator badge - Clickable to toggle detailed diagnostics on errorState */}
+          <button
+            onClick={() => {
+              if (errorState) {
+                setShowDiagnostics(prev => !prev);
+              }
+            }}
+            className={`text-[10px] px-2.5 py-1 border rounded-md font-mono hidden md:flex items-center gap-1.5 transition-all outline-none ${
+              isRealTimeAPI 
+                ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' 
+                : 'bg-amber-950/40 border-amber-800 text-amber-500 hover:bg-amber-900/20 cursor-pointer'
+            }`}
+            title={errorState ? "Clique para abrir o painel de diagnósticos operacionais" : undefined}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${isRealTimeAPI ? 'bg-emerald-400 animate-ping' : 'bg-amber-400 animate-pulse'}`}></span>
             <span>{isRealTimeAPI ? 'LIVE: FR24 ATIVADO' : 'MOCK: TELEMETRIA ATIVA'}</span>
-          </div>
+            {errorState && (
+              <span className="ml-1 bg-amber-505 bg-amber-500 text-slate-950 px-1 font-sans rounded font-black text-[9px] animate-bounce">!</span>
+            )}
+          </button>
 
           <div className="text-[10px] bg-slate-950 px-2.5 py-1 border border-slate-800 rounded-md font-mono text-slate-400 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -657,25 +687,51 @@ export const AirRadar: React.FC<AirRadarProps> = ({ isDarkMode }) => {
       {/* 2. Map Module in 100% Full Open View (Mapa Mais Aberto) */}
       <div className="flex-1 bg-slate-900 overflow-hidden relative min-h-0 w-full">
         
-        {/* Environment-related technical diagnostic alerts overlay banner from Bob */}
-        {errorState && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[990] w-[94%] max-w-2xl bg-amber-950/95 border border-amber-800/80 p-3.5 rounded-xl shadow-2xl flex items-start gap-3.5 backdrop-blur-md">
-            <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={18} />
+        {/* Environment-related technical diagnostic alerts overlay banner from Bob (Only visible if showDiagnostics is toggled OR if errorState was just initialized) */}
+        {errorState && showDiagnostics && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[9990] w-[94%] max-w-2xl bg-slate-950/98 border border-amber-900/80 p-4 rounded-xl shadow-2xl flex items-start gap-4 backdrop-blur-md">
+            <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={20} />
             <div className="flex-1 text-[11px] font-medium leading-relaxed">
-              <span className="font-extrabold text-white uppercase block mb-1 tracking-wider text-xs">DIAGNÓSTICO ARQUITETURAL NOC • SISTEMA MALHA</span>
-              <p className="text-amber-300 font-extrabold mb-1">
-                Conexão com a rota Express falhou ({errorState.code}). Simulação cliente-side de alta fidelidade ativada.
-              </p>
-              <p className="text-slate-300 select-all">
-                Dica técnica do Bob: Se você estiver hospedando no <span className="text-emerald-400 font-bold">Cloudflare Pages (plano de CDN estático)</span>, o servidor Express backend `/server.ts` não é compilado diretamente na infraestrutura de borda (edge CDN). Para sincronizar dados reais do Flightradar24 usando seu Token de API, certifique-se de executar em um ecossistema full-stack compatível com Node (como Cloud Run, VPS ou usando Cloudflare Workers proxy).
-              </p>
+              <span className="font-extrabold text-white uppercase block mb-1.5 tracking-wider text-xs">DIAGNÓSTICO ARQUITETURAL NOC • SISTEMA MALHA</span>
+              
+              <div className="bg-amber-950/40 border border-amber-900/50 rounded p-2 mb-2">
+                <p className="text-amber-400 font-bold">
+                  Código do Erro: <code className="font-mono bg-amber-950 px-1 py-0.5 rounded text-white">{errorState.code}</code>
+                </p>
+                <p className="text-slate-300 text-[10px] mt-1 font-mono">
+                  {errorState.message}
+                </p>
+              </div>
+
+              <div className="text-slate-300 space-y-2">
+                <p>
+                  <span className="text-emerald-400 font-bold">Análise do Bob:</span> Você já adicionou a chave <code className="font-mono text-white bg-slate-900 px-1 rounded">FR24_API_TOKEN</code> no painel do Cloudflare (como mostrado no seu print). Excelente!
+                </p>
+                <p>
+                  No entanto, a rota Express de desenvolvimento <code className="font-mono text-white bg-slate-900 px-1 rounded">/api/fr24/*</code> está retornando HTML (provavelmente a raiz da página estática devido ao fallback de SPA de rotas do Cloudflare Pages).
+                </p>
+                <p className="text-xs font-bold text-white mt-1">Como resolver esse conflito?</p>
+                <ol className="list-decimal pl-4 space-y-1 text-slate-400 text-[10px]">
+                  <li>Certifique-se de que o diretório <code className="font-mono text-white bg-slate-900 px-1 rounded">functions/</code> está localizado na raiz do seu repositório de deploy do Cloudflare Pages.</li>
+                  <li>No painel da Cloudflare, certifique-se de realizar uma **nova implantação (redeploy)** após alterar as variáveis de ambiente, pois a Cloudflare só carrega novas variáveis em novas construções!</li>
+                  <li>Se desejar manter em modo de simulação operacional (altamente fiel às trajetórias reais), você pode simplesmente fechar este diagnóstico e os voos mockados continuarão perfeitamente reativos.</li>
+                </ol>
+              </div>
             </div>
-            <button 
-              onClick={() => setErrorState(null)} 
-              className="px-2.5 py-1 bg-amber-900/50 hover:bg-amber-900 text-amber-305 font-black rounded uppercase text-[9px] cursor-pointer tracking-wider shrink-0 transition-colors"
-            >
-              Excluir Alerta
-            </button>
+            <div className="flex flex-col gap-2 shrink-0">
+              <button 
+                onClick={() => setShowDiagnostics(false)} 
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-black rounded uppercase text-[9px] cursor-pointer tracking-wider transition-colors text-center"
+              >
+                Ocultar
+              </button>
+              <button 
+                onClick={() => setErrorState(null)} 
+                className="px-2.5 py-1.5 bg-amber-950 hover:bg-amber-900 text-amber-200 border border-amber-800 font-black rounded uppercase text-[9px] cursor-pointer tracking-wider transition-colors text-center"
+              >
+                Excluir
+              </button>
+            </div>
           </div>
         )}
 
