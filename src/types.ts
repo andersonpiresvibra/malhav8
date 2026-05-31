@@ -235,7 +235,7 @@ export interface MeshFlight {
   date?: string; // Add date field for time overrides
 }
 
-export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'ROOT_MESH' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN' | 'MALHA_RAIZ_ADMIN' | 'AIRLINES_ADMIN' | 'RADAR_AEREO';
+export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN' | 'AIRLINES_ADMIN';
 
 export interface AirlineType {
   id: string;
@@ -306,33 +306,3 @@ export interface DetailedVehicle {
   batteryLevel: number;
   observations?: string;
 }
-
-// Modelagem de dados da API do Flightradar24 - Flight Summary (Light & Full)
-export interface FR24FlightSummaryLight {
-  fr24_id: string;
-  flight: string;
-  callsign: string;
-  operated_as: string;
-  painted_as: string;
-  type: string;
-  reg: string;
-  origin_icao: string;
-  datetime_takeoff: string; // UTC ISO format YYYY-MM-DDTHH:MM:SS
-  destination_icao: string;
-  destination_icao_actual: string;
-  datetime_landed: string;  // UTC ISO format
-  hex: string;
-  first_seen: string;
-  last_seen: string;
-  flight_ended: boolean;
-}
-
-export interface FR24FlightSummaryFull extends FR24FlightSummaryLight {
-  runway_takeoff?: string;
-  runway_landed?: string;
-  flight_time?: number; // Em segundos
-  actual_distance?: number; // Em milhas náuticas / km dependendo do payload
-  circle_distance?: number;
-  category?: string; // Classe do serviço (e.g. Passenger, Cargo)
-}
-

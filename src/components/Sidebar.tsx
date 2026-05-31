@@ -40,7 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const navItems = [
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
-    { id: 'RADAR_AEREO' as ViewState, icon: Plane, label: 'Radar' },
     { id: 'AERODROMO' as ViewState, icon: MapPin, label: 'Aeródromo' },
     { id: 'FLEET' as ViewState, icon: BusFront, label: 'Frotas' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório', adminOnly: true },
@@ -52,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     return true;
   });
 
-  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'ROOT_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AIRLINES_ADMIN' || activeView === 'MALHA_RAIZ_ADMIN' || activeView === 'AERODROMO_ADMIN';
+  const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AIRLINES_ADMIN' || activeView === 'AERODROMO_ADMIN';
   
   return (
     <aside className="w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] border-transparent shadow-[2px_0_8px_rgba(0,0,0,0.5)]">
@@ -113,25 +112,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
 
              {expandedSections.MALHA && (
                <div className="flex flex-col gap-1 mb-2 ml-2 border-l pl-2 border-slate-200 dark:border-slate-700">
-                 {(!visibleTabs || visibleTabs.MALHA_RAIZ_ADMIN !== false) && (
-                   <a
-                      href="/MALHA_RAIZ_ADMIN"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) return;
-                        e.preventDefault();
-                        onViewChange('MALHA_RAIZ_ADMIN');
-                        setIsMenuOpen(false);
-                      }}
-                      className={`w-full justify-start flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                        activeView === 'MALHA_RAIZ_ADMIN' 
-                          ? (isDarkMode ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white')
-                          : (isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
-                      }`}
-                    >
-                      <CalendarDays size={14} className="shrink-0" /> <span className="text-left w-full">MALHARAIZ_DB</span>
-                    </a>
-                 )}
-
                  {(!visibleTabs || visibleTabs.OPERATIONAL_MESH !== false) && (
                    <a
                       href="/OPERATIONAL_MESH"

@@ -10,7 +10,6 @@ export interface UserLayoutPreferences {
     AERODROMO?: boolean;         // Aeródromo
     REPORTS?: boolean;           // Relatório
     // Admins / Sub-abas do menu expansível
-    MALHA_RAIZ_ADMIN?: boolean;
     OPERATIONAL_MESH?: boolean;
     OPERATORS_ADMIN?: boolean;
     FLEETS_ADMIN?: boolean;
@@ -50,7 +49,6 @@ export const defaultPreferences: UserLayoutPreferences = {
     SHIFT_OPERATORS: true,
     AERODROMO: true,
     REPORTS: true,
-    MALHA_RAIZ_ADMIN: true,
     OPERATIONAL_MESH: true,
     OPERATORS_ADMIN: true,
     FLEETS_ADMIN: true,
@@ -289,7 +287,6 @@ export const LayoutPreferencesModal: React.FC<LayoutPreferencesModalProps> = ({
     finalVisibleTabs.SHIFT_OPERATORS = true;
     finalVisibleTabs.AERODROMO = true;
     finalVisibleTabs.REPORTS = true;
-    finalVisibleTabs.MALHA_RAIZ_ADMIN = true;
     finalVisibleTabs.OPERATIONAL_MESH = true;
     finalVisibleTabs.OPERATORS_ADMIN = true;
     finalVisibleTabs.FLEETS_ADMIN = true;

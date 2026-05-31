@@ -2,6 +2,33 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Vehicle, OperatorProfile, AircraftType, FlightData, FlightStatus, MeshFlight } from '../types';
 import { getLocalTodayDateStr } from '../utils/shiftUtils';
 
+if (typeof window !== 'undefined') {
+  (window as any).missingTablesDetected = (window as any).missingTablesDetected || [];
+}
+
+export const registerMissingTable = (tableName: string) => {
+  if (typeof window !== 'undefined') {
+    const list = (window as any).missingTablesDetected as string[];
+    if (!list.includes(tableName)) {
+      list.push(tableName);
+      window.dispatchEvent(new CustomEvent('supabase-missing-tables', { detail: list }));
+    }
+  }
+};
+
+export const checkAndRegisterError = (errorMessage: string, tableName: string): boolean => {
+  if (!errorMessage) return false;
+  const isMissing = errorMessage.includes('Could not find the table') || 
+                    errorMessage.includes('relation') && errorMessage.includes('does not exist') ||
+                    errorMessage.includes('42P01') || 
+                    errorMessage.includes('PGRST116');
+  if (isMissing) {
+    registerMissingTable(tableName);
+    return true;
+  }
+  return false;
+};
+
 const checkConfig = () => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase não configurado. Por favor, adicione suas credenciais reais (URL e Anon Key) em Settings -> Environment Variables. Os valores não podem conter "<project-ref>".');
@@ -128,11 +155,15 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
     const { data, error } = await supabase.from('frotas').select('*');
     if (error) {
       console.error('[Supabase] Error fetching vehicles:', error.message);
+      checkAndRegisterError(error.message, 'frotas');
       const cached = localStorage.getItem('supabase_cache_vehicles');
       if (cached) {
         console.warn('[Supabase] Returning cached vehicles list');
         window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
         return JSON.parse(cached);
+      }
+      if (checkAndRegisterError(error.message, 'frotas')) {
+        return [];
       }
       throw error;
     }
@@ -164,6 +195,11 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
     return mapped;
   } catch (err: any) {
     console.error('[Supabase] Exception in getVehicles:', err);
+    if (checkAndRegisterError(err.message || '', 'frotas')) {
+      const cached = localStorage.getItem('supabase_cache_vehicles');
+      if (cached) return JSON.parse(cached);
+      return [];
+    }
     const cached = localStorage.getItem('supabase_cache_vehicles');
     if (cached) {
       console.warn('[Supabase] Returning cached vehicles list after exception');
@@ -425,11 +461,15 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
       
     if (error) {
       console.error('[Supabase] Error fetching flights:', error.message);
+      checkAndRegisterError(error.message, 'malha_operacional');
       const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
       if (cached) {
         console.warn('[Supabase] Returning cached flights for date:', dateRef);
         window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
         return JSON.parse(cached);
+      }
+      if (checkAndRegisterError(error.message, 'malha_operacional')) {
+        return [];
       }
       throw error;
     }
@@ -479,6 +519,11 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
     return mapped;
   } catch (err: any) {
     console.error('[Supabase] Exception in getFlights:', err);
+    if (checkAndRegisterError(err.message || '', 'malha_operacional')) {
+      const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
+      if (cached) return JSON.parse(cached);
+      return [];
+    }
     const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
     if (cached) {
       console.warn('[Supabase] Returning cached flights after exception for date:', dateRef);
@@ -607,131 +652,6 @@ export const deleteFlight = async (flightId: string): Promise<void> => {
   }
 };
 
-export const getRootMesh = async (): Promise<MeshFlight[]> => {
-  if (!isSupabaseConfigured()) return [];
-  const { data, error } = await supabase
-    .from('malha_raiz')
-    .select('*')
-    .order('etd');
-    
-  if (error) {
-    if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode:\n\nCREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, flight_number text UNIQUE, airline_code text, destination text, eta varchar(10), etd varchar(10), registration text, model text, position_id text, actual_arrival_time varchar(10), is_disabled boolean DEFAULT false, updated_at timestamp with time zone default now() );\n\nALTER TABLE malha_raiz ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all access" ON malha_raiz FOR ALL TO public USING (true) WITH CHECK (true);\n\nErro original: ${error.message}`);
-    }
-    console.error('[Supabase] Error fetching root mesh:', error.message);
-    throw error;
-  }
-  
-  return (data || []).map((f: any) => ({
-    id: f.id,
-    airline: f.airline_code || 'OUTRA',
-    airlineCode: f.airline_code || 'OUTRA',
-    flightNumber: f.flight_number,
-    departureFlightNumber: f.departure_flight_number || f.flight_number,
-    destination: f.destination,
-    etd: f.etd,
-    registration: f.registration || '',
-    eta: f.eta,
-    positionId: f.position_id || '',
-    actualArrivalTime: f.actual_arrival_time || '',
-    model: f.model || '',
-    disabled: f.is_disabled || false,
-    cia: f.airline_code
-  })) as MeshFlight[];
-};
-
-export const upsertRootMesh = async (flights: MeshFlight[]): Promise<void> => {
-  if (!isSupabaseConfigured()) return;
-  
-  let payloadRaw = flights.map(f => {
-    const obj: any = {
-      flight_number: f.flightNumber || f.departureFlightNumber,
-      airline_code: (f as any).cia || f.airline || f.airlineCode || '',
-      destination: f.destination,
-      etd: cleanTime(f.etd),
-      eta: cleanTime(f.eta),
-      registration: f.registration,
-      model: f.model,
-      position_id: f.positionId,
-      actual_arrival_time: cleanTime(f.actualArrivalTime),
-      is_disabled: f.disabled || false,
-      updated_at: new Date().toISOString()
-    };
-    if (f.id) obj.id = f.id;
-    return obj;
-  });
-  
-  // Deduplicate by flight_number
-  const seenFlights = new Set();
-  let payload = [];
-  for (const p of payloadRaw) {
-      if (!p.flight_number) continue; // Skip empty
-      if (!seenFlights.has(p.flight_number)) {
-          seenFlights.add(p.flight_number);
-          payload.push(p);
-      }
-  }
-
-  let maxAttempts = 10;
-  while (maxAttempts > 0) {
-    const { error } = await supabase.from('malha_raiz').upsert(payload, { onConflict: 'flight_number' });
-    
-    if (!error) return;
-
-    const notFoundMatch = error.message.match(/Could not find the '([^']+)' column/);
-    const doesNotExistMatch = error.message.match(/column\s+([^\s]+)\s+of relation/i) 
-      || error.message.match(/column\s+([^\s]+)\s+does not exist/i);
-    
-    let missingCol = '';
-    if (notFoundMatch && notFoundMatch[1]) {
-       missingCol = notFoundMatch[1];
-    } else if (doesNotExistMatch && doesNotExistMatch[1]) {
-       missingCol = doesNotExistMatch[1].replace(/^.*\.([^.]+)$/, '$1').replace(/"/g, '');
-    }
-
-    if (missingCol) {
-       console.warn(`[Supabase] column '${missingCol}' does not exist in malha_raiz, retrying without it...`);
-       payload = payload.map(p => {
-           const newP = { ...p } as any;
-           delete newP[missingCol];
-           return newP;
-       });
-       maxAttempts--;
-       continue;
-    }
-
-    if (error.message.includes("new row violates row-level security policy")) {
-        throw new Error(`ERRO DE PERMISSÃO (RLS)!\nVá ao SQL Editor no Supabase e rode:\n\nALTER TABLE malha_raiz ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS "Allow all access" ON malha_raiz;\nCREATE POLICY "Allow all access" ON malha_raiz FOR ALL TO public USING (true) WITH CHECK (true);`);
-    }
-
-    console.error('[Supabase] Error upserting root mesh:', error.message);
-    if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode:\n\nCREATE TABLE malha_raiz ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, flight_number text UNIQUE, airline_code text, destination text, eta varchar(10), etd varchar(10), registration text, model text, position_id text, actual_arrival_time varchar(10), is_disabled boolean DEFAULT false, updated_at timestamp with time zone default now() );\n\nALTER TABLE malha_raiz ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all access" ON malha_raiz FOR ALL TO public USING (true) WITH CHECK (true);\n\nErro original: ${error.message}`);
-    } else if (error.message.includes('Could not find') || error.message.includes('does not exist')) {
-       throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_raiz)!\nVá ao SQL Editor no Supabase e rode: ALTER TABLE malha_raiz ADD COLUMN IF NOT EXISTS flight_number text UNIQUE, ADD COLUMN IF NOT EXISTS airline_code text, ADD COLUMN IF NOT EXISTS destination text, ADD COLUMN IF NOT EXISTS eta varchar(10), ADD COLUMN IF NOT EXISTS etd varchar(10), ADD COLUMN IF NOT EXISTS registration text, ADD COLUMN IF NOT EXISTS model text, ADD COLUMN IF NOT EXISTS position_id text, ADD COLUMN IF NOT EXISTS is_disabled boolean, ADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-export const deleteRootMeshFlight = async (flightId: string): Promise<void> => {
-  if (!isSupabaseConfigured()) return;
-  const { error } = await supabase.from('malha_raiz').delete().eq('id', flightId);
-  if (error) {
-    console.error('[Supabase] Error deleting root mesh flight:', error.message);
-    throw error;
-  }
-};
-
-export const clearRootMesh = async (): Promise<void> => {
-  if (!isSupabaseConfigured()) return;
-  // This is a workaround to delete all since we don't have a truncate RPC usually
-  const { error } = await supabase.from('malha_raiz').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  if (error) {
-    console.error('[Supabase] Error clearing root mesh:', error.message);
-    throw error;
-  }
-};
 
 export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]> => {
   if (!isSupabaseConfigured()) return [];
@@ -752,10 +672,14 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
 
     if (error) {
       console.error(`[Supabase] Error fetching base mesh:`, error.message);
+      checkAndRegisterError(error.message, 'malha_dia');
       const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
       if (cached) {
         console.warn(`[Supabase] Returning cached base mesh flights for ${dateRef}`);
         return JSON.parse(cached);
+      }
+      if (checkAndRegisterError(error.message, 'malha_dia')) {
+        return [];
       }
       throw error;
     }
@@ -791,6 +715,11 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
     return mapped;
   } catch (err: any) {
     console.error('[Supabase] Exception in getBaseMeshFlights:', err);
+    if (checkAndRegisterError(err.message || '', 'malha_dia')) {
+      const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
+      if (cached) return JSON.parse(cached);
+      return [];
+    }
     const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
     if (cached) {
       console.warn(`[Supabase] Returning cached base mesh flights for ${dateRef} after exception`);

@@ -21,14 +21,7 @@ export const downloadTemplate = (module: string) => {
       ];
       ws_name = "Aeronaves";
       break;
-    case 'malha_raiz':
-      ws_data = [
-        ["VÔO", "ICAO", "ETA", "ETD", "PREFIXO", "MODELO", "POSIÇÃO"],
-        ["LA3396", "SBPS", "22:50", "00:00", "PR-XMB", "A320", "J12"],
-        ["G31644", "SBRJ", "14:30", "15:30", "PR-GEA", "B738", "J10"],
-      ];
-      ws_name = "Voos";
-      break;
+
     case 'operators':
       ws_data = [
         ["NOME GUERRA", "NOME COMPL.", "FUNÇÃO", "LT", "MATRI VIBRA", "MATR. GRU", "LOG. TMF", "TIP. S", "E-MAIL", "PÁTIO", "TURNO", "HR. ENT", "HR SAID", "STATUS"],

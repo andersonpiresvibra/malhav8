@@ -1255,6 +1255,76 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const actionMenuRef = useRef<HTMLDivElement>(null);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
 
+  const generateUUID = () => {
+    if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  };
+
+  const handleCreateFlightInline = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + activeDateOffset);
+    const dateStr = getLocalDateStr(d);
+
+    const newId = generateUUID();
+
+    let defaultStatus = FlightStatus.FILA;
+    let defaultEta = "";
+    let defaultEtd = "";
+
+    if (activeTab === "CHEGADA") {
+      defaultStatus = FlightStatus.CHEGADA;
+      const now = new Date();
+      defaultEta = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    } else if (activeTab === "FILA") {
+      defaultStatus = FlightStatus.FILA;
+      const now = new Date();
+      defaultEtd = `${String(now.getHours() + 1).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    } else if (activeTab === "DESIGNADOS") {
+      defaultStatus = FlightStatus.DESIGNADO;
+    } else if (activeTab === "ABASTECENDO") {
+      defaultStatus = FlightStatus.ABASTECENDO;
+    } else if (activeTab === "FINALIZADO") {
+      defaultStatus = FlightStatus.FINALIZADO;
+    } else {
+      defaultStatus = FlightStatus.FILA;
+    }
+
+    const newEmptyFlight: FlightData = {
+      id: newId,
+      date: dateStr,
+      flightNumber: "",
+      departureFlightNumber: "",
+      airline: "",
+      airlineCode: "",
+      model: "",
+      registration: "",
+      origin: "GRU",
+      destination: "",
+      eta: defaultEta,
+      etd: defaultEtd,
+      actualArrivalTime: "",
+      positionId: "",
+      positionType: undefined,
+      fuelStatus: 0,
+      status: defaultStatus,
+      volume: 0,
+      logs: [],
+    };
+
+    onUpdateFlights((prev) => [newEmptyFlight, ...prev]);
+
+    // Defina o foco no primeiro campo editável da nova linha
+    const firstCol = activeTab === "FILA" ? "departureFlightNumber" : "flightNumber";
+    setFocusedCell({ rowId: newId, col: firstCol });
+    setEditingCell({ rowId: newId, col: firstCol });
+  };
+
   const handleCreateFlight = (newFlight: FlightData) => {
     // If getting date string for the currently selected activeDateOffset
     const d = new Date();
@@ -3497,7 +3567,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
   useEffect(() => {
     if (pendingAction === "CREATE") {
-      setIsCreateModalOpen(true);
+      handleCreateFlightInline();
       if (setPendingAction) setPendingAction(null);
     } else if (pendingAction === "IMPORT") {
       setIsImportModalOpen(true);
@@ -3538,6 +3608,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
                   Ações da Malha
                 </span>
               </div>
+              <button
+                onClick={() => {
+                  handleCreateFlightInline();
+                  setShowOptionsDropdown(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"}`}
+              >
+                <Plus size={14} className="text-[#3CA317]" />
+                Criar Voo
+              </button>
               <button
                 onClick={() => {
                   if (onUpdateFlights && meshFlights) {
@@ -3832,6 +3912,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         className="text-center w-20"
                       />
                     )}
+                    {isColVisible("registration") && (
+                      <SortableHeader
+                        label="PREFIXO"
+                        columnKey="registration"
+                        className="text-center w-20"
+                      />
+                    )}
                     {isColVisible("destination") && (
                       <SortableHeader
                         label="ICAO"
@@ -3843,13 +3930,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       <SortableHeader
                         label="CID"
                         columnKey="destination"
-                        className="text-center w-20"
-                      />
-                    )}
-                    {isColVisible("registration") && (
-                      <SortableHeader
-                        label="PREFIXO"
-                        columnKey="registration"
                         className="text-center w-20"
                       />
                     )}
@@ -3919,6 +3999,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         className="text-center w-16"
                       />
                     )}
+                    {isColVisible("flightNumber") && (
+                      <SortableHeader
+                        label="V.SAÍDA"
+                        columnKey="departureFlightNumber"
+                        className="text-center w-20"
+                      />
+                    )}
                     {isColVisible("registration") && (
                       <SortableHeader
                         label="PREFIXO"
@@ -3931,13 +4018,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         label="MODELO"
                         columnKey="model"
                         className="text-center w-16"
-                      />
-                    )}
-                    {isColVisible("flightNumber") && (
-                      <SortableHeader
-                        label="V.SAÍDA"
-                        columnKey="departureFlightNumber"
-                        className="text-center w-20"
                       />
                     )}
                     {isColVisible("destination") && (
@@ -4057,6 +4137,13 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         className="text-center w-16"
                       />
                     )}
+                    {isColVisible("flightNumber") && (
+                      <SortableHeader
+                        label="V.SAÍDA"
+                        columnKey="departureFlightNumber"
+                        className="text-center w-20"
+                      />
+                    )}
                     {isColVisible("registration") && (
                       <SortableHeader
                         label="PREFIXO"
@@ -4069,13 +4156,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         label="MODELO"
                         columnKey="model"
                         className="text-center w-16"
-                      />
-                    )}
-                    {isColVisible("flightNumber") && (
-                      <SortableHeader
-                        label="V.SAÍDA"
-                        columnKey="departureFlightNumber"
-                        className="text-center w-20"
                       />
                     )}
                     {isColVisible("destination") && (
@@ -4177,20 +4257,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         className="text-center w-16"
                       />
                     )}
-                    {isColVisible("registration") && (
-                      <SortableHeader
-                        label="PREFIXO"
-                        columnKey="registration"
-                        className="text-center w-20"
-                      />
-                    )}
-                    {isColVisible("model") && (
-                      <SortableHeader
-                        label="MODELO"
-                        columnKey="model"
-                        className="text-center w-16"
-                      />
-                    )}
                     {isColVisible("flightNumber") && (
                       <SortableHeader
                         label="V.CHEG"
@@ -4210,6 +4276,20 @@ export const GridOps: React.FC<GridOpsProps> = ({
                         label="V.SAÍDA"
                         columnKey="departureFlightNumber"
                         className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("registration") && (
+                      <SortableHeader
+                        label="PREFIXO"
+                        columnKey="registration"
+                        className="text-center w-20"
+                      />
+                    )}
+                    {isColVisible("model") && (
+                      <SortableHeader
+                        label="MODELO"
+                        columnKey="model"
+                        className="text-center w-16"
                       />
                     )}
                     {isColVisible("destination") && (
@@ -4415,6 +4495,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           true,
                         )}
 
+                        {/* REGISTRATION */}
+                        {renderEditableCell(
+                          row,
+                          "registration",
+                          row.registration,
+                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
+                          rowIndex,
+                          2,
+                        )}
+
                         {/* ICAO */}
                         {renderEditableCell(
                           row,
@@ -4422,7 +4512,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.destination,
                           `text-center font-mono ${isDarkMode ? "text-slate-400" : "text-slate-600"} font-bold text-[10px]`,
                           rowIndex,
-                          2,
+                          3,
                           true,
                         )}
 
@@ -4433,16 +4523,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           >
                             {getCityName(row.destination || "", destinosDB)}
                           </td>
-                        )}
-
-                        {/* REGISTRATION */}
-                        {renderEditableCell(
-                          row,
-                          "registration",
-                          row.registration,
-                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
-                          rowIndex,
-                          3,
                         )}
 
                         {/* POSITION */}
@@ -4556,6 +4636,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       <>
                         {/* FLIGHT OUT (Moved later) */}
 
+                        {/* FLIGHT OUT */}
+                        {renderEditableCell(
+                          row,
+                          "departureFlightNumber",
+                          row.departureFlightNumber || "",
+                          "text-center font-mono tracking-tighter",
+                          rowIndex,
+                          1,
+                          true,
+                        )}
+
                         {/* REGISTRATION */}
                         {renderEditableCell(
                           row,
@@ -4563,7 +4654,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.registration,
                           "text-center font-mono text-emerald-500 tracking-tighter uppercase",
                           rowIndex,
-                          1,
+                          2,
                         )}
 
                         {/* MODEL */}
@@ -4573,19 +4664,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.model,
                           "text-center font-mono text-[10px] font-bold",
                           rowIndex,
-                          2,
-                          false,
-                        )}
-
-                        {/* FLIGHT OUT */}
-                        {renderEditableCell(
-                          row,
-                          "departureFlightNumber",
-                          row.departureFlightNumber || "",
-                          "text-center font-mono tracking-tighter",
-                          rowIndex,
                           3,
-                          true,
+                          false,
                         )}
 
                         {/* ICAO */}
@@ -4774,6 +4854,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       </>
                     ) : isFinishedView ? (
                       <>
+                        {/* FLIGHT OUT */}
+                        {renderEditableCell(
+                          row,
+                          "departureFlightNumber",
+                          row.departureFlightNumber || "",
+                          "text-center font-mono tracking-tighter",
+                          rowIndex,
+                          1,
+                          true,
+                        )}
+
                         {/* REGISTRATION */}
                         {renderEditableCell(
                           row,
@@ -4781,7 +4872,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.registration,
                           "text-center font-mono text-emerald-500 tracking-tighter uppercase",
                           rowIndex,
-                          1,
+                          2,
                         )}
 
                         {/* MODEL */}
@@ -4791,19 +4882,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.model,
                           "text-center font-mono text-[10px] font-bold",
                           rowIndex,
-                          2,
-                          false,
-                        )}
-
-                        {/* FLIGHT OUT */}
-                        {renderEditableCell(
-                          row,
-                          "departureFlightNumber",
-                          row.departureFlightNumber || "",
-                          "text-center font-mono tracking-tighter",
-                          rowIndex,
                           3,
-                          true,
+                          false,
                         )}
 
                         {/* ICAO */}
@@ -4934,27 +5014,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       </>
                     ) : (
                       <>
-                        {/* REGISTRATION */}
-                        {renderEditableCell(
-                          row,
-                          "registration",
-                          row.registration,
-                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
-                          rowIndex,
-                          1,
-                        )}
-
-                        {/* MODEL */}
-                        {renderEditableCell(
-                          row,
-                          "model",
-                          row.model,
-                          "text-center font-mono text-[10px] font-bold",
-                          rowIndex,
-                          2,
-                          false,
-                        )}
-
                         {/* FLIGHT IN */}
                         {renderEditableCell(
                           row,
@@ -4962,7 +5021,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.flightNumber,
                           "text-center font-mono tracking-tighter",
                           rowIndex,
-                          3,
+                          1,
                         )}
 
                         {/* ETA (POUSO ESTIMADO) - Derived from eta, but maybe let them edit eta */}
@@ -4972,7 +5031,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.eta,
                           "text-center font-mono",
                           rowIndex,
-                          4,
+                          2,
                         )}
 
                         {/* FLIGHT OUT */}
@@ -4982,8 +5041,29 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           row.departureFlightNumber || "",
                           "text-center font-mono tracking-tighter",
                           rowIndex,
-                          5,
+                          3,
                           true,
+                        )}
+
+                        {/* REGISTRATION */}
+                        {renderEditableCell(
+                          row,
+                          "registration",
+                          row.registration,
+                          "text-center font-mono text-emerald-500 tracking-tighter uppercase",
+                          rowIndex,
+                          4,
+                        )}
+
+                        {/* MODEL */}
+                        {renderEditableCell(
+                          row,
+                          "model",
+                          row.model,
+                          "text-center font-mono text-[10px] font-bold",
+                          rowIndex,
+                          5,
+                          false,
                         )}
 
                         {/* ICAO */}
@@ -5708,13 +5788,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
           document.body,
         )}
 
-      {/* CREATE FLIGHT MODAL */}
-      {isCreateModalOpen && (
-        <CreateFlightModal
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreate={handleCreateFlight}
-        />
-      )}
+      {/* CREATE FLIGHT MODAL REMOVED - NOW INLINE EDITING */}
 
 
       {/* Flight Detail Modals render block */}

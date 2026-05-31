@@ -184,9 +184,8 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
             return;
         }
 
-        // Fetch counts from aeronaves and malha_raiz
+        // Fetch counts from aeronaves
         const { data: aeronaves } = await supabase.from('aeronaves').select('airline');
-        const { data: malha } = await supabase.from('malha_raiz').select('flight_number, airline_code');
 
         const equipCounts: Record<string, number> = {};
         const flightCounts: Record<string, number> = {};
@@ -199,19 +198,10 @@ export const AirlinesAdmin: React.FC<AirlinesAdminProps> = ({ isDarkMode }) => {
             });
         }
 
-        if (malha) {
-            malha.forEach(m => {
-                const cia = m.airline_code || (m.flight_number ? m.flight_number.match(/^[A-Z]{2,3}/)?.[0] : null);
-                if (cia) {
-                    flightCounts[cia] = (flightCounts[cia] || 0) + 1;
-                }
-            });
-        }
-
         const enrichedAirlines = (airlinesData as AirlineType[]).map(a => ({
             ...a,
             equipment_count: equipCounts[a.airline_code] || equipCounts[a.airline] || 0, // Fallback check
-            flight_count: flightCounts[a.airline_code] || 0
+            flight_count: 0
         }));
 
         setAirlines(enrichedAirlines);

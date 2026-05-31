@@ -13,16 +13,13 @@ import { OperatorProfile } from './types';
 import { ShiftOperatorsSection } from './components/ShiftOperatorsSection';
 import { Sidebar } from './components/Sidebar';
 import { OperationalMesh } from './components/OperationalMesh';
-import { RootMesh } from './components/RootMesh';
 import { ReportsView } from './components/ReportsView';
 import { OperatorsAdmin } from './components/OperatorsAdmin';
 import { FleetsAdmin } from './components/FleetsAdmin';
 import { AircraftsAdmin } from './components/AircraftsAdmin';
 import { AirlinesAdmin } from './components/AirlinesAdmin';
-import { MalhaRaizAdmin } from './components/MalhaRaizAdmin';
 import { Aerodromo } from './components/Aerodromo';
 import { OperatorManager } from './components/OperatorManager';
-import { AirRadar } from './components/AirRadar';
 import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './constants/aerodromoConfig';
 
 import { GridOps } from './components/GridOps';
@@ -32,7 +29,7 @@ import { LayoutPreferencesModal, UserLayoutPreferences, defaultPreferences } fro
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
   const [view, setView] = useState<ViewState>(() => {
-    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN', 'RADAR_AEREO'];
+    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN'];
     
     // Prioritize pathname suffix (e.g., "/REPORTS")
     const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
@@ -53,7 +50,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleUrlChange = () => {
-      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'ROOT_MESH', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'MALHA_RAIZ_ADMIN', 'AIRLINES_ADMIN', 'RADAR_AEREO'];
+      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN'];
       
       const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
       const pathnamePart = cleanPathname.split('/')[0] as ViewState;
@@ -261,18 +258,70 @@ const App: React.FC = () => {
       }
     };
     window.addEventListener('supabase-network-state', handleNetworkState);
+    
+    const handleMissingTables = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.length > 0) {
+        const tables = customEvent.detail as string[];
+        const tablesFormatted = tables.map(t => `"${t}"`).join(', ');
+        
+        let instruction = `Estrutura do banco de dados incompleta: tabelas ausentes (${tablesFormatted}).\n\n`;
+        instruction += `Para habilitar a persistência inteira via Supabase (MALHA Enterprise), acesse o SQL Editor no painel do Supabase do seu projeto e execute o script abaixo:\n\n`;
+        
+        if (tables.includes('malha_operacional')) {
+          instruction += `-- Criar tabela de Malha Operacional\n`;
+          instruction += `CREATE TABLE IF NOT EXISTS public.malha_operacional (\n`;
+          instruction += `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n`;
+          instruction += `    date_ref TEXT NOT NULL,\n`;
+          instruction += `    flight_number TEXT NOT NULL,\n`;
+          instruction += `    departure_flight_number TEXT,\n`;
+          instruction += `    airline TEXT, airline_code TEXT,\n`;
+          instruction += `    model TEXT, registration TEXT, origin TEXT, destination TEXT,\n`;
+          instruction += `    eta TEXT, etd TEXT, actual_arrival_time TEXT, position_id TEXT,\n`;
+          instruction += `    position_type TEXT, pit_id TEXT, wing_side TEXT,\n`;
+          instruction += `    fuel_status INTEGER DEFAULT 0, status TEXT DEFAULT 'CHEGADA'::text NOT NULL,\n`;
+          instruction += `    volume INTEGER DEFAULT 0, is_on_ground BOOLEAN DEFAULT false,\n`;
+          instruction += `    delay_justification TEXT, designation_time TIMESTAMP WITH TIME ZONE,\n`;
+          instruction += `    start_time TIMESTAMP WITH TIME ZONE, end_time TIMESTAMP WITH TIME ZONE,\n`;
+          instruction += `    assignment_time TIMESTAMP WITH TIME ZONE, assigned_by_lt TEXT,\n`;
+          instruction += `    is_excluded_from_queue BOOLEAN DEFAULT false, report JSONB DEFAULT '{}'::jsonb,\n`;
+          instruction += `    logs JSONB DEFAULT '[]'::jsonb,\n`;
+          instruction += `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n`;
+          instruction += `    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n`;
+          instruction += `);\n\n`;
+        }
+        
+        if (tables.includes('malha_dia')) {
+          instruction += `-- Criar tabela de Malha Dia (Base Mesh)\n`;
+          instruction += `CREATE TABLE IF NOT EXISTS public.malha_dia (\n`;
+          instruction += `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n`;
+          instruction += `    date TEXT NOT NULL,\n`;
+          instruction += `    airline TEXT, airline_code TEXT, flight_number TEXT,\n`;
+          instruction += `    departure_flight_number TEXT, destination TEXT, etd TEXT,\n`;
+          instruction += `    registration TEXT, eta TEXT, position_id TEXT,\n`;
+          instruction += `    actual_arrival_time TEXT, model TEXT, is_disabled BOOLEAN DEFAULT false,\n`;
+          instruction += `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n`;
+          instruction += `    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n`;
+          instruction += `);\n\n`;
+        }
+        
+        setSupabaseError(instruction);
+      }
+    };
+    window.addEventListener('supabase-missing-tables', handleMissingTables);
+    
     return () => {
       window.removeEventListener('supabase-network-state', handleNetworkState);
+      window.removeEventListener('supabase-missing-tables', handleMissingTables);
     };
   }, []);
 
   useEffect(() => {
-    import('./services/supabaseService').then(async ({ getVehicles, getOperators, getRootMesh, getAerodromoConfig }) => {
+    import('./services/supabaseService').then(async ({ getVehicles, getOperators, getAerodromoConfig }) => {
       try {
-        const [vehicles, operators, rootMesh, aerodromoConfig] = await Promise.all([
+        const [vehicles, operators, aerodromoConfig] = await Promise.all([
           getVehicles(),
           getOperators(),
-          getRootMesh(),
           getAerodromoConfig()
         ]);
         
@@ -296,9 +345,7 @@ const App: React.FC = () => {
           setGlobalOperators(mappedOperators);
         }
 
-        if (rootMesh && rootMesh.length > 0) {
-          setRootMeshFlights(rootMesh);
-        }
+
 
         if (aerodromoConfig) {
           if (aerodromoConfig.positions_metadata && Object.keys(aerodromoConfig.positions_metadata).length > 0) {
@@ -330,7 +377,7 @@ const App: React.FC = () => {
 
   const [meshFlightsByDate, setMeshFlightsByDate] = useState<Record<string, MeshFlight[]>>({});
 
-  const [rootMeshFlights, setRootMeshFlights] = useState<MeshFlight[]>([]);
+
 
 
   const [currentMeshDate, setCurrentMeshDate] = useState<string>(
@@ -1073,16 +1120,7 @@ const App: React.FC = () => {
                     positionRestrictions={positionRestrictions}
                   />
                 )}
-                {view === 'ROOT_MESH' && (
-                  <RootMesh
-                    rootMeshFlights={rootMeshFlights}
-                    setRootMeshFlights={setRootMeshFlights}
-                    isDarkMode={isDarkMode}
-                    setMeshFlightsByDate={setMeshFlightsByDate}
-                    positionsMetadata={positionsMetadata}
-                    positionRestrictions={positionRestrictions}
-                  />
-                )}
+
                 {view === 'REPORTS' && (
                   <ReportsView flights={globalFlights} initialFlight={targetReportFlight} />
                 )}
@@ -1120,12 +1158,7 @@ const App: React.FC = () => {
                     isDarkMode={isDarkMode} 
                    />
                 )}
-                {view === 'MALHA_RAIZ_ADMIN' && (
-                  <MalhaRaizAdmin isDarkMode={isDarkMode} />
-                )}
-                {view === 'RADAR_AEREO' && (
-                  <AirRadar isDarkMode={isDarkMode} />
-                )}
+
                 {view === 'AERODROMO' && (
                   <Aerodromo 
                     operators={globalOperators} 

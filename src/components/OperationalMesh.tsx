@@ -11,10 +11,11 @@ import { TimeConflictModal } from './TimeConflictModal';
 import { BulkNextDayModal } from './BulkNextDayModal';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { supabase } from '../lib/supabase';
-import { getBaseMeshFlights, upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos, getRootMesh } from '../services/supabaseService';
+import { getBaseMeshFlights, upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos } from '../services/supabaseService';
 import { formatAirlineName } from '../utils/airlineUtils';
 import { downloadTemplate } from '../utils/excelTemplateUtils';
 import { findMatchingAircraft } from '../utils/aircraftMatcher';
+import { getCityName } from '../utils/destinos';
 
 const getMinutesDiff = (targetTimeStr: string, flightDateStr?: string) => {
     if (!targetTimeStr) return 0;
@@ -84,7 +85,7 @@ const formatMeshDateDisplay = (dateString: string) => {
   return formattedDate;
 };
 
-type MeshField = keyof MeshFlight | 'actions';
+type MeshField = keyof MeshFlight | 'actions' | 'cid';
 type MeshShift = 'TODOS' | 'MANHA' | 'TARDE' | 'NOITE';
 
 const isTimeInShift = (timeStr: string, shift: MeshShift) => {
@@ -159,16 +160,16 @@ const formatImportTime = (rawVal: string) => {
 };
 
 const COLUMNS: { key: MeshField; label: string; width: string; isVariable: boolean }[] = [
-  { key: 'airline', label: 'Cia', width: 'w-24', isVariable: true },
+  { key: 'airline', label: 'Cia', width: 'w-24', isVariable: false },
   { key: 'flightNumber', label: 'V.Cheg', width: 'w-24', isVariable: true },
+  { key: 'eta', label: 'ETA', width: 'w-24', isVariable: true },
   { key: 'departureFlightNumber', label: 'V.Saída', width: 'w-24', isVariable: true },
-  { key: 'destination', label: 'ICAO', width: 'w-24', isVariable: true },
-  { key: 'etd', label: 'ETD', width: 'w-20', isVariable: true },
   { key: 'registration', label: 'Prefixo', width: 'w-28', isVariable: true },
   { key: 'model', label: 'Modelo', width: 'w-24', isVariable: false },
-  { key: 'eta', label: 'ETA', width: 'w-24', isVariable: true },
+  { key: 'destination', label: 'ICAO', width: 'w-24', isVariable: true },
+  { key: 'cid', label: 'CID', width: 'w-24', isVariable: false },
+  { key: 'etd', label: 'ETD', width: 'w-20', isVariable: true },
   { key: 'positionId', label: 'Posição', width: 'w-20', isVariable: true },
-  { key: 'actualArrivalTime', label: 'Calço', width: 'w-24', isVariable: true },
   { key: 'actions', label: 'Ações', width: 'w-14', isVariable: false },
 ];
 
@@ -204,10 +205,14 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
   const lastFiltersRef = useRef({ readyStateFilter, activeShift, searchTerm });
   const [aircraftsDB, setAircraftsDB] = useState<AircraftType[]>([]);
   const [destinosDB, setDestinosDB] = useState<StaticFlight[]>([]);
+  const [airlinesDB, setAirlinesDB] = useState<{ id: string; airline: string; airline_code: string }[]>([]);
 
   useEffect(() => {
     supabase.from('aeronaves').select('*').then(res => {
       if (res.data) setAircraftsDB(res.data as AircraftType[]);
+    });
+    supabase.from('companhias').select('id, airline, airline_code').order('airline').then(res => {
+      if (res.data) setAirlinesDB(res.data as any[]);
     });
     getDestinos().then(destinos => {
       setDestinosDB(destinos as StaticFlight[]);
@@ -297,7 +302,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
 
   const startEditingCell = (rowId: string, colIndex: number) => {
       const colKey = COLUMNS[colIndex]?.key;
-      if (colKey === 'model') return;
+      if (colKey === 'model' || colKey === 'cid') return;
 
       const flight = meshFlights.find(f => f.id === rowId);
       if (flight) {
@@ -396,16 +401,26 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
         if (match) {
             autoDestination = match.destination;
             autoAirline = match.airline;
-        } else {
-            // Se não encontrou destino na malha, mas pode inferir a companhia pelo prefixo
-            if (normalizedInput.length >= 2) {
-                const prefix = normalizedInput.slice(0, 2);
-                if (prefix === 'LA') autoAirline = 'LATAM';
-                else if (prefix === 'G3' || prefix === 'RG') autoAirline = 'GOL';
-                else if (prefix === 'AD') autoAirline = 'AZUL';
-                else if (prefix === 'CM') autoAirline = 'COPA';
-                else if (prefix === 'TP') autoAirline = 'TAP';
-                else if (prefix === 'AA') autoAirline = 'AMERICAN';
+        }
+
+        // Try to infer airline based on the first two alphabetic letters of the flight number
+        if (normalizedInput.length >= 2) {
+            const lettersMatch = normalizedInput.match(/^[A-Z]+/);
+            const prefix = lettersMatch ? lettersMatch[0].slice(0, 2) : normalizedInput.slice(0, 2);
+            if (prefix) {
+                const matchedCia = airlinesDB.find(c => String(c.airline_code || '').trim().toUpperCase() === prefix);
+                if (matchedCia) {
+                    autoAirline = matchedCia.airline;
+                    autoAirlineCode = matchedCia.airline_code;
+                } else {
+                    // Common airline mappings fallback
+                    if (prefix === 'LA' || prefix === 'JJ') autoAirline = 'LATAM';
+                    else if (prefix === 'G3' || prefix === 'RG') autoAirline = 'GOL';
+                    else if (prefix === 'AD') autoAirline = 'AZUL';
+                    else if (prefix === 'CM') autoAirline = 'COPA';
+                    else if (prefix === 'TP') autoAirline = 'TAP';
+                    else if (prefix === 'AA') autoAirline = 'AMERICAN';
+                }
             }
         }
     }
@@ -431,11 +446,13 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
             if (autoAirline !== undefined) {
                 updated[idx].airline = autoAirline;
                 const airlineUpper = autoAirline.toUpperCase();
-                let code = updated[idx].airlineCode;
-                if (airlineUpper.includes('GOL')) code = 'RG';
-                else if (airlineUpper.includes('LATAM')) code = 'LA';
-                else if (airlineUpper.includes('AZUL')) code = 'AD';
-                else code = autoAirline.slice(0, 3).toUpperCase();
+                let code = autoAirlineCode || updated[idx].airlineCode;
+                if (!code || code === 'OUTRA' || code === '--') {
+                    if (airlineUpper.includes('GOL')) code = 'RG';
+                    else if (airlineUpper.includes('LATAM')) code = 'LA';
+                    else if (airlineUpper.includes('AZUL')) code = 'AD';
+                    else code = autoAirline.slice(0, 3).toUpperCase();
+                }
                 updated[idx].airlineCode = code;
             }
         }
@@ -1367,45 +1384,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                   />
                 </label>
 
-                <button 
-                  onClick={() => {
-                    downloadTemplate('malha_raiz');
-                    setShowOptionsDropdown(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-400' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'}`}
-                >
-                  <Download size={14} />
-                  Baixar Modelo
-                </button>
 
-                <button 
-                  onClick={async () => {
-                    setShowOptionsDropdown(false);
-                    try {
-                        const rootFlights = await getRootMesh();
-                        if(!rootFlights || rootFlights.length === 0) {
-                             setAlertState({isOpen: true, title: 'Malha Vazia', message: 'Nenhum voo encontrado na Malha Raiz.'});
-                             return;
-                        }
-
-                        const newFlights = rootFlights.map(f => ({
-                             ...f,
-                             id: generateUUID(),
-                             date: currentMeshDate,
-                             isNew: true
-                        }));
-                        
-                        setMeshFlights(prev => [...newFlights, ...prev]);
-                        setAlertState({isOpen: true, title: 'Importação Concluída', message: `${newFlights.length} voos importados da Malha Raiz.`});
-                    } catch (e: any) {
-                        setAlertState({isOpen: true, title: 'Erro', message: `Erro ao importar Malha Raiz: ${e.message}`});
-                    }
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400' : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'}`}
-                >
-                  <History size={14} />
-                  Imp. Malha Raiz
-                </button>
 
                 <button 
                   onClick={() => {
@@ -1521,7 +1500,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                       {COLUMNS.map((col, cIdx) => {
                         const isCellFocused = focusedCell?.rowId === flight.id && focusedCell?.col === cIdx;
                         const isCellEditing = editingCell?.rowId === flight.id && editingCell?.col === cIdx;
-                        const cellValue = flight[col.key as keyof MeshFlight] || '';
+                        const cellValue = col.key === 'cid'
+                          ? getCityName(flight.destination || '', destinosDB)
+                          : (flight[col.key as keyof MeshFlight] || '');
                         const isPre = String(flight.etd).trim().toUpperCase() === 'PRÉ' || String(flight.etd).trim().toUpperCase() === 'PRE';
                         const checkField = (val: any) => !val || String(val).trim() === '' || String(val).trim() === '?';
                         const hasCalco = !checkField(flight.actualArrivalTime);
@@ -1666,7 +1647,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                                     e.target.select();
                                   }
                                 }}
-                                value={String(flight[col.key as keyof MeshFlight] || '')}
+                                value={String(cellValue)}
                                 onChange={(e) => handleFieldChange(flight.id, col.key as MeshField, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
                                 onBlur={() => handleFinishEdit(flight.id, cIdx)}
