@@ -556,10 +556,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
         : "!border-emerald-400 !bg-emerald-100/80 !text-slate-900";
     }
 
+    const hoverBgClass = isDarkMode
+      ? "group-hover:!bg-slate-800/80 group-hover:border-emerald-500/30"
+      : "group-hover:!bg-emerald-50 group-hover:border-emerald-300";
+
     if (isFlightPausedByMissingRep(row)) {
       return isDarkMode
-        ? "border-amber-500/50 bg-amber-500/10 animate-[pulse_2s_infinite] group-hover:bg-amber-500/20 group-hover:border-amber-400"
-        : "border-amber-400/70 bg-amber-500/10 animate-[pulse_2s_infinite] group-hover:bg-amber-100";
+        ? `border-amber-500/50 bg-amber-500/10 animate-[pulse_2s_infinite] ${hoverBgClass}`
+        : `border-amber-400/70 bg-amber-500/10 animate-[pulse_2s_infinite] ${hoverBgClass}`;
     }
 
     const minutesToETD = getMinutesDiff(row.etd, row.date);
@@ -567,28 +571,28 @@ export const GridOps: React.FC<GridOpsProps> = ({
     if (row.status === FlightStatus.FILA) {
       if (minutesToETD <= -60) {
         return isDarkMode
-          ? "border-slate-800/50 bg-slate-900/40 opacity-60 group-hover:bg-slate-800/80 group-hover:border-emerald-500/30"
-          : "border-slate-200 bg-slate-100 opacity-60 group-hover:bg-emerald-100";
+          ? `border-slate-800/50 bg-slate-900/40 opacity-60 ${hoverBgClass}`
+          : `border-slate-200 bg-slate-100 opacity-60 ${hoverBgClass}`;
       }
       if (minutesToETD < 0) {
         return isDarkMode
-          ? "border-neutral-800 bg-[#151515] group-hover:bg-slate-800/80 group-hover:border-emerald-500/30"
-          : "border-neutral-200 bg-neutral-100 group-hover:bg-emerald-100";
+          ? `border-neutral-800 bg-[#151515] ${hoverBgClass}`
+          : `border-neutral-200 bg-neutral-100 ${hoverBgClass}`;
       }
       if (minutesToETD < 20) {
         return isDarkMode
-          ? "border-red-50/10 bg-[#22070a] group-hover:bg-slate-800/80 group-hover:border-emerald-500/30"
-          : "border-red-200 bg-red-50/50 group-hover:bg-emerald-100";
+          ? `border-red-50/10 bg-[#22070a] ${hoverBgClass}`
+          : `border-red-200 bg-red-50/50 ${hoverBgClass}`;
       }
       if (minutesToETD < 30) {
         return isDarkMode
-          ? "border-yellow-900/40 bg-yellow-950/20 group-hover:bg-slate-800/80 group-hover:border-emerald-500/30"
-          : "border-yellow-200 bg-yellow-50/60 group-hover:bg-emerald-100";
+          ? `border-yellow-900/40 bg-yellow-950/20 ${hoverBgClass}`
+          : `border-yellow-200 bg-yellow-50/60 ${hoverBgClass}`;
       }
       if (minutesToETD < 40) {
         return isDarkMode
-          ? "border-yellow-900/20 bg-yellow-950/10 group-hover:bg-slate-800/80 group-hover:border-emerald-500/30"
-          : "border-yellow-100 bg-yellow-50/50 group-hover:bg-emerald-100";
+          ? `border-yellow-900/20 bg-yellow-950/10 ${hoverBgClass}`
+          : `border-yellow-100 bg-yellow-50/50 ${hoverBgClass}`;
       }
     }
 
@@ -596,14 +600,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
       const isDelayed = minutesToETD < 30;
       if (isDelayed) {
         return isDarkMode
-          ? "border-red-900/40 bg-red-950/30 group-hover:bg-slate-800/80 group-hover:border-emerald-500/30"
-          : "border-red-200 bg-red-50 group-hover:bg-emerald-100";
+          ? `border-red-900/40 bg-red-950/30 ${hoverBgClass}`
+          : `border-red-200 bg-red-50 ${hoverBgClass}`;
       }
     }
 
     return isDarkMode
-      ? "border-slate-700/50 bg-slate-900/90 group-hover:bg-slate-800/80 group-hover:border-emerald-500/30"
-      : "border-slate-200 bg-white group-hover:bg-emerald-100";
+      ? `border-slate-700/50 bg-slate-900/90 ${hoverBgClass}`
+      : `border-slate-205 bg-white ${hoverBgClass}`;
   };
   const [reportInputFlight, setReportInputFlight] = useState<FlightData | null>(
     null,
@@ -1805,10 +1809,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const filteredData = useMemo(() => {
     let base = searchFilteredFlights;
 
-    if (activeTab !== "STANDBY") {
-      base = base.filter((f) => !isStandByFlight(f));
-    }
-
+    // Removido o filtro que ocultava voos de stand-by das outras abas, permitindo que apareçam com o efeito visual correspondente
     switch (activeTab) {
       case "STANDBY":
         base = base.filter((f) => isStandByFlight(f));
@@ -1906,17 +1907,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isFilaReal = row.status === FlightStatus.FILA && !isDelayed && !isPenalty && !isAtrasando; // "FILA"
 
     let cellStyle = className;
-    if (isDelayed) {
-      if (colKey === "etd" || colKey === "registration") {
-        // Para coluna etd e preto (off-white no dark mode)
-        cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
-      } else {
-        cellStyle += isDarkMode
-          ? " !text-slate-100 font-bold"
-          : " !text-[#000000] font-bold";
-      }
+    if (colKey === "eta" || colKey === "etd" || colKey === "actualArrivalTime") {
+      cellStyle = `text-center font-mono ${
+        isDarkMode ? "!text-emerald-400 font-black" : "!text-emerald-600 font-black"
+      } tracking-wider md:tracking-widest`;
+    } else if (isDelayed) {
+      cellStyle += isDarkMode
+        ? " !text-slate-100 font-bold"
+        : " !text-[#000000] font-bold";
     } else if (isPenalty) {
-      if (colKey === "etd" || colKey === "registration") {
+      if (colKey === "registration") {
         // Penalty permanece em vermelho (perfeito!)
         cellStyle += isDarkMode ? " !text-red-450" : " !text-[#E7000B]";
       } else {
@@ -1925,16 +1925,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
           : " !text-[#dc2626] font-bold";
       }
     } else if (isAtrasando) {
-      if (colKey === "etd" || colKey === "registration") {
-        // Para coluna etd e preto (off-white no dark mode)
-        cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
-      } else {
-        cellStyle += isDarkMode
-          ? " !text-slate-100 font-bold"
-          : " !text-[#000000] font-bold";
-      }
+      cellStyle += isDarkMode
+        ? " !text-slate-100 font-bold"
+        : " !text-[#000000] font-bold";
     } else if (isFilaReal) {
-      if (colKey === "etd" || colKey === "registration") {
+      if (colKey === "registration") {
         // Para coluna etd e fone preta (off-white no dark mode)
         cellStyle += isDarkMode ? " !text-slate-100 font-bold" : " !text-[#000000] font-bold";
       }
@@ -3112,7 +3107,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
         label: "PAUSADO",
         color: "text-amber-500 bg-amber-500/10 border-amber-500/35 font-extrabold animate-[pulse_1.5s_infinite]",
         subtitle: missingLabels.join(", "),
-        rowClass: "bg-amber-500/10 border-amber-500/30 animate-[pulse_2s_infinite]",
+        rowClass: isDarkMode
+          ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-amber-500/10 [&>td:not(.grid-ops-timerest-cell)]:!border-amber-500/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80 animate-[pulse_2s_infinite]"
+          : "[&>td:not(.grid-ops-timerest-cell)]:!bg-amber-500/10 [&>td:not(.grid-ops-timerest-cell)]:!border-amber-400/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50 animate-[pulse_2s_infinite]",
       };
     }
 
@@ -3126,6 +3123,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-red-400 bg-red-500/10 border-red-500/30"
             : "text-red-600 bg-red-50 border-red-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-red-900/20 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-50/20 [&>td:not(.grid-ops-timerest-cell)]:!border-red-100/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50",
         };
       const hasSwap = f.logs.some(
         (l) =>
@@ -3138,6 +3138,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-purple-400 bg-purple-500/10 border-purple-500/30"
             : "text-purple-600 bg-purple-50 border-purple-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-800/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50",
         };
       if (checkIsDelayed(f) || f.delayJustification)
         return {
@@ -3145,12 +3148,18 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-amber-500 bg-amber-500/10 border-amber-500/30"
             : "text-amber-600 bg-amber-50 border-amber-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-800/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50",
         };
       return {
         label: "COM SUCESSO",
         color: isDarkMode
           ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
           : "text-emerald-600 bg-emerald-50 border-emerald-200",
+        rowClass: isDarkMode
+          ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-800/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+          : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50",
       };
     }
 
@@ -3161,6 +3170,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
             : "text-emerald-600 bg-emerald-50 border-emerald-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-700/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50/20 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100",
         };
       if (f.isOnGround)
         return {
@@ -3168,6 +3180,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/30"
             : "text-indigo-600 bg-indigo-50 border-indigo-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-indigo-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-indigo-800/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-indigo-50/20 [&>td:not(.grid-ops-timerest-cell)]:!border-indigo-100/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100",
         };
       if (minutesToETA < 10)
         return {
@@ -3175,6 +3190,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
             : "text-amber-600 bg-amber-50 border-amber-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-amber-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-amber-800/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-amber-50/10 [&>td:not(.grid-ops-timerest-cell)]:!border-amber-100/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100",
         };
       const h = Math.floor(minutesToETA / 60);
       const m = Math.floor(minutesToETA % 60);
@@ -3183,6 +3201,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
         color: isDarkMode
           ? "text-slate-400 bg-slate-800/50 border-slate-700"
           : "text-slate-600 bg-slate-100 border-slate-300",
+        rowClass: isDarkMode
+          ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-700/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+          : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50",
       };
     }
 
@@ -3193,13 +3214,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-purple-400 bg-purple-500/10 border-purple-400/50"
             : "text-purple-600 bg-purple-50 border-purple-200",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-purple-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-purple-800/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-purple-50/20 [&>td:not(.grid-ops-timerest-cell)]:!border-purple-100/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100",
         };
-      if (f.isStandby)
+      if (f.isStandby || isStandByFlight(f))
         return {
           label: "STAND-BY",
           color: isDarkMode
             ? "text-slate-400 bg-slate-800 border-slate-600"
             : "text-slate-600 bg-slate-100 border-slate-300",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/40 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-800/50 [&>td]:opacity-80 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-100 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 [&>td]:opacity-80 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100",
         };
 
       const absMins = Math.abs(minutesToETD);
@@ -3273,6 +3300,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
         color: isDarkMode
           ? "text-blue-400 bg-blue-500/10 border-blue-400/50"
           : "text-blue-600 bg-blue-50 border-blue-200",
+        rowClass: isDarkMode
+          ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-700/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+          : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50",
       };
     }
 
@@ -3283,6 +3313,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-blue-300 bg-blue-500/20 border-blue-400"
             : "text-blue-700 bg-blue-50 border-blue-400",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-700/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50",
         };
 
       // Se tem operador, segue a mesma lógica de designado (A caminho, acoplando...)
@@ -3294,8 +3327,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
         ? "text-red-500 bg-red-900/40 border-red-500/50"
         : "text-red-700 bg-red-100 border-red-400";
       const delayedRowClass = isDarkMode
-        ? "[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40"
-        : "[&>td]:!bg-red-50 [&>td]:!border-red-200";
+        ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-950/30 [&>td:not(.grid-ops-timerest-cell)]:!border-red-900/40 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+        : "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-50 [&>td:not(.grid-ops-timerest-cell)]:!border-red-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100";
 
       let targetLabel = "A CAMINHO";
       let targetColor = isDarkMode
@@ -3326,10 +3359,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
         }
       }
 
+      const standardRowClass = isDarkMode
+        ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-700/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+        : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-205 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50";
+
       return {
         label: targetLabel,
         color: isDelayed ? delayedColor : targetColor,
-        rowClass: isDelayed ? delayedRowClass : undefined,
+        rowClass: isDelayed ? delayedRowClass : standardRowClass,
       };
     }
 
@@ -3342,8 +3379,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
         ? "text-red-500 bg-red-900/40 border-red-500/50"
         : "text-red-700 bg-red-100 border-red-400";
       const delayedRowClass = isDarkMode
-        ? "[&>td]:!bg-red-950/30 [&>td]:!border-red-900/40"
-        : "[&>td]:!bg-red-50 [&>td]:!border-red-200";
+        ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-950/30 [&>td:not(.grid-ops-timerest-cell)]:!border-red-900/40 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+        : "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-50 [&>td:not(.grid-ops-timerest-cell)]:!border-red-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100";
 
       let targetLabel = minutesToETD < 0 ? "A CAM. (ATRASO)" : "A CAMINHO";
       let targetColor = isDarkMode
@@ -3374,10 +3411,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
         }
       }
 
+      const standardRowClass = isDarkMode
+        ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-900/90 [&>td:not(.grid-ops-timerest-cell)]:!border-slate-700/50 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+        : "[&>td:not(.grid-ops-timerest-cell)]:!bg-white [&>td:not(.grid-ops-timerest-cell)]:!border-slate-205 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50";
+
       return {
         label: targetLabel,
         color: isDelayed ? delayedColor : targetColor,
-        rowClass: isDelayed ? delayedRowClass : undefined,
+        rowClass: isDelayed ? delayedRowClass : standardRowClass,
       };
     }
 
@@ -3398,6 +3439,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           color: isDarkMode
             ? "text-emerald-400 bg-emerald-500/20 border-emerald-500 animate-bounce"
             : "text-emerald-700 bg-emerald-50 border-emerald-500 animate-bounce",
+          rowClass: isDarkMode
+            ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-emerald-800/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+            : "[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50/30 [&>td:not(.grid-ops-timerest-cell)]:!border-emerald-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.1)]",
         };
       }
 
@@ -3423,7 +3467,22 @@ export const GridOps: React.FC<GridOpsProps> = ({
           : "text-white bg-red-700 border-red-600";
       }
 
-      return { label, color };
+      let rowClass = "";
+      if (isDelayed) {
+        rowClass = isDarkMode
+          ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-950/20 [&>td:not(.grid-ops-timerest-cell)]:!border-red-900/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+          : "[&>td:not(.grid-ops-timerest-cell)]:!bg-red-50/20 [&>td:not(.grid-ops-timerest-cell)]:!border-red-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-100";
+      } else if (isFinalizando) {
+        rowClass = isDarkMode
+          ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-[#151e29] [&>td:not(.grid-ops-timerest-cell)]:!border-blue-900/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+          : "[&>td:not(.grid-ops-timerest-cell)]:!bg-blue-50/30 [&>td:not(.grid-ops-timerest-cell)]:!border-blue-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50";
+      } else {
+        rowClass = isDarkMode
+          ? "[&>td:not(.grid-ops-timerest-cell)]:!bg-[#0c2216] [&>td:not(.grid-ops-timerest-cell)]:!border-emerald-900/30 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-slate-800/80"
+          : "[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50/20 [&>td:not(.grid-ops-timerest-cell)]:!border-emerald-200 group-hover:[&>td:not(.grid-ops-timerest-cell)]:!bg-emerald-50";
+      }
+
+      return { label, color, rowClass };
     }
 
     return null;
@@ -3597,11 +3656,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
       bgStyle = isDarkMode 
         ? "bg-slate-900/40 !bg-slate-900/40 border-slate-800/50 !border-slate-800/50 group-hover:!bg-slate-800/80 group-hover:!border-emerald-500/30" 
         : "bg-slate-100 !bg-slate-100 border-slate-200 !border-slate-200 group-hover:!bg-emerald-100";
-      textStyle = isDarkMode ? "text-slate-400 font-bold" : "text-slate-500 font-bold";
+      textStyle = isDarkMode ? "text-emerald-400 font-bold" : "text-emerald-600 font-bold";
     } else {
       // Outros estados: herda o fundo da linha
       bgStyle = standardRowBg;
-      textStyle = isDarkMode ? "text-slate-100 font-bold" : "text-[#000000] font-bold";
+      textStyle = isDarkMode ? "text-emerald-400 font-black tracking-widest" : "text-emerald-600 font-black tracking-widest";
     }
 
     return (
@@ -3824,7 +3883,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         className={`h-12 shrink-0 flex border-b ${isDarkMode ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"} z-30 overflow-hidden`}
       >
         <nav className="flex w-full">
-          {tabs.map((tab) => {
+          {tabs.map((tab, idx) => {
             const isActive = activeTab === tab.id;
             const isStandbyHighlight = tab.id === "STANDBY" && stats.standby > 0;
             
@@ -3843,6 +3902,15 @@ export const GridOps: React.FC<GridOpsProps> = ({
               }
             }
 
+            if (idx === 0) {
+              // Standard styling if needed, but we let isActive styling rule
+            }
+
+            if (isActive && tab.id !== "STANDBY") {
+              buttonStyle.backgroundColor = "#10B981";
+              buttonStyle.color = "#ffffff";
+            }
+
             return (
               <button
                 key={tab.id}
@@ -3857,8 +3925,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
                                     ? tab.id === "STANDBY"
                                       ? ""
                                       : isDarkMode
-                                        ? "bg-slate-950 text-emerald-400 border-b-2 border-emerald-500"
-                                        : "bg-[#329858] text-white border-b-0"
+                                        ? "bg-[#10B981] text-white border-b-2 border-emerald-500"
+                                        : "bg-[#10B981] text-white border-b-0"
                                     : tab.id === "STANDBY"
                                       ? ""
                                       : isDarkMode
@@ -3874,7 +3942,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       isActive 
                         ? isStandbyHighlight
                           ? "bg-slate-950 text-amber-400"
-                          : isDarkMode ? "bg-emerald-500 text-slate-950" : "bg-white text-[#2D8E48]"
+                          : isDarkMode ? "bg-[#fff8f8] text-[#10B981]" : "bg-[#fff8f8] text-[#10B981]"
                         : isStandbyHighlight
                           ? isDarkMode ? "bg-amber-500/20 text-amber-400" : "bg-amber-200 text-amber-900"
                           : isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"
@@ -3886,7 +3954,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
                           : isStandbyHighlight
                             ? { backgroundColor: "#FEDC00", color: "#262626" }
                             : undefined
-                        : undefined
+                        : isActive
+                          ? { backgroundColor: "#fff8f8", color: "#10B981" }
+                          : undefined
                     }
                   >
                     {tab.count}
@@ -4471,7 +4541,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
                       e.preventDefault();
                       setSelectedFlight(row);
                     }}
-                    className={`h-10 cursor-pointer transition-all active:scale-[0.99] group shadow-sm rounded-[4px] ${isInactiveRow ? "opacity-40 grayscale" : ""}`}
+                    className={`h-10 cursor-pointer transition-all active:scale-[0.99] group shadow-sm rounded-[4px] ${isInactiveRow ? "opacity-40 grayscale" : ""} ${dynamicStatus?.rowClass || ""}`}
                   >
                     {/* AIRLINE */}
                     {renderEditableCell(

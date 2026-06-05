@@ -298,8 +298,8 @@
     border-color: rgba(148, 163, 184, 0.14) !important;
   }
 
-  .dark tr:hover {
-    background: rgba(15, 23, 42, 0.75) !important;
+  .dark tr.group:hover td:not(.selected-focus-cell) {
+    background-color: #1e293b !important;
   }
 
   .dark [class*="text-slate-400"],
@@ -516,8 +516,8 @@
       border-color: var(--light-border) !important;
     }
 
-    tr:hover {
-      background: #ecfdf5 !important;
+    tr.group:hover td:not(.selected-focus-cell) {
+      background-color: #ecfdf5 !important;
     }
 
     [class*="text-slate-400"],
