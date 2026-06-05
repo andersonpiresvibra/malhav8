@@ -769,6 +769,12 @@ export const GridOps: React.FC<GridOpsProps> = ({
       } else if (payload.positionType) {
         payload.positionType = undefined;
       }
+      
+      const reportCopy = { ...(payload.report || {}) };
+      const overriddenFields = { ...(reportCopy.overriddenFields || {}) };
+      overriddenFields.positionId = true;
+      payload.report = { ...reportCopy, overriddenFields };
+
       syncFlight(payload);
       return;
     }
@@ -886,6 +892,19 @@ export const GridOps: React.FC<GridOpsProps> = ({
         // If there was no match but they typed a registration, keep their typing
         updatedFlight.registration = String(newValue || "").toUpperCase();
       }
+    }
+
+    // Marca campos hereditários como localmente sobrescritos/overridden na malha operacional,
+    // garantindo que atualizações futuras na Malha Base não anulem edições manuais locais do NOC.
+    const inheritedFields = [
+      "flightNumber", "departureFlightNumber", "airline", "airlineCode", 
+      "destination", "model", "registration", "eta", "etd", "actualArrivalTime"
+    ];
+    if (inheritedFields.includes(String(field))) {
+      const reportCopy = { ...(updatedFlight.report || {}) };
+      const overriddenFields = { ...(reportCopy.overriddenFields || {}) };
+      overriddenFields[field] = true;
+      updatedFlight.report = { ...reportCopy, overriddenFields };
     }
 
     syncFlight(updatedFlight); // Local update only
@@ -2373,9 +2392,29 @@ export const GridOps: React.FC<GridOpsProps> = ({
     onUpdateFlights((prev) =>
       prev.filter((f) => f.id !== deleteModalFlight.id),
     );
-    deleteFlight(deleteModalFlight.id).catch((err) =>
-      console.error("Error deleting from DB:", err),
-    );
+
+    // Se o voo pertence à base de contratos da Malha Base (presente na lista de meshFlights),
+    // nós não removemos fisicamente o registro operacional do Supabase (para evitar que ele ressuscite virtualmente).
+    // Em vez disso, nós persistimos o seu apagamento de forma lógica gravando isDeletedLocal = true no report!
+    const isFromMesh = meshFlights.some((m) => m.id === deleteModalFlight.id);
+
+    if (isFromMesh) {
+      const updatedDeletedFlight = {
+        ...deleteModalFlight,
+        report: {
+          ...(deleteModalFlight.report || {}),
+          isDeletedLocal: true,
+        },
+      };
+      upsertFlight(updatedDeletedFlight).catch((err) => {
+        console.error("Error setting isDeletedLocal for flight:", err);
+      });
+    } else {
+      // Para voos extras criados livremente na operacional, exclui fisicamente
+      deleteFlight(deleteModalFlight.id).catch((err) =>
+        console.error("Error deleting from DB:", err),
+      );
+    }
 
     addToast(
       "VOO EXCLUÍDO",

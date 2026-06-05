@@ -536,6 +536,94 @@ export const getAircrafts = async (): Promise<AircraftType[]> => {
   }
 };
 
+const mergeWithBaseMesh = async (opFlights: FlightData[], dateRef: string): Promise<FlightData[]> => {
+  let baseMesh: MeshFlight[] = [];
+  try {
+    baseMesh = await getBaseMeshFlights(dateRef);
+  } catch (e) {
+    console.warn('[Supabase] Falha ao carregar malha base para a unificação:', e);
+    return opFlights;
+  }
+
+  const finalMergedFlights: FlightData[] = [];
+  const opFlightsMap = new Map<string, FlightData>();
+  
+  opFlights.forEach(f => {
+    opFlightsMap.set(f.id, f);
+  });
+
+  // 1. Processa cada voo da Malha Base
+  baseMesh.forEach(baseF => {
+    if (baseF.disabled) return; // Ignora voos desabilitados na malha base
+
+    const opF = opFlightsMap.get(baseF.id);
+
+    if (!opF) {
+      // Voo virtual da Malha Base que ainda não está criado fisicamente na tabela operacional
+      const virtualFlight: FlightData = {
+        id: baseF.id,
+        date: dateRef,
+        flightNumber: baseF.flightNumber || '',
+        departureFlightNumber: baseF.departureFlightNumber || '',
+        airline: baseF.airline || '',
+        airlineCode: baseF.airlineCode || '',
+        model: baseF.model || '',
+        registration: baseF.registration || '',
+        origin: 'SBGR',
+        destination: baseF.destination || '',
+        eta: baseF.eta || '00:00',
+        etd: baseF.etd || '00:00',
+        actualArrivalTime: baseF.actualArrivalTime || '',
+        positionId: baseF.positionId || '',
+        fuelStatus: 0,
+        status: 'CHEGADA' as FlightStatus,
+        logs: [{
+          id: 'system-init',
+          timestamp: new Date(),
+          type: 'SISTEMA',
+          message: 'Voo operacional herdeiro gerado automaticamente a partir da Malha Base.',
+          author: 'SISTEMA'
+        }],
+        report: {}
+      };
+      finalMergedFlights.push(virtualFlight);
+    } else {
+      // Voo operacional cadastrado no banco de dados para esse dia
+      if (opF.report?.isDeletedLocal) {
+        return; // Ignora se o operador o marcou como deletado localmente
+      }
+
+      const inheritedFields = ["flightNumber", "departureFlightNumber", "airline", "airlineCode", "destination", "model", "registration", "eta", "etd"];
+      const mergedFlight = { ...opF };
+      const overriddenObj = opF.report?.overriddenFields || {};
+
+      inheritedFields.forEach(field => {
+        const isOverridden = overriddenObj[field] === true;
+        if (!isOverridden) {
+          const baseValue = (baseF as any)[field];
+          if (baseValue !== undefined && baseValue !== "") {
+            (mergedFlight as any)[field] = baseValue;
+          }
+        }
+      });
+
+      finalMergedFlights.push(mergedFlight);
+    }
+  });
+
+  // 2. Adiciona voos criados localmente na operacional do dia que não derivam da Malha Base
+  opFlights.forEach(opF => {
+    const existsInBase = baseMesh.some(baseF => baseF.id === opF.id);
+    if (!existsInBase) {
+      if (!opF.report?.isDeletedLocal) {
+        finalMergedFlights.push(opF);
+      }
+    }
+  });
+
+  return finalMergedFlights;
+};
+
 export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
   if (!isSupabaseConfigured()) return [];
   
@@ -666,9 +754,10 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
         };
       }) as FlightData[];
       
-      localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(fallbackMapped));
+      const mergedFallback = await mergeWithBaseMesh(fallbackMapped, dateRef);
+      localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mergedFallback));
       window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
-      return fallbackMapped;
+      return mergedFallback;
     }
       
     if (error) {
@@ -742,9 +831,10 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
       };
     }) as FlightData[];
 
-    localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mapped));
+    const mergedNormal = await mergeWithBaseMesh(mapped, dateRef);
+    localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mergedNormal));
     window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
-    return mapped;
+    return mergedNormal;
   } catch (err: any) {
     console.error('[Supabase] Exception in getFlights:', err);
     if (checkAndRegisterError(err.message || '', 'malha_operacional')) {

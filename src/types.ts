@@ -154,6 +154,8 @@ export interface FlightReport {
   awaitingFinalRelease?: boolean;
   requestedMoreFuel?: boolean;
   requestedMoreFuelAmount?: number;
+  overriddenFields?: Record<string, boolean>;
+  isDeletedLocal?: boolean;
 }
 
 export interface FlightData {
