@@ -187,7 +187,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
   positionRestrictions
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeShift, setActiveShift] = useState<MeshShift>(getCurrentShift(false) as MeshShift);
+  const [activeShift, setActiveShift] = useState<MeshShift>('TODOS');
   const [readyStateFilter, setReadyStateFilter] = useState<'ALL' | 'READY' | 'ERROR'>('ALL');
   const [sortConfig, setSortConfig] = useState<{ key: MeshField; direction: 'asc' | 'desc' }>({ key: 'etd', direction: 'asc' });
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; col: number } | null>(null);
@@ -659,6 +659,31 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
 
     const newFlights: FlightData[] = [];
 
+    // Método para geração determinística de UUIDs baseado no dia, mês e ano, 100% compatível com a validação do Supabase
+    const generateDateSpecificUuid = (meshId: string, d: number): string => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let baseUuid = meshId || '';
+      
+      if (!uuidRegex.test(baseUuid)) {
+        // Fallback: se o id da malha não for um UUID válido, gera um hash determinístico estruturado
+        let hash = 0;
+        for (let i = 0; i < baseUuid.length; i++) {
+          hash = (hash << 5) - hash + baseUuid.charCodeAt(i);
+          hash |= 0;
+        }
+        const hexHash = Math.abs(hash).toString(16).padEnd(12, 'f').substring(0, 12);
+        baseUuid = `e0000000-0000-4000-a000-${hexHash}`;
+      }
+
+      const dayStr = String(d).padStart(2, '0');
+      const monthStr = String(month).padStart(2, '0');
+      const yearStr = String(year).padStart(4, '0');
+      
+      // Os primeiros 8 caracteres viram DDMMYYYY (uma representação hexadecimal válida de 8 dígitos)
+      const dateSegment = `${dayStr}${monthStr}${yearStr}`;
+      return `${dateSegment}-${baseUuid.substring(9)}`;
+    };
+
     for (let day = 1; day <= totalDays; day++) {
       const dayStr = String(day).padStart(2, '0');
       const monthStr = String(month).padStart(2, '0');
@@ -671,8 +696,8 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
             derivedCode = 'RG';
         }
 
-        // Use mesh-<dayStr>-<mesh.id> to guarantee unique, date-specific operational IDs
-        const uniqueId = `mesh-${dayStr}-${mesh.id}`;
+        // Use deterministic UUID format compliant with Supabase constraints
+        const uniqueId = generateDateSpecificUuid(mesh.id, day);
 
         newFlights.push({
           id: uniqueId,
@@ -1269,6 +1294,13 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                             
                             let vooSaida = getCol(cols, idxVoo);
                             let vooCheg = getCol(cols, idxVooCheg);
+
+                            if (!vooCheg && vooSaida) {
+                              vooCheg = vooSaida;
+                            }
+                            if (!vooSaida && vooCheg) {
+                              vooSaida = vooCheg;
+                            }
                             
                             const isEnchimento = vooSaida.includes('ENCH') || vooSaida.includes('ENCHIMENTO') || vooSaida.includes('...') || vooSaida.includes('---');
                             if (!vooSaida && !vooCheg) continue;

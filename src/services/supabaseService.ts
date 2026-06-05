@@ -1159,6 +1159,42 @@ export const clearAllBaseMeshFlights = async (): Promise<void> => {
    }
 };
 
+const ensureValidUuid = (idStr: string | undefined): string => {
+  if (!idStr) {
+    return '00000000-0000-4000-a000-000000000000'.replace(/[0a]/g, () => Math.floor(Math.random() * 16).toString(16));
+  }
+  
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(idStr)) {
+    return idStr.toLowerCase();
+  }
+  
+  let hash = 0;
+  for (let i = 0; i < idStr.length; i++) {
+    hash = (hash << 5) - hash + idStr.charCodeAt(i);
+    hash |= 0;
+  }
+  
+  let fullHash = '';
+  for (let block = 0; block < 4; block++) {
+    let subHash = 1717;
+    for (let i = 0; i < idStr.length; i++) {
+       subHash = (subHash * 33) ^ idStr.charCodeAt(i) ^ (block * 997);
+    }
+    fullHash += Math.abs(subHash).toString(16).padEnd(8, '0');
+  }
+  
+  const safeHex = fullHash.toLowerCase().replace(/[^0-9a-f]/g, 'f').substring(0, 32).padEnd(32, 'a');
+  
+  const part1 = safeHex.substring(0, 8);
+  const part2 = safeHex.substring(8, 12);
+  const part3 = '4' + safeHex.substring(13, 16); 
+  const part4 = 'a' + safeHex.substring(17, 20); 
+  const part5 = safeHex.substring(20, 32);
+  
+  return `${part1}-${part2}-${part3}-${part4}-${part5}`;
+};
+
 export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> => {
   if (!isSupabaseConfigured()) return;
   
@@ -1217,7 +1253,7 @@ export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> =>
       updated_at: new Date().toISOString()
     };
     if (flight.id) {
-       obj.id = flight.id;
+       obj.id = ensureValidUuid(flight.id);
     }
     return obj;
   });
