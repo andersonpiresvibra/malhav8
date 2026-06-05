@@ -637,80 +637,98 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
         return;
     }
 
-    const unsyncedFlights = activeFlights.filter(f => !isFlightSynced(f));
+    // Determine the year and month of currentMeshDate to replicate for all days of the month
+    const [year, month] = currentMeshDate.split('-').map(Number);
+    const dateObj = new Date(year, month, 0);
+    const totalDays = dateObj.getDate();
+    const monthFormatted = String(month).padStart(2, '0');
 
-    if (unsyncedFlights.length === 0) {
-        setAlertState({
-            isOpen: true, 
-            title: 'Malha já enviada', 
-            message: 'Todos os voos ativos dessa data já foram enviados para a operação. Caso precise fazer novas edições, elas devem ser feitas diretamente no painel da malha operacional.'
-        });
-        return;
-    }
+    const msg = `Deseja enviar e replicar os ${activeFlights.length} voos ativos da malha de contratos para TODOS os ${totalDays} dias do mês (${monthFormatted}/${year}) na malha operacional?\n\nOs dados operacionais já existentes de voos já configurados não serão sobrescritos graças ao sistema de fusão inteligente.`;
 
-    // Envia todos os voos ativos de forma direta e sem restrições de validação estritas de campos incompletos.
-    // Qualquer ajuste ou complemento será feito diretamente na tela da malha operacional.
-    executeSync(unsyncedFlights);
+    setSyncConfirmState({
+        isOpen: true,
+        message: msg,
+        unsynced: activeFlights
+    });
   };
 
   const executeSync = (flightsToSync: MeshFlight[]) => {
-    const newFlights: FlightData[] = flightsToSync.map(mesh => {
-      const isPre = String(mesh.etd).trim().toUpperCase() === 'PRÉ' || String(mesh.etd).trim().toUpperCase() === 'PRE';
-      let derivedCode = mesh.airlineCode || mesh.airline.substring(0, 3) || 'G3';
-      if (mesh.airline.toUpperCase().includes('GOL') && !mesh.airlineCode) {
-          derivedCode = 'RG';
-      }
-      
-      return {
-        id: mesh.id, // Use mesh.id to allow correct deduplication and sync tracking
-        airline: mesh.airline,
-        airlineCode: derivedCode,
-        registration: mesh.registration.toUpperCase(),
-        model: mesh.model.toUpperCase(),
-        flightNumber: mesh.flightNumber || '', 
-        eta: mesh.eta,
-        departureFlightNumber: mesh.departureFlightNumber.toUpperCase(),
-        destination: mesh.destination.toUpperCase(),
-        positionId: mesh.positionId,
-        etd: mesh.etd,
-        date: mesh.date || currentMeshDate,
-        origin: 'SBGL', 
-        fuelStatus: 0,
-        status: isPre ? FlightStatus.PRÉ : FlightStatus.CHEGADA,
-        logs: [{
-          id: Date.now().toString(),
-          timestamp: new Date(),
-          type: 'SISTEMA',
-          message: isPre ? 'Voo de manutenção (PRÉ) carregado da malha operacional.' : 'Voo carregado da malha operacional.',
-          author: 'SISTEMA'
-        }],
-        messages: [],
-        actualArrivalTime: mesh.actualArrivalTime || ''
-      };
-    });
+    const [year, month] = currentMeshDate.split('-').map(Number);
+    const dateObj = new Date(year, month, 0);
+    const totalDays = dateObj.getDate();
+
+    const newFlights: FlightData[] = [];
+
+    for (let day = 1; day <= totalDays; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      const monthStr = String(month).padStart(2, '0');
+      const dateString = `${year}-${monthStr}-${dayStr}`;
+
+      flightsToSync.forEach(mesh => {
+        const isPre = String(mesh.etd).trim().toUpperCase() === 'PRÉ' || String(mesh.etd).trim().toUpperCase() === 'PRE';
+        let derivedCode = mesh.airlineCode || mesh.airline.substring(0, 3) || 'G3';
+        if (mesh.airline.toUpperCase().includes('GOL') && !mesh.airlineCode) {
+            derivedCode = 'RG';
+        }
+
+        // Use mesh-<dayStr>-<mesh.id> to guarantee unique, date-specific operational IDs
+        const uniqueId = `mesh-${dayStr}-${mesh.id}`;
+
+        newFlights.push({
+          id: uniqueId,
+          airline: mesh.airline,
+          airlineCode: derivedCode,
+          registration: mesh.registration ? mesh.registration.toUpperCase() : '',
+          model: mesh.model ? mesh.model.toUpperCase() : '',
+          flightNumber: mesh.flightNumber || '', 
+          eta: mesh.eta,
+          departureFlightNumber: mesh.departureFlightNumber ? mesh.departureFlightNumber.toUpperCase() : '',
+          destination: mesh.destination ? mesh.destination.toUpperCase() : '',
+          positionId: mesh.positionId,
+          etd: mesh.etd,
+          date: dateString,
+          origin: 'SBGL', 
+          fuelStatus: 0,
+          status: isPre ? FlightStatus.PRÉ : FlightStatus.CHEGADA,
+          logs: [{
+            id: Date.now().toString() + '_' + day + '_' + Math.random().toString(36).substr(2, 5),
+            timestamp: new Date(),
+            type: 'SISTEMA',
+            message: isPre ? 'Voo de manutenção (PRÉ) carregado da malha de contratos.' : 'Voo carregado da malha de contratos.',
+            author: 'SISTEMA'
+          }],
+          messages: [],
+          actualArrivalTime: mesh.actualArrivalTime || ''
+        });
+      });
+    }
 
     onActivateMesh(newFlights);
     
-    // Total de voos filtrados pelo shift ativo (total visível)
-    const pendingCount = meshFlights.length - newFlights.length;
+    // Total de voos desativados/impedidos de sincronização na Malha Base
+    const pendingCount = meshFlights.length - flightsToSync.length;
 
     setAlertState({
         isOpen: true, 
         title: 'Sincronização concluída!', 
         message: (
-            <div className="space-y-3 py-2">
+            <div className="space-y-3 py-2 text-left">
                 <div className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                   <span className="text-emerald-500 font-bold uppercase text-[10px] tracking-widest">Enviado(s) com sucesso</span>
+                   <span className="text-emerald-500 font-bold uppercase text-[10px] tracking-widest">Voos Replicados no Mês</span>
                    <span className="text-emerald-500 font-black text-sm">{newFlights.length}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                    <span className="text-amber-500 font-bold uppercase text-[10px] tracking-widest">Pendente(s) na Malha</span>
-                    <span className="text-amber-500 font-black text-sm">{pendingCount}</span>
+                <div className="text-xs text-slate-400">
+                   {flightsToSync.length} voos de contrato ativos foram replicados para cada um dos {totalDays} dias do mês, gerando um total de {newFlights.length} voos operacionais na grade.
                 </div>
+                {pendingCount > 0 && (
+                  <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                      <span className="text-amber-500 font-bold uppercase text-[10px] tracking-widest">Inativos/Ignorados</span>
+                      <span className="text-amber-500 font-black text-sm">{pendingCount}</span>
+                  </div>
+                )}
             </div>
         )
     });
-
   };
 
   // 1. Filtragem Base para Contadores (AO VIVO)
