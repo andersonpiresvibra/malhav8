@@ -952,10 +952,11 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
       console.warn('[Supabase] Falha ao carregar aeronaves para preenchimento de modelos na malha base:', e);
     }
 
+    // Buscamos TODOS os voos de contratos da tabela malha_dia, dispensando o filtro restrito do banco eq('date', dateRef)
+    // para que a base de contratos unificada seja universal e reflita em todos os dias da operação.
     let { data, error } = await supabase
       .from('malha_dia')
       .select('*')
-      .eq('date', dateRef)
       .order('etd');
       
     if (error && error.message.includes("does not exist")) {
@@ -968,9 +969,9 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
     if (error) {
       console.error(`[Supabase] Error fetching base mesh:`, error.message);
       checkAndRegisterError(error.message, 'malha_dia');
-      const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
+      const cached = localStorage.getItem(`supabase_cache_basemesh_flights_all`);
       if (cached) {
-        console.warn(`[Supabase] Returning cached base mesh flights for ${dateRef}`);
+        console.warn(`[Supabase] Returning cached base mesh flights`);
         return JSON.parse(cached);
       }
       if (checkAndRegisterError(error.message, 'malha_dia')) {
@@ -981,13 +982,7 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
     
     if (!data) return [];
 
-    // Try to find the date column dynamically if it's named something else
-    const filteredData = data.filter((row: any) => {
-      const rowDate = row.date || row.date_ref || row.data || row.voo_data || row.flight_date;
-      return rowDate === dateRef;
-    });
-    
-    const finalData = filteredData.length > 0 ? filteredData : data; // Fallback to all if date filter fails or if user just wants to see them
+    const finalData = data;
 
     const mapped = finalData.map(dbFlight => {
       const reg = dbFlight.registration || dbFlight.matricula || '';
@@ -1023,18 +1018,32 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
       };
     });
 
-    localStorage.setItem(`supabase_cache_basemesh_flights_${dateRef}`, JSON.stringify(mapped));
-    return mapped;
+    // Desduplicação inteligente para garantir que múltiplos voos de contratos históricos ou importações cruzadas
+    // apareçam como itens exclusivos e limpos baseados na chave operacional unificada
+    const seen = new Set<string>();
+    const uniqueMapped: MeshFlight[] = [];
+
+    for (const f of mapped) {
+       const key = `${f.airlineCode || f.airline}_${f.flightNumber}_${f.departureFlightNumber}_${f.etd}_${f.destination}`.toUpperCase();
+       if (!seen.has(key)) {
+         seen.add(key);
+         uniqueMapped.push(f);
+       }
+    }
+
+    localStorage.setItem(`supabase_cache_basemesh_flights_all`, JSON.stringify(uniqueMapped));
+    localStorage.setItem(`supabase_cache_basemesh_flights_${dateRef}`, JSON.stringify(uniqueMapped));
+    return uniqueMapped;
   } catch (err: any) {
     console.error('[Supabase] Exception in getBaseMeshFlights:', err);
     if (checkAndRegisterError(err.message || '', 'malha_dia')) {
-      const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
+      const cached = localStorage.getItem(`supabase_cache_basemesh_flights_all`);
       if (cached) return JSON.parse(cached);
       return [];
     }
-    const cached = localStorage.getItem(`supabase_cache_basemesh_flights_${dateRef}`);
+    const cached = localStorage.getItem(`supabase_cache_basemesh_flights_all`);
     if (cached) {
-      console.warn(`[Supabase] Returning cached base mesh flights for ${dateRef} after exception`);
+      console.warn(`[Supabase] Returning cached base mesh flights after exception`);
       return JSON.parse(cached);
     }
     throw err;
@@ -1132,9 +1141,11 @@ export const upsertBaseMeshFlights = async (flightsBase: MeshFlight[]): Promise<
 
 export const clearBaseMeshFlights = async (dateRef: string): Promise<void> => {
    if (!isSupabaseConfigured()) return;
-   const { error } = await supabase.from('malha_dia').delete().eq('date', dateRef);
+   // Como a malha base agora armazena nossos contratos universais sob SSoT,
+   // o comando de limpar malha limpa os contratos de forma unificada para reimportação livre.
+   const { error } = await supabase.from('malha_dia').delete().neq('id', '00000000-0000-0000-0000-000000000000');
    if (error) {
-      console.error(`[Supabase] Error clearing base mesh for ${dateRef}:`, error.message);
+      console.error(`[Supabase] Error clearing universal base mesh:`, error.message);
       throw error;
    }
 };
