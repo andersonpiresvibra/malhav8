@@ -196,6 +196,7 @@ interface GridOpsProps {
   positionRestrictions: Record<string, "HYBRID" | "CTA" | "SRV">;
   positionsMetadata?: Record<string, any>;
   layoutPreferences?: any;
+  onDateChange?: (date: string) => void;
 }
 
 const parseTime = (timeStr: string) => {
@@ -431,6 +432,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
   positionRestrictions,
   positionsMetadata = {},
   layoutPreferences,
+  onDateChange,
 }) => {
   const { isDarkMode } = useTheme();
   const { user, warName } = useAuth();
@@ -494,6 +496,16 @@ export const GridOps: React.FC<GridOpsProps> = ({
       setActiveDateOffset(diffDays);
     }
   }, [currentMeshDate]);
+
+  const handleDateOffsetChange = (newOffset: number) => {
+    setActiveDateOffset(newOffset);
+    if (onDateChange) {
+      const d = new Date();
+      d.setDate(d.getDate() + newOffset);
+      const newDateStr = getLocalDateStr(d);
+      onDateChange(newDateStr);
+    }
+  };
 
   const [destinosDB, setDestinosDB] = useState<StaticFlight[]>([]);
   const [aircrafts, setAircrafts] = useState<any[]>([]);
@@ -3820,7 +3832,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
         <div className="flex items-center ml-2 bg-black/20 p-0.5 rounded border border-white/10 h-8">
           <button
-            onClick={() => setActiveDateOffset((prev) => prev - 1)}
+            onClick={() => handleDateOffsetChange(activeDateOffset - 1)}
             className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
           >
             <ChevronLeft size={14} strokeWidth={2.5} />
@@ -3842,7 +3854,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
               <InlineCalendar
                 currentOffset={activeDateOffset}
                 onSelectOffset={(offset) => {
-                  setActiveDateOffset(offset);
+                  handleDateOffsetChange(offset);
                   setShowCalendar(false);
                 }}
                 onClose={() => setShowCalendar(false)}
@@ -3851,7 +3863,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             )}
           </div>
           <button
-            onClick={() => setActiveDateOffset((prev) => prev + 1)}
+            onClick={() => handleDateOffsetChange(activeDateOffset + 1)}
             className="px-1.5 py-1 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors"
           >
             <ChevronRight size={14} strokeWidth={2.5} />

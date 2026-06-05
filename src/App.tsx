@@ -1050,6 +1050,7 @@ const App: React.FC = () => {
                     onEditingStateChange={setIsGridEditing}
                     ltName={ltName}
                     currentMeshDate={currentMeshDate}
+                    onDateChange={setCurrentMeshDate}
                     layoutPreferences={layoutPreferences}
                   />
                 )}
