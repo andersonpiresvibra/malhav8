@@ -29,6 +29,39 @@ export const checkAndRegisterError = (errorMessage: string, tableName: string): 
   return false;
 };
 
+// Autoadaptação de schemas para tabelas no Supabase (conflito de colunas locais vs produção)
+const knownMissingColumns = new Set<string>();
+
+export const filterPayloadForExistingColumns = (payload: any): any => {
+  if (!payload) return payload;
+  if (Array.isArray(payload)) {
+    return payload.map(item => filterPayloadForExistingColumns(item));
+  }
+  const filtered = { ...payload };
+  for (const col of knownMissingColumns) {
+    delete filtered[col];
+  }
+  return filtered;
+};
+
+export const detectAndRegisterMissingColumn = (errorMessage: string): boolean => {
+  if (!errorMessage) return false;
+  // Captura erros de coluna não encontrada em POSTGREST / Postgres (com aspas simples ou duplas)
+  const missingColumnMatch = errorMessage.match(/Could not find the ['"]([^'"]+)['"] column/) || 
+                             errorMessage.match(/column ['"]([^'"]+)['"] does not exist/) ||
+                             errorMessage.match(/column ['"]([^'"]+)['"] of relation/);
+  
+  if (missingColumnMatch && missingColumnMatch[1]) {
+    const colName = missingColumnMatch[1];
+    if (!knownMissingColumns.has(colName)) {
+      console.warn(`[Supabase Enterprise] Detectada coluna ausente na tabela no banco: '${colName}'. Descartando-a temporariamente do payload...`);
+      knownMissingColumns.add(colName);
+      return true;
+    }
+  }
+  return false;
+};
+
 const checkConfig = () => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase não configurado. Por favor, adicione suas credenciais reais (URL e Anon Key) em Settings -> Environment Variables. Os valores não podem conter "<project-ref>".');
@@ -439,14 +472,26 @@ export const getAircrafts = async (): Promise<AircraftType[]> => {
       }
       throw error;
     }
-    localStorage.setItem('supabase_cache_aircrafts', JSON.stringify(data || []));
-    return data as any[];
+    const mapped = (data || []).map((a: any) => ({
+      ...a,
+      model: a.model || a.modelo || a.modelo_id || '--'
+    }));
+    localStorage.setItem('supabase_cache_aircrafts', JSON.stringify(mapped));
+    return mapped as any[];
   } catch (err: any) {
     console.error('[Supabase] Exception in getAircrafts:', err);
     const cached = localStorage.getItem('supabase_cache_aircrafts');
     if (cached) {
       console.warn('[Supabase] Returning cached aircrafts after exception');
-      return JSON.parse(cached);
+      try {
+        const parsed = JSON.parse(cached);
+        return parsed.map((a: any) => ({
+          ...a,
+          model: a.model || a.modelo || a.modelo_id || '--'
+        }));
+      } catch (ex) {
+        return [];
+      }
     }
     throw err;
   }
@@ -456,8 +501,136 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
   if (!isSupabaseConfigured()) return [];
   
   try {
+    // Carrega a lista de aeronaves para o cruzamento de modelos
+    let aircraftsList: any[] = [];
+    try {
+      aircraftsList = await getAircrafts();
+    } catch (e) {
+      console.warn('[Supabase] Falha ao carregar aeronaves para preenchimento de modelos:', e);
+    }
+
     let query = supabase.from('malha_operacional').select('*, operadores_geral(war_name), frotas(fleet_number)').eq('date_ref', dateRef);
     let { data, error } = await query;
+      
+    // Se falhar devido a problemas de relacionamento no banco/schema cache, executa o fallback robusto
+    if (error && (
+      error.message.includes('relationship') || 
+      error.message.includes('operadores_geral') || 
+      error.message.includes('frotas') ||
+      error.message.includes('Could not find') ||
+      error.message.includes('column') ||
+      error.message.includes('not exist')
+    )) {
+      console.warn('[Supabase] Relacionamento ausente ou erro de colunas detectado no cache de esquemas. Executando fallback em memória...', error.message);
+      
+      const rawRes = await supabase.from('malha_operacional').select('*').eq('date_ref', dateRef);
+      if (rawRes.error) {
+        throw rawRes.error;
+      }
+      
+      // Auto-detecta colunas ausentes na tabela se houver dados retornados para prevenir erros de inserção futuros
+      if (rawRes.data && rawRes.data.length > 0) {
+        const firstRow = rawRes.data[0];
+        const expectedCols = [
+          'operator_id', 'support_operator_id', 'vehicle_id', 'wing_side', 
+          'vehicle_type', 'support_operator', 'volume', 'is_on_ground', 
+          'delay_justification', 'is_excluded_from_queue'
+        ];
+        for (const col of expectedCols) {
+          if (!(col in firstRow)) {
+            knownMissingColumns.add(col);
+          }
+        }
+      }
+      
+      // Popula operadoresCache se estiver vazio
+      if (operatorsCache.length === 0) {
+        try {
+          const opsRes = await supabase.from('operadores_geral').select('id, war_name');
+          if (opsRes.data) {
+            operatorsCache = opsRes.data.map((o: any) => ({ id: o.id, warName: o.war_name }));
+          }
+        } catch (e) {
+          console.error('[Supabase] Erro ao carregar operadoresCache para fallback:', e);
+        }
+      }
+      
+      // Popula frotas/veículos se estiver vazio
+      if (vehiclesCache.length === 0) {
+        try {
+          const vehsRes = await supabase.from('frotas').select('id, fleet_number');
+          if (vehsRes.data) {
+            vehiclesCache = vehsRes.data.map((v: any) => ({ id: v.id, fleetNumber: v.fleet_number }));
+          }
+        } catch (e) {
+          console.error('[Supabase] Erro ao carregar vehiclesCache para fallback:', e);
+        }
+      }
+      
+      const fallbackMapped = (rawRes.data || []).map((f: any) => {
+        const opName = operatorsCache.find(o => o.id === f.operator_id)?.warName || f.operator || '';
+        const supportOpName = operatorsCache.find(o => o.id === f.support_operator_id)?.warName || f.support_operator || '';
+        const fleetNum = vehiclesCache.find(v => v.id === f.vehicle_id)?.fleetNumber || undefined;
+        
+        // Auto-fill do modelo baseado no prefixo se estiver em branco ou '--'
+        const reg = f.registration || '';
+        let modelVal = f.model || '';
+        if ((!modelVal || modelVal === '--') && reg) {
+          const cleanReg = reg.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+          const found = aircraftsList.find(a => {
+            const cleanAeroPrefix = String(a.prefix || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            return cleanAeroPrefix === cleanReg || cleanAeroPrefix.endsWith(cleanReg);
+          });
+          if (found && found.model && found.model !== '--') {
+            modelVal = found.model;
+          }
+        }
+
+        return {
+          id: f.id,
+          date: f.date_ref,
+          flightNumber: f.flight_number,
+          departureFlightNumber: f.departure_flight_number,
+          airline: f.airline,
+          airlineCode: f.airline_code,
+          model: modelVal,
+          registration: f.registration,
+          origin: f.origin,
+          destination: f.destination,
+          eta: f.eta || '',
+          etd: f.etd || '',
+          actualArrivalTime: f.actual_arrival_time,
+          positionId: f.position_id,
+          positionType: f.position_type as any,
+          pitId: f.pit_id,
+          wingSide: f.wing_side as any,
+          fuelStatus: f.fuel_status || 0,
+          status: f.status as FlightStatus,
+          operator: opName,
+          operatorId: f.operator_id || undefined,
+          supportOperator: supportOpName,
+          supportOperatorId: f.support_operator_id || undefined,
+          fleet: fleetNum,
+          vehicleId: f.vehicle_id || undefined,
+          vehicleType: f.vehicle_type as any,
+          volume: f.volume,
+          isOnGround: f.is_on_ground,
+          delayJustification: f.delay_justification,
+          designationTime: f.designation_time ? new Date(f.designation_time) : undefined,
+          startTime: f.start_time ? new Date(f.start_time) : undefined,
+          endTime: f.end_time ? new Date(f.end_time) : undefined,
+          assignmentTime: f.assignment_time ? new Date(f.assignment_time) : undefined,
+          assignedByLt: f.assigned_by_lt,
+          isExcludedFromQueue: f.is_excluded_from_queue,
+          logs: f.logs || [],
+          report: f.report || {}
+        };
+      }) as FlightData[];
+      
+      localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(fallbackMapped));
+      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
+      return fallbackMapped;
+    }
       
     if (error) {
       console.error('[Supabase] Error fetching flights:', error.message);
@@ -474,45 +647,61 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
       throw error;
     }
     
-    const mapped = (data || []).map((f: any) => ({
-      id: f.id,
-      date: f.date_ref,
-      flightNumber: f.flight_number,
-      departureFlightNumber: f.departure_flight_number,
-      airline: f.airline,
-      airlineCode: f.airline_code,
-      model: f.model,
-      registration: f.registration,
-      origin: f.origin,
-      destination: f.destination,
-      eta: f.eta || '',
-      etd: f.etd || '',
-      actualArrivalTime: f.actual_arrival_time,
-      positionId: f.position_id,
-      positionType: f.position_type as any,
-      pitId: f.pit_id,
-      wingSide: f.wing_side as any,
-      fuelStatus: f.fuel_status || 0,
-      status: f.status as FlightStatus,
-      operator: f.operadores_geral?.war_name || f.operator, // Fallback for backwards comp
-      operatorId: f.operator_id || undefined,
-      supportOperator: f.support_operator || undefined,
-      supportOperatorId: f.support_operator_id || undefined,
-      fleet: f.frotas?.fleet_number || undefined,
-      vehicleId: f.vehicle_id || undefined,
-      vehicleType: f.vehicle_type as any,
-      volume: f.volume,
-      isOnGround: f.is_on_ground,
-      delayJustification: f.delay_justification,
-      designationTime: f.designation_time ? new Date(f.designation_time) : undefined,
-      startTime: f.start_time ? new Date(f.start_time) : undefined,
-      endTime: f.end_time ? new Date(f.end_time) : undefined,
-      assignmentTime: f.assignment_time ? new Date(f.assignment_time) : undefined,
-      assignedByLt: f.assigned_by_lt,
-      isExcludedFromQueue: f.is_excluded_from_queue,
-      logs: f.logs || [],
-      report: f.report || {}
-    })) as FlightData[];
+    const mapped = (data || []).map((f: any) => {
+      // Auto-fill do modelo baseado no prefixo se estiver em branco ou '--'
+      const reg = f.registration || '';
+      let modelVal = f.model || '';
+      if ((!modelVal || modelVal === '--') && reg) {
+        const cleanReg = reg.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+        const found = aircraftsList.find(a => {
+          const cleanAeroPrefix = String(a.prefix || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+          return cleanAeroPrefix === cleanReg || cleanAeroPrefix.endsWith(cleanReg);
+        });
+        if (found && found.model && found.model !== '--') {
+          modelVal = found.model;
+        }
+      }
+
+      return {
+        id: f.id,
+        date: f.date_ref,
+        flightNumber: f.flight_number,
+        departureFlightNumber: f.departure_flight_number,
+        airline: f.airline,
+        airlineCode: f.airline_code,
+        model: modelVal,
+        registration: f.registration,
+        origin: f.origin,
+        destination: f.destination,
+        eta: f.eta || '',
+        etd: f.etd || '',
+        actualArrivalTime: f.actual_arrival_time,
+        positionId: f.position_id,
+        positionType: f.position_type as any,
+        pitId: f.pit_id,
+        wingSide: f.wing_side as any,
+        fuelStatus: f.fuel_status || 0,
+        status: f.status as FlightStatus,
+        operator: f.operadores_geral?.war_name || f.operator, // Fallback for backwards comp
+        operatorId: f.operator_id || undefined,
+        supportOperator: f.support_operator || undefined,
+        supportOperatorId: f.support_operator_id || undefined,
+        fleet: f.frotas?.fleet_number || undefined,
+        vehicleId: f.vehicle_id || undefined,
+        vehicleType: f.vehicle_type as any,
+        volume: f.volume,
+        isOnGround: f.is_on_ground,
+        delayJustification: f.delay_justification,
+        designationTime: f.designation_time ? new Date(f.designation_time) : undefined,
+        startTime: f.start_time ? new Date(f.start_time) : undefined,
+        endTime: f.end_time ? new Date(f.end_time) : undefined,
+        assignmentTime: f.assignment_time ? new Date(f.assignment_time) : undefined,
+        assignedByLt: f.assigned_by_lt,
+        isExcludedFromQueue: f.is_excluded_from_queue,
+        logs: f.logs || [],
+        report: f.report || {}
+      };
+    }) as FlightData[];
 
     localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mapped));
     window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
@@ -549,12 +738,18 @@ export const deleteAllFlightsByDate = async (dateRef: string): Promise<void> => 
 
 export const deleteInactiveFlightsByDate = async (dateRef: string): Promise<void> => {
   if (!isSupabaseConfigured()) return;
-  const { error } = await supabase
+  
+  let q = supabase
     .from('malha_operacional')
     .delete()
     .eq('date_ref', dateRef)
-    .is('operator_id', null)
     .in('status', ['CHEGADA', 'FILA']);
+    
+  if (!knownMissingColumns.has('operator_id')) {
+    q = q.is('operator_id', null);
+  }
+  
+  const { error } = await q;
     
   if (error) {
     console.error('[Supabase] Error deleting inactive flights:', error.message);
@@ -623,23 +818,115 @@ export const upsertFlight = async (flight: FlightData): Promise<void> => {
      payload.id = flight.id;
   }
 
-  let { data, error } = await supabase.from('malha_operacional').upsert([payload]).select('id');
-  
+  let attempts = 0;
+  const maxAttempts = 12;
+  let currentPayload = { ...payload };
+  let errorToThrow: any = null;
 
-
-  if (!error && data && data.length === 0) {
-      console.warn("[Supabase] Upsert returned empty data. RLS might be silently blocking.");
-      throw new Error("A inserção na malha operacional falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS) da tabela 'malha_operacional' permitem INSERT/UPDATE.");
-  }
-  
-  if (error) {
-    if (error.message.includes("Could not find the table")) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_operacional ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date_ref text, flight_number text, airline text, airline_code text, model text, registration text, departure_flight_number text, origin text, destination text, eta text, etd text, actual_arrival_time text, position_id text, position_type text, pit_id text, fuel_status text, status text, designation_time timestamp, start_time timestamp, end_time timestamp, assignment_time timestamp, assigned_by_lt text, report jsonb, updated_at timestamp );\n\nErro original: ${error.message}`);
-    } else if (error.message.includes('Could not find') || error.message.includes('does not exist')) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_operacional)!\nVá ao SQL Editor no Supabase e rode: ALTER TABLE malha_operacional ADD COLUMN IF NOT EXISTS date_ref text, ADD COLUMN IF NOT EXISTS airline text, ADD COLUMN IF NOT EXISTS airline_code text, ADD COLUMN IF NOT EXISTS model text, ADD COLUMN IF NOT EXISTS registration text, ADD COLUMN IF NOT EXISTS departure_flight_number text, ADD COLUMN IF NOT EXISTS origin text, ADD COLUMN IF NOT EXISTS eta text, ADD COLUMN IF NOT EXISTS etd text, ADD COLUMN IF NOT EXISTS actual_arrival_time text, ADD COLUMN IF NOT EXISTS designation_time timestamp, ADD COLUMN IF NOT EXISTS start_time timestamp, ADD COLUMN IF NOT EXISTS end_time timestamp, ADD COLUMN IF NOT EXISTS assignment_time timestamp, ADD COLUMN IF NOT EXISTS assigned_by_lt text, ADD COLUMN IF NOT EXISTS report jsonb, ADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
+  while (attempts < maxAttempts) {
+    const filteredPayload = filterPayloadForExistingColumns(currentPayload);
+    let { data, error } = await supabase.from('malha_operacional').upsert([filteredPayload]).select('id');
+    
+    if (!error) {
+      if (data && data.length === 0) {
+        console.warn("[Supabase] Upsert returned empty data. RLS might be silently blocking.");
+        throw new Error("A inserção na malha operacional falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS) da tabela 'malha_operacional' permitem INSERT/UPDATE.");
+      }
+      return; // Succeeded!
     }
-    console.error('[Supabase] Error upserting flight:', error.message);
-    throw error;
+    
+    const registered = detectAndRegisterMissingColumn(error.message);
+    if (registered) {
+      attempts++;
+      console.log(`[Supabase] Erro detectado no salvamento de voo, retentando sem coluna ausente (Ref: '${error.message}')`);
+      continue;
+    }
+    
+    errorToThrow = error;
+    break;
+  }
+
+  if (errorToThrow) {
+    if (errorToThrow.message.includes("Could not find the table") || errorToThrow.message.includes("relation") && errorToThrow.message.includes("does not exist")) {
+        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode o script abaixo para criar a tabela:\n\n` +
+          `CREATE TABLE IF NOT EXISTS malha_operacional (\n` +
+          `  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+          `  date_ref TEXT NOT NULL,\n` +
+          `  flight_number TEXT NOT NULL,\n` +
+          `  departure_flight_number TEXT,\n` +
+          `  airline TEXT,\n` +
+          `  airline_code TEXT,\n` +
+          `  model TEXT,\n` +
+          `  registration TEXT,\n` +
+          `  origin TEXT,\n` +
+          `  destination TEXT,\n` +
+          `  eta TEXT,\n` +
+          `  etd TEXT,\n` +
+          `  actual_arrival_time TEXT,\n` +
+          `  position_id TEXT,\n` +
+          `  position_type TEXT,\n` +
+          `  pit_id TEXT,\n` +
+          `  wing_side TEXT,\n` +
+          `  fuel_status INTEGER DEFAULT 0,\n` +
+          `  status TEXT DEFAULT 'CHEGADA', \n` +
+          `  volume INTEGER DEFAULT 0,\n` +
+          `  is_on_ground BOOLEAN DEFAULT false,\n` +
+          `  delay_justification TEXT,\n` +
+          `  designation_time TIMESTAMP WITH TIME ZONE,\n` +
+          `  start_time TIMESTAMP WITH TIME ZONE,\n` +
+          `  end_time TIMESTAMP WITH TIME ZONE,\n` +
+          `  assignment_time TIMESTAMP WITH TIME ZONE,\n` +
+          `  assigned_by_lt TEXT,\n` +
+          `  is_excluded_from_queue BOOLEAN DEFAULT false,\n` +
+          `  report JSONB DEFAULT '{}'::jsonb,\n` +
+          `  logs JSONB DEFAULT '[]'::jsonb,\n` +
+          `  operator_id UUID,\n` +
+          `  support_operator_id UUID,\n` +
+          `  support_operator TEXT,\n` +
+          `  vehicle_id UUID,\n` +
+          `  vehicle_type TEXT,\n` +
+          `  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n` +
+          `  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+          `);\n\nErro original: ${errorToThrow.message}`);
+    } else {
+        const ddlScript = `ALTER TABLE malha_operacional \n` +
+          `  ADD COLUMN IF NOT EXISTS date_ref text, \n` +
+          `  ADD COLUMN IF NOT EXISTS airline text, \n` +
+          `  ADD COLUMN IF NOT EXISTS airline_code text, \n` +
+          `  ADD COLUMN IF NOT EXISTS model text, \n` +
+          `  ADD COLUMN IF NOT EXISTS registration text, \n` +
+          `  ADD COLUMN IF NOT EXISTS departure_flight_number text, \n` +
+          `  ADD COLUMN IF NOT EXISTS origin text, \n` +
+          `  ADD COLUMN IF NOT EXISTS destination text, \n` +
+          `  ADD COLUMN IF NOT EXISTS eta text, \n` +
+          `  ADD COLUMN IF NOT EXISTS etd text, \n` +
+          `  ADD COLUMN IF NOT EXISTS actual_arrival_time text, \n` +
+          `  ADD COLUMN IF NOT EXISTS designation_time timestamp with time zone, \n` +
+          `  ADD COLUMN IF NOT EXISTS start_time timestamp with time zone, \n` +
+          `  ADD COLUMN IF NOT EXISTS end_time timestamp with time zone, \n` +
+          `  ADD COLUMN IF NOT EXISTS assignment_time timestamp with time zone, \n` +
+          `  ADD COLUMN IF NOT EXISTS assigned_by_lt text, \n` +
+          `  ADD COLUMN IF NOT EXISTS report jsonb, \n` +
+          `  ADD COLUMN IF NOT EXISTS logs jsonb, \n` +
+          `  ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone, \n` +
+          `  ADD COLUMN IF NOT EXISTS position_id text, \n` +
+          `  ADD COLUMN IF NOT EXISTS position_type text, \n` +
+          `  ADD COLUMN IF NOT EXISTS pit_id text, \n` +
+          `  ADD COLUMN IF NOT EXISTS wing_side text, \n` +
+          `  ADD COLUMN IF NOT EXISTS fuel_status integer DEFAULT 0, \n` +
+          `  ADD COLUMN IF NOT EXISTS status text DEFAULT 'CHEGADA', \n` +
+          `  ADD COLUMN IF NOT EXISTS operator_id uuid, \n` +
+          `  ADD COLUMN IF NOT EXISTS support_operator_id uuid, \n` +
+          `  ADD COLUMN IF NOT EXISTS support_operator text, \n` +
+          `  ADD COLUMN IF NOT EXISTS vehicle_id uuid, \n` +
+          `  ADD COLUMN IF NOT EXISTS vehicle_type text, \n` +
+          `  ADD COLUMN IF NOT EXISTS volume integer DEFAULT 0, \n` +
+          `  ADD COLUMN IF NOT EXISTS is_on_ground boolean DEFAULT false, \n` +
+          `  ADD COLUMN IF NOT EXISTS delay_justification text, \n` +
+          `  ADD COLUMN IF NOT EXISTS is_excluded_from_queue boolean DEFAULT false;`;
+          
+        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_operacional)!\nVá ao SQL Editor no Supabase e rode:\n\n${ddlScript}\n\nErro original: ${errorToThrow.message}`);
+    }
   }
 };
 
@@ -657,6 +944,14 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
   if (!isSupabaseConfigured()) return [];
   
   try {
+    // Carrega a lista de aeronaves para o cruzamento de modelos
+    let aircraftsList: any[] = [];
+    try {
+      aircraftsList = await getAircrafts();
+    } catch (e) {
+      console.warn('[Supabase] Falha ao carregar aeronaves para preenchimento de modelos na malha base:', e);
+    }
+
     let { data, error } = await supabase
       .from('malha_dia')
       .select('*')
@@ -694,22 +989,39 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
     
     const finalData = filteredData.length > 0 ? filteredData : data; // Fallback to all if date filter fails or if user just wants to see them
 
-    const mapped = finalData.map(dbFlight => ({
-      id: dbFlight.id,
-      date: dbFlight.date || dbFlight.date_ref || dbFlight.data || dbFlight.voo_data || dbFlight.flight_date || dateRef,
-      airline: dbFlight.airline || dbFlight.cia || '',
-      airlineCode: dbFlight.airline_code || dbFlight.cia_cod || dbFlight.airline?.substring(0,3) || '',
-      flightNumber: dbFlight.flight_number || dbFlight.voo || dbFlight.voo_chegada || dbFlight.prefixo || '',
-      departureFlightNumber: dbFlight.departure_flight_number || dbFlight.voo_saida || dbFlight.flight_number || '', // Backup
-      destination: dbFlight.destination || dbFlight.destino || '',
-      etd: dbFlight.etd || '00:00',
-      registration: dbFlight.registration || dbFlight.matricula || '',
-      eta: dbFlight.eta || dbFlight.etd || '00:00',
-      positionId: dbFlight.position_id || dbFlight.posicao || '',
-      actualArrivalTime: dbFlight.actual_arrival_time || '',
-      model: dbFlight.model || dbFlight.modelo || dbFlight.equipamento || '',
-      disabled: dbFlight.is_disabled || dbFlight.desabilitado || false
-    }));
+    const mapped = finalData.map(dbFlight => {
+      const reg = dbFlight.registration || dbFlight.matricula || '';
+      let modelVal = dbFlight.model || dbFlight.modelo || dbFlight.equipamento || '';
+      
+      // Auto-fill do modelo baseado no prefixo se estiver em branco ou '--'
+      if ((!modelVal || modelVal === '--') && reg) {
+        const cleanReg = reg.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+        const found = aircraftsList.find(a => {
+          const cleanAeroPrefix = String(a.prefix || '').replace(/[^A-Z0-9]/ig, '').toUpperCase();
+          return cleanAeroPrefix === cleanReg || cleanAeroPrefix.endsWith(cleanReg);
+        });
+        if (found && found.model && found.model !== '--') {
+          modelVal = found.model;
+        }
+      }
+
+      return {
+        id: dbFlight.id,
+        date: dbFlight.date || dbFlight.date_ref || dbFlight.data || dbFlight.voo_data || dbFlight.flight_date || dateRef,
+        airline: dbFlight.airline || dbFlight.cia || '',
+        airlineCode: dbFlight.airline_code || dbFlight.cia_cod || dbFlight.airline?.substring(0,3) || '',
+        flightNumber: dbFlight.flight_number || dbFlight.voo || dbFlight.voo_chegada || dbFlight.prefixo || '',
+        departureFlightNumber: dbFlight.departure_flight_number || dbFlight.voo_saida || dbFlight.flight_number || '', // Backup
+        destination: dbFlight.destination || dbFlight.destino || '',
+        etd: dbFlight.etd || '00:00',
+        registration: reg,
+        eta: dbFlight.eta || dbFlight.etd || '00:00',
+        positionId: dbFlight.position_id || dbFlight.posicao || '',
+        actualArrivalTime: dbFlight.actual_arrival_time || '',
+        model: modelVal,
+        disabled: dbFlight.is_disabled || dbFlight.desabilitado || false
+      };
+    });
 
     localStorage.setItem(`supabase_cache_basemesh_flights_${dateRef}`, JSON.stringify(mapped));
     return mapped;
@@ -902,25 +1214,116 @@ export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> =>
   const chunkSize = 100;
   for (let i = 0; i < payload.length; i += chunkSize) {
     const chunk = payload.slice(i, i + chunkSize);
-    let { data, error } = await supabase.from('malha_operacional').upsert(chunk).select('id');
     
-
-
-    if (!error) {
-       if (data && data.length === 0 && chunk.length > 0) {
-           console.warn("[Supabase] Bulk Upsert returned empty data. This might be due to RLS policies silently blocking.");
-           throw new Error("A inserção na malha operacional falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS - Row Level Security) do banco de dados (tabela 'malha_operacional') permitem as permissões de INSERT/UPDATE.");
-       }
+    let attempts = 0;
+    const maxAttempts = 12;
+    let errorToThrow: any = null;
+    
+    while (attempts < maxAttempts) {
+      const filteredChunk = chunk.map(item => filterPayloadForExistingColumns(item));
+      let { data, error } = await supabase.from('malha_operacional').upsert(filteredChunk).select('id');
+      
+      if (!error) {
+         if (data && data.length === 0 && filteredChunk.length > 0) {
+             console.warn("[Supabase] Bulk Upsert returned empty data. This might be due to RLS policies silently blocking.");
+             throw new Error("A inserção na malha operacional falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS - Row Level Security) do banco de dados (tabela 'malha_operacional') permitem as permissões de INSERT/UPDATE.");
+         }
+         break; // Success! Move to next chunk
+      }
+      
+      const registered = detectAndRegisterMissingColumn(error.message);
+      if (registered) {
+         attempts++;
+         console.log(`[Supabase] Erro detectado em lote no lote de inserção, retentando sem coluna ausente (Ref: '${error.message}')`);
+         continue;
+      }
+      
+      errorToThrow = error;
+      break;
     }
 
-    if (error) {
-        console.error('[Supabase] Error bulk inserting flights chunk:', error.message);
-        if (error.message.includes("Could not find the table")) {
-            throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode: CREATE TABLE malha_operacional ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date_ref text, flight_number text, airline text, airline_code text, model text, registration text, departure_flight_number text, origin text, destination text, eta text, etd text, actual_arrival_time text, position_id text, position_type text, pit_id text, fuel_status text, status text, designation_time timestamp, start_time timestamp, end_time timestamp, assignment_time timestamp, assigned_by_lt text, report jsonb, updated_at timestamp );\n\nErro original: ${error.message}`);
-        } else if (error.message.includes('Could not find') || error.message.includes('does not exist')) {
-            throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_operacional)!\nVá ao SQL Editor no Supabase e rode: ALTER TABLE malha_operacional ADD COLUMN IF NOT EXISTS date_ref text, ADD COLUMN IF NOT EXISTS airline text, ADD COLUMN IF NOT EXISTS airline_code text, ADD COLUMN IF NOT EXISTS model text, ADD COLUMN IF NOT EXISTS registration text, ADD COLUMN IF NOT EXISTS departure_flight_number text, ADD COLUMN IF NOT EXISTS origin text, ADD COLUMN IF NOT EXISTS eta text, ADD COLUMN IF NOT EXISTS etd text, ADD COLUMN IF NOT EXISTS actual_arrival_time text, ADD COLUMN IF NOT EXISTS designation_time timestamp, ADD COLUMN IF NOT EXISTS start_time timestamp, ADD COLUMN IF NOT EXISTS end_time timestamp, ADD COLUMN IF NOT EXISTS assignment_time timestamp, ADD COLUMN IF NOT EXISTS assigned_by_lt text, ADD COLUMN IF NOT EXISTS report jsonb, ADD COLUMN IF NOT EXISTS updated_at timestamp;\n\nErro original: ${error.message}`);
+    if (errorToThrow) {
+        console.error('[Supabase] Error bulk inserting flights chunk:', errorToThrow.message);
+        if (errorToThrow.message.includes("Could not find the table") || errorToThrow.message.includes("relation") && errorToThrow.message.includes("does not exist")) {
+            throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode o script abaixo para criar a tabela:\n\n` +
+              `CREATE TABLE IF NOT EXISTS malha_operacional (\n` +
+              `  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
+              `  date_ref TEXT NOT NULL,\n` +
+              `  flight_number TEXT NOT NULL,\n` +
+              `  departure_flight_number TEXT,\n` +
+              `  airline TEXT,\n` +
+              `  airline_code TEXT,\n` +
+              `  model TEXT,\n` +
+              `  registration TEXT,\n` +
+              `  origin TEXT,\n` +
+              `  destination TEXT,\n` +
+              `  eta TEXT,\n` +
+              `  etd TEXT,\n` +
+              `  actual_arrival_time TEXT,\n` +
+              `  position_id TEXT,\n` +
+              `  position_type TEXT,\n` +
+              `  pit_id TEXT,\n` +
+              `  wing_side TEXT,\n` +
+              `  fuel_status INTEGER DEFAULT 0,\n` +
+              `  status TEXT DEFAULT 'CHEGADA', \n` +
+              `  volume INTEGER DEFAULT 0,\n` +
+              `  is_on_ground BOOLEAN DEFAULT false,\n` +
+              `  delay_justification TEXT,\n` +
+              `  designation_time TIMESTAMP WITH TIME ZONE,\n` +
+              `  start_time TIMESTAMP WITH TIME ZONE,\n` +
+              `  end_time TIMESTAMP WITH TIME ZONE,\n` +
+              `  assignment_time TIMESTAMP WITH TIME ZONE,\n` +
+              `  assigned_by_lt TEXT,\n` +
+              `  is_excluded_from_queue BOOLEAN DEFAULT false,\n` +
+              `  report JSONB DEFAULT '{}'::jsonb,\n` +
+              `  logs JSONB DEFAULT '[]'::jsonb,\n` +
+              `  operator_id UUID,\n` +
+              `  support_operator_id UUID,\n` +
+              `  support_operator TEXT,\n` +
+              `  vehicle_id UUID,\n` +
+              `  vehicle_type TEXT,\n` +
+              `  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n` +
+              `  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
+              `);\n\nErro original: ${errorToThrow.message}`);
+        } else {
+            const ddlScript = `ALTER TABLE malha_operacional \n` +
+              `  ADD COLUMN IF NOT EXISTS date_ref text, \n` +
+              `  ADD COLUMN IF NOT EXISTS airline text, \n` +
+              `  ADD COLUMN IF NOT EXISTS airline_code text, \n` +
+              `  ADD COLUMN IF NOT EXISTS model text, \n` +
+              `  ADD COLUMN IF NOT EXISTS registration text, \n` +
+              `  ADD COLUMN IF NOT EXISTS departure_flight_number text, \n` +
+              `  ADD COLUMN IF NOT EXISTS origin text, \n` +
+              `  ADD COLUMN IF NOT EXISTS destination text, \n` +
+              `  ADD COLUMN IF NOT EXISTS eta text, \n` +
+              `  ADD COLUMN IF NOT EXISTS etd text, \n` +
+              `  ADD COLUMN IF NOT EXISTS actual_arrival_time text, \n` +
+              `  ADD COLUMN IF NOT EXISTS designation_time timestamp with time zone, \n` +
+              `  ADD COLUMN IF NOT EXISTS start_time timestamp with time zone, \n` +
+              `  ADD COLUMN IF NOT EXISTS end_time timestamp with time zone, \n` +
+              `  ADD COLUMN IF NOT EXISTS assignment_time timestamp with time zone, \n` +
+              `  ADD COLUMN IF NOT EXISTS assigned_by_lt text, \n` +
+              `  ADD COLUMN IF NOT EXISTS report jsonb, \n` +
+              `  ADD COLUMN IF NOT EXISTS logs jsonb, \n` +
+              `  ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone, \n` +
+              `  ADD COLUMN IF NOT EXISTS position_id text, \n` +
+              `  ADD COLUMN IF NOT EXISTS position_type text, \n` +
+              `  ADD COLUMN IF NOT EXISTS pit_id text, \n` +
+              `  ADD COLUMN IF NOT EXISTS wing_side text, \n` +
+              `  ADD COLUMN IF NOT EXISTS fuel_status integer DEFAULT 0, \n` +
+              `  ADD COLUMN IF NOT EXISTS status text DEFAULT 'CHEGADA', \n` +
+              `  ADD COLUMN IF NOT EXISTS operator_id uuid, \n` +
+              `  ADD COLUMN IF NOT EXISTS support_operator_id uuid, \n` +
+              `  ADD COLUMN IF NOT EXISTS support_operator text, \n` +
+              `  ADD COLUMN IF NOT EXISTS vehicle_id uuid, \n` +
+              `  ADD COLUMN IF NOT EXISTS vehicle_type text, \n` +
+              `  ADD COLUMN IF NOT EXISTS volume integer DEFAULT 0, \n` +
+              `  ADD COLUMN IF NOT EXISTS is_on_ground boolean DEFAULT false, \n` +
+              `  ADD COLUMN IF NOT EXISTS delay_justification text, \n` +
+              `  ADD COLUMN IF NOT EXISTS is_excluded_from_queue boolean DEFAULT false;`;
+              
+            throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_operacional)!\nVá ao SQL Editor no Supabase e rode:\n\n${ddlScript}\n\nErro original: ${errorToThrow.message}`);
         }
-        throw new Error(`Erro ao inserir na malha operacional: ${error.message}`);
     }
   }
 };

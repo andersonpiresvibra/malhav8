@@ -99,6 +99,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
           <div className={`absolute bottom-0 left-full ml-2 p-2 rounded-xl shadow-xl w-56 border z-[100] flex flex-col gap-1 max-h-[80vh] overflow-y-auto ${
             isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
           }`}>
+
+
              {/* GRUPO: MALHA */}
              <button
                onClick={() => toggleSection('MALHA')}

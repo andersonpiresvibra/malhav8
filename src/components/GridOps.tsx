@@ -31,6 +31,7 @@ import {
   upsertFlight,
   deleteFlight,
   getDestinos,
+  getAircrafts,
 } from "../services/supabaseService";
 import { supabase } from "../lib/supabase";
 import { findMatchingAircraft } from "../utils/aircraftMatcher";
@@ -498,12 +499,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const [aircrafts, setAircrafts] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase
-      .from("aeronaves")
-      .select("*")
-      .then((res) => {
-        if (res.data) setAircrafts(res.data);
-      });
+    getAircrafts().then((data) => {
+      setAircrafts(data);
+    }).catch(console.error);
     // Manter o hook vazio por enquanto caso no futuro precise carregar dados reais, mas sem o delay simulado
     getDestinos().then((destinos) => {
       setDestinosDB(destinos as StaticFlight[]);
@@ -661,6 +659,18 @@ export const GridOps: React.FC<GridOpsProps> = ({
     rowId: string;
     col: string;
   } | null>(null);
+  const [initialCellValue, setInitialCellValue] = useState<{
+    rowId: string;
+    col: string;
+    value: string | number;
+  } | null>(null);
+
+  const startEditing = (rowId: string, colKey: string) => {
+    const flight = flights.find((f) => f.id === rowId);
+    const value = flight ? (flight[colKey as keyof FlightData] ?? "") : "";
+    setInitialCellValue({ rowId, col: colKey, value });
+    setEditingCell({ rowId, col: colKey });
+  };
   const [isKeystrokeEdit, setIsKeystrokeEdit] = useState(false);
   const [calcoModalFlight, setCalcoModalFlight] = useState<FlightData | null>(
     null,
@@ -688,16 +698,14 @@ export const GridOps: React.FC<GridOpsProps> = ({
         editingCell?.rowId === focusedCell.rowId &&
         editingCell?.col === focusedCell.col
       ) {
-        const input = tableRef.current?.querySelector(
-          `tr[data-rowid="${focusedCell.rowId}"] td[data-colkey="${focusedCell.col}"] input`,
-        ) as HTMLInputElement;
+        const selector = `td[data-rowid="${focusedCell.rowId}"][data-colkey="${focusedCell.col}"] input`;
+        const input = tableRef.current?.querySelector(selector) as HTMLInputElement;
         if (input && document.activeElement !== input) {
           input.focus();
         }
       } else {
-        const cell = tableRef.current?.querySelector(
-          `tr[data-rowid="${focusedCell.rowId}"] td[data-colkey="${focusedCell.col}"] div`,
-        ) as HTMLDivElement;
+        const selector = `td[data-rowid="${focusedCell.rowId}"][data-colkey="${focusedCell.col}"] div`;
+        const cell = tableRef.current?.querySelector(selector) as HTMLDivElement;
         if (cell && document.activeElement !== cell) {
           cell.focus();
         }
@@ -717,47 +725,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
       upsertFlight(updatedFlight).catch((err) => {
         console.error("Failed to persist flight update:", err);
       });
-    }
-
-    if (setMeshFlights) {
-      setMeshFlights((prevMesh) =>
-        prevMesh.map((m) => {
-          const flightIdBase = updatedFlight.id.replace(/^mesh-\d+-/, "");
-          const isIdMatch =
-            updatedFlight.id === m.id ||
-            flightIdBase === m.id ||
-            flightIdBase === m.id.replace(/^mesh-\d+-/, "");
-          const isNumberMatch =
-            (updatedFlight.departureFlightNumber &&
-              m.departureFlightNumber &&
-              updatedFlight.departureFlightNumber ===
-                m.departureFlightNumber) ||
-            (updatedFlight.flightNumber &&
-              m.flightNumber &&
-              updatedFlight.flightNumber === m.flightNumber);
-
-          if (isIdMatch || isNumberMatch) {
-            return {
-              ...m,
-              actualArrivalTime:
-                updatedFlight.actualArrivalTime || m.actualArrivalTime,
-              etd: updatedFlight.etd || m.etd,
-              eta: updatedFlight.eta || m.eta,
-              registration: updatedFlight.registration || m.registration,
-              destination: updatedFlight.destination || m.destination,
-              positionId: updatedFlight.positionId || m.positionId,
-              positionType: updatedFlight.positionType || m.positionType,
-              departureFlightNumber:
-                updatedFlight.departureFlightNumber || m.departureFlightNumber,
-              operator: updatedFlight.operator || m.operator,
-              supportOperator:
-                updatedFlight.supportOperator || m.supportOperator,
-              fleet: updatedFlight.fleet || m.fleet,
-            };
-          }
-          return m;
-        }),
-      );
     }
   };
 
@@ -921,10 +888,18 @@ export const GridOps: React.FC<GridOpsProps> = ({
   };
 
   const confirmedConflictsRef = useRef<Set<string>>(new Set());
+  const isNavigatingRef = useRef(false);
 
   const handleFinishEdit = (rowId: string, colKey: string) => {
-    setEditingCell(null);
-    setIsKeystrokeEdit(false);
+    if (!isNavigatingRef.current) {
+      setEditingCell((prev) => {
+        if (prev && prev.rowId === rowId && prev.col === colKey) {
+          return null;
+        }
+        return prev;
+      });
+      setIsKeystrokeEdit(false);
+    }
 
     const flight = flights.find((f) => f.id === rowId);
     if (flight) {
@@ -936,24 +911,26 @@ export const GridOps: React.FC<GridOpsProps> = ({
 
     if (colKey === "etd") {
       const flight = flights.find((f) => f.id === rowId);
-      if (flight && flight.etd && flight.etd.length >= 4) {
-        const [h] = flight.etd.split(":").map(Number);
-        const currentH = new Date().getHours();
-        // Verificação se o horário digitado cruza a meia-noite (próximo dia)
-        const isNextDayCross = currentH >= 12 && h < currentH - 12;
+      if (flight && flight.etd && /^\d{2}:\d{2}$/.test(flight.etd)) {
+        const [h, m] = flight.etd.split(":").map(Number);
+        if (!isNaN(h) && !isNaN(m)) {
+          const currentH = new Date().getHours();
+          // Verificação se o horário digitado cruza a meia-noite (próximo dia)
+          const isNextDayCross = currentH >= 12 && h < currentH - 12;
 
-        if (isNextDayCross) {
-          const oldFlight = lastStableFlightsRef.current.find(
-            (f) => f.id === rowId,
-          );
-          const trueOldEtd = oldFlight?.etd || ""; // REAL original ETD
-          const conflictKey = `${rowId}-${flight.etd}`;
-          if (!confirmedConflictsRef.current.has(conflictKey)) {
-            setTimeConflictData({
-              rowId,
-              oldEtd: trueOldEtd,
-              newEtd: flight.etd,
-            });
+          if (isNextDayCross) {
+            const oldFlight = lastStableFlightsRef.current.find(
+              (f) => f.id === rowId,
+            );
+            const trueOldEtd = oldFlight?.etd || ""; // REAL original ETD
+            const conflictKey = `${rowId}-${flight.etd}`;
+            if (!confirmedConflictsRef.current.has(conflictKey)) {
+              setTimeConflictData({
+                rowId,
+                oldEtd: trueOldEtd,
+                newEtd: flight.etd,
+              });
+            }
           }
         }
       }
@@ -979,89 +956,151 @@ export const GridOps: React.FC<GridOpsProps> = ({
     if (!tbody) return;
 
     const navigate = (
-      newRowIndex: number,
-      newColIndex: number,
+      direction: "UP" | "DOWN" | "LEFT" | "RIGHT",
       preferEditing = false,
-      horizontalDirection: 1 | -1 | 0 = 0,
     ) => {
-      let targetRow = Array.from(tbody.children).find(
-        (el) =>
-          parseInt(el.getAttribute("data-rowindex") || "-1") === newRowIndex,
-      ) as HTMLTableRowElement;
+      let currentTdNode = targetTd;
+      if (!currentTdNode) return;
 
-      let nextRowIndex = newRowIndex;
-      let nextColIndex = newColIndex;
-
-      if (horizontalDirection !== 0) {
-        while (true) {
-          if (!targetRow) break;
-          let targetCell = Array.from(targetRow.children).find(
-            (el) =>
-              parseInt(el.getAttribute("data-colindex") || "-1") ===
-              nextColIndex,
-          ) as HTMLElement;
-
-          if (!targetCell) {
-            if (horizontalDirection === 1) {
-              nextRowIndex += 1;
-              nextColIndex = 0;
-            } else {
-              nextRowIndex -= 1;
-              const prevRow = Array.from(tbody.children).find(
-                (el) =>
-                  parseInt(el.getAttribute("data-rowindex") || "-1") ===
-                  nextRowIndex,
-              ) as HTMLTableRowElement;
-              if (!prevRow) break;
-              nextColIndex = Array.from(prevRow.children)
-                .filter((c) => c.hasAttribute("data-colindex"))
-                .map((c) => parseInt(c.getAttribute("data-colindex")!))
-                .reduce((max, val) => Math.max(max, val), 0);
-            }
-            targetRow = Array.from(tbody.children).find(
-              (el) =>
-                parseInt(el.getAttribute("data-rowindex") || "-1") ===
-                nextRowIndex,
-            ) as HTMLTableRowElement;
-            continue;
-          }
-
-          if (targetCell.getAttribute("data-editable") === "true") {
-            break;
-          } else {
-            nextColIndex += horizontalDirection;
-          }
-        }
+      if (preferEditing) {
+        isNavigatingRef.current = true;
       }
 
-      if (targetRow) {
-        const targetCell = Array.from(targetRow.children).find(
-          (el) =>
-            parseInt(el.getAttribute("data-colindex") || "-1") === nextColIndex,
-        ) as HTMLElement;
-        if (
-          targetCell &&
-          (horizontalDirection !== 0
-            ? true
-            : targetCell.getAttribute("data-editable") === "true")
-        ) {
-          const newRowId = targetCell.getAttribute("data-rowid");
-          const newColKey = targetCell.getAttribute("data-colkey");
+      if (direction === "LEFT" || direction === "RIGHT") {
+        const currentTrNode = currentTdNode.parentElement as HTMLTableRowElement;
+        if (!currentTrNode) {
+          isNavigatingRef.current = false;
+          return;
+        }
+        const tbodyNode = currentTrNode.parentElement as HTMLTableSectionElement;
+        if (!tbodyNode) {
+          isNavigatingRef.current = false;
+          return;
+        }
+
+        const allRows = Array.from(tbodyNode.children) as HTMLTableRowElement[];
+        const currentRowIndex = allRows.indexOf(currentTrNode);
+        if (currentRowIndex === -1) {
+          isNavigatingRef.current = false;
+          return;
+        }
+
+        const allEditableTds = Array.from(currentTrNode.querySelectorAll('td')).filter(
+          td => td.getAttribute('data-editable') === 'true'
+        ) as HTMLTableCellElement[];
+        const currentIndex = allEditableTds.indexOf(currentTdNode as any);
+
+        let nextTd: HTMLTableCellElement | undefined;
+        if (currentIndex !== -1) {
+          if (direction === "RIGHT") {
+            nextTd = allEditableTds[currentIndex + 1];
+            if (!nextTd && currentRowIndex < allRows.length - 1) {
+              // Wrap to the next row's first editable cell
+              const nextRow = allRows[currentRowIndex + 1];
+              const nextRowEditableTds = Array.from(nextRow.querySelectorAll('td')).filter(
+                td => td.getAttribute('data-editable') === 'true'
+              ) as HTMLTableCellElement[];
+              if (nextRowEditableTds.length > 0) {
+                nextTd = nextRowEditableTds[0];
+              }
+            }
+          } else {
+            nextTd = allEditableTds[currentIndex - 1];
+            if (!nextTd && currentRowIndex > 0) {
+              // Wrap to the previous row's last editable cell
+              const prevRow = allRows[currentRowIndex - 1];
+              const prevRowEditableTds = Array.from(prevRow.querySelectorAll('td')).filter(
+                td => td.getAttribute('data-editable') === 'true'
+              ) as HTMLTableCellElement[];
+              if (prevRowEditableTds.length > 0) {
+                nextTd = prevRowEditableTds[prevRowEditableTds.length - 1];
+              }
+            }
+          }
+        }
+
+        if (nextTd) {
+          const newRowId = nextTd.getAttribute("data-rowid");
+          const newColKey = nextTd.getAttribute("data-colkey");
           if (newRowId && newColKey) {
             setFocusedCell({ rowId: newRowId, col: newColKey });
+            setClickedRowId(newRowId);
             if (preferEditing) {
-              setEditingCell({ rowId: newRowId, col: newColKey });
+              startEditing(newRowId, newColKey);
             } else {
               handleFinishEdit(rowId, colKey);
             }
             setTimeout(() => {
               const innerEl =
-                targetCell.querySelector("input") ||
-                targetCell.querySelector("div");
+                nextTd!.querySelector("input") ||
+                nextTd!.querySelector("div");
               if (innerEl) (innerEl as HTMLElement).focus();
-              else targetCell.focus();
-            }, 0);
+              else nextTd!.focus();
+
+              isNavigatingRef.current = false;
+            }, 50);
+          } else {
+            isNavigatingRef.current = false;
           }
+        } else {
+          isNavigatingRef.current = false;
+        }
+      } else if (direction === "UP" || direction === "DOWN") {
+        const currentTrNode = currentTdNode.parentElement as HTMLTableRowElement;
+        if (!currentTrNode) {
+          isNavigatingRef.current = false;
+          return;
+        }
+        const tbodyNode = currentTrNode.parentElement as HTMLTableSectionElement;
+        if (!tbodyNode) {
+          isNavigatingRef.current = false;
+          return;
+        }
+
+        const allRows = Array.from(tbodyNode.children) as HTMLTableRowElement[];
+        const currentRowIndex = allRows.indexOf(currentTrNode);
+        if (currentRowIndex === -1) {
+          isNavigatingRef.current = false;
+          return;
+        }
+
+        let targetRow: HTMLTableRowElement | undefined;
+        if (direction === "DOWN") {
+          targetRow = allRows[currentRowIndex + 1];
+        } else {
+          targetRow = allRows[currentRowIndex - 1];
+        }
+
+        if (targetRow) {
+          const targetTdNode = targetRow.querySelector(`td[data-colkey="${colKey}"]`) as HTMLTableCellElement;
+          if (targetTdNode && targetTdNode.getAttribute("data-editable") === "true") {
+            const newRowId = targetTdNode.getAttribute("data-rowid");
+            const newColKey = targetTdNode.getAttribute("data-colkey");
+            if (newRowId && newColKey) {
+              setFocusedCell({ rowId: newRowId, col: newColKey });
+              setClickedRowId(newRowId);
+              if (preferEditing) {
+                startEditing(newRowId, newColKey);
+              } else {
+                handleFinishEdit(rowId, colKey);
+              }
+              setTimeout(() => {
+                const innerEl =
+                  targetTdNode.querySelector("input") ||
+                  targetTdNode.querySelector("div");
+                if (innerEl) (innerEl as HTMLElement).focus();
+                else targetTdNode.focus();
+
+                isNavigatingRef.current = false;
+              }, 50);
+            } else {
+              isNavigatingRef.current = false;
+            }
+          } else {
+            isNavigatingRef.current = false;
+          }
+        } else {
+          isNavigatingRef.current = false;
         }
       }
     };
@@ -1069,63 +1108,58 @@ export const GridOps: React.FC<GridOpsProps> = ({
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        navigate(rowIndex + 1, colIndex);
+        if (isEditing) {
+          isNavigatingRef.current = true;
+        }
+        navigate("DOWN", isEditing);
         break;
       case "ArrowUp":
         e.preventDefault();
-        navigate(rowIndex - 1, colIndex);
+        if (isEditing) {
+          isNavigatingRef.current = true;
+        }
+        navigate("UP", isEditing);
         break;
       case "ArrowRight":
         if (!isEditing) {
           e.preventDefault();
-          navigate(rowIndex, colIndex + 1, false, 1);
-        } else {
-          const input = e.target as HTMLInputElement;
-          if (input && input.selectionStart === input.value.length) {
-            e.preventDefault();
-            navigate(rowIndex, colIndex + 1, false, 1);
-            handleFinishEdit(rowId, colKey);
-          }
+          navigate("RIGHT", false);
         }
         break;
       case "ArrowLeft":
         if (!isEditing) {
           e.preventDefault();
-          navigate(rowIndex, colIndex - 1, false, -1);
-        } else {
-          const input = e.target as HTMLInputElement;
-          if (input && input.selectionStart === 0) {
-            e.preventDefault();
-            navigate(rowIndex, colIndex - 1, false, -1);
-            handleFinishEdit(rowId, colKey);
-          }
+          navigate("LEFT", false);
         }
         break;
       case "Enter":
         e.preventDefault();
         if (isEditing) {
-          navigate(rowIndex, colIndex + 1, false, 1);
           handleFinishEdit(rowId, colKey);
         } else if (targetTd?.getAttribute("data-editable") === "true") {
-          setEditingCell({ rowId, col: colKey });
-        } else {
-          // If not editable, just move right like excel
-          navigate(rowIndex, colIndex + 1, false, 1);
+          startEditing(rowId, colKey);
         }
         break;
       case "Tab":
         e.preventDefault();
+        if (isEditing) {
+          isNavigatingRef.current = true;
+        }
         handleFinishEdit(rowId, colKey);
         if (e.shiftKey) {
-          navigate(rowIndex, colIndex - 1, false, -1);
+          navigate("LEFT", isEditing);
         } else {
-          navigate(rowIndex, colIndex + 1, false, 1);
+          navigate("RIGHT", isEditing);
         }
         break;
       case "Escape":
         if (isEditing) {
           e.preventDefault();
-          handleFinishEdit(rowId, colKey);
+          if (initialCellValue && initialCellValue.rowId === rowId && initialCellValue.col === colKey) {
+            handleFieldChange(rowId, colKey as keyof FlightData, String(initialCellValue.value));
+          }
+          setEditingCell(null);
+          setIsKeystrokeEdit(false);
         }
         break;
       case "Backspace":
@@ -1144,6 +1178,9 @@ export const GridOps: React.FC<GridOpsProps> = ({
           e.key.length === 1
         ) {
           e.preventDefault();
+          const flight = flights.find((f) => f.id === rowId);
+          const val = flight ? (flight[colKey as keyof FlightData] ?? "") : "";
+          setInitialCellValue({ rowId, col: colKey, value: val });
           setIsKeystrokeEdit(true);
           handleFieldChange(
             rowId,
@@ -2002,7 +2039,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
         data-editable={editable}
         className={`
           p-0 border-y border-l transition-all relative h-10 outline-none
-          ${isRemota ? "bg-[#fff700] border-[#ccc600]" : getRowBgClass(row)}
+          ${isFocused ? `border-2 border-blue-500 dark:border-blue-400 z-50 shadow-2xl scale-[1.01] selected-focus-cell ${isRemota ? '!bg-[#fff700] !text-slate-950' : '!bg-blue-600 dark:!bg-blue-600 !text-white'}` : "z-10"}
+          ${isRemota && !isFocused ? "bg-[#fff700] border-[#ccc600]" : isFocused ? "" : getRowBgClass(row)}
         `}
       >
         {isEditing ? (
@@ -2010,17 +2048,23 @@ export const GridOps: React.FC<GridOpsProps> = ({
             type="text"
             autoFocus
             onFocus={(e) => {
+              const target = e.target;
               if (isKeystrokeEdit) {
                 // Posiciona o cursor no final para não sobrescrever o primeiro dígito
-                const val = e.target.value;
-                e.target.value = "";
-                e.target.value = val;
+                const val = target.value;
+                target.value = "";
+                target.value = val;
                 setIsKeystrokeEdit(false);
               } else {
-                e.target.select();
+                target.select();
+                setTimeout(() => {
+                  try {
+                    target.select();
+                  } catch (ex) {}
+                }, 50);
               }
             }}
-            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-bold text-inherit ${cellStyle} ${isDarkMode ? (isRemota ? "bg-[#fff700] text-[#524f4f]" : "bg-slate-900 shadow-inner") : isRemota ? "bg-[#fff700] text-[#524f4f]" : "bg-white font-black text-slate-900"}`}
+            className={`absolute inset-0 w-full h-full text-center px-1 font-mono outline-none border-none text-[13px] uppercase font-black z-50 ring-4 ring-blue-500/40 ${isRemota ? '!bg-[#fff700] !text-slate-950' : '!bg-blue-600 !text-white'}`}
             value={value}
             onChange={(e) => handleFieldChange(row.id, colKey, e.target.value)}
             onBlur={() => handleFinishEdit(row.id, colKey as string)}
@@ -2033,23 +2077,39 @@ export const GridOps: React.FC<GridOpsProps> = ({
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
-              // Simplificado: qualquer click em célula editável tenta entrar em edição
-              if (editable) {
-                setFocusedCell({ rowId: row.id, col: colKey });
-                setEditingCell({ rowId: row.id, col: colKey });
-              } else {
+              const isRowAlreadySelected = clickedRowId === row.id;
+              if (!isRowAlreadySelected) {
+                // PRIMEIRO CLIQUE: seleciona a linha inteira, foca a célula mas NÃO edita
+                setClickedRowId(row.id);
                 setFocusedCell({ rowId: row.id, col: colKey });
                 setEditingCell(null);
                 const target = e.currentTarget;
                 setTimeout(() => {
                   (target as HTMLElement).focus();
                 }, 0);
+              } else {
+                // SEGUNDO CLIQUE: se a célula for editável, entra em edição
+                if (editable) {
+                  setFocusedCell({ rowId: row.id, col: colKey });
+                  startEditing(row.id, colKey);
+                } else {
+                  setFocusedCell({ rowId: row.id, col: colKey });
+                  setEditingCell(null);
+                  const target = e.currentTarget;
+                  setTimeout(() => {
+                    (target as HTMLElement).focus();
+                  }, 0);
+                }
               }
             }}
             onKeyDown={(e) =>
               handleKeyDown(e, row.id, colKey as string, rowIndex, colIndex)
             }
-            className={`w-full h-full px-1 flex items-center relative ${colKey === "airlineCode" ? "justify-start ml-2" : "justify-center"} font-mono text-[12px] select-none cursor-default outline-none ${isFocused ? "ring-2 ring-indigo-500 ring-inset z-20 shadow-xl " + (editable ? "bg-indigo-600 text-white shadow-indigo-500/20" : "bg-slate-500/10") : ""} ${cellStyle} ${isRemota && !isFocused ? "bg-[#fff700] text-[#524f4f]" : ""}`}
+            className={`w-full h-full px-1 flex items-center relative ${colKey === "airlineCode" ? "justify-start ml-2" : "justify-center"} font-mono text-[12px] select-none cursor-default outline-none ${
+              isFocused
+                ? (isRemota ? "!bg-[#fff700] !text-slate-950 !border-2 !border-yellow-400 shadow-xl z-20 font-black" : "!bg-blue-500 !text-white !border-2 !border-blue-400 shadow-xl z-20 font-black")
+                : `${cellStyle} ${isRemota ? "bg-[#fff700] text-[#524f4f]" : ""}`
+            }`}
           >
             {extraLabel}
             {colKey === "airlineCode" ? (
@@ -3618,50 +3678,6 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 <Plus size={14} className="text-[#3CA317]" />
                 Criar Voo
               </button>
-              <button
-                onClick={() => {
-                  if (onUpdateFlights && meshFlights) {
-                    onUpdateFlights((prev) => {
-                      // Manter voos existentes que já foram processados
-                      const existingIds = new Set(prev.map((f) => f.id));
-                      const newFlights = meshFlights
-                        .filter((m) => !m.disabled) // Pular voos desativados
-                        .map((m) => {
-                          if (existingIds.has(m.id))
-                            return prev.find((f) => f.id === m.id)!;
-                          return {
-                            id: m.id,
-                            flightNumber: "--",
-                            departureFlightNumber: m.departureFlightNumber,
-                            airline: m.airline,
-                            airlineCode: m.airlineCode,
-                            model: m.model || "",
-                            registration: m.registration || "",
-                            origin: "",
-                            destination: m.destination,
-                            eta: m.eta || "--:--",
-                            etd: m.etd,
-                            actualArrivalTime: m.actualArrivalTime,
-                            positionId: m.positionId || "",
-                            status: FlightStatus.CHEGADA,
-                            logs: [],
-                          };
-                        });
-                      return newFlights as any[]; // Type cast handled by external context
-                    });
-                    addToast(
-                      "SINCRONIZAÇÃO",
-                      "Voos da Malha Base sincronizados!",
-                      "success",
-                    );
-                  }
-                  setShowOptionsDropdown(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? "text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"}`}
-              >
-                <RefreshCw size={14} />
-                Sincronizar Dados
-              </button>
 
 
               <button
@@ -4446,23 +4462,10 @@ export const GridOps: React.FC<GridOpsProps> = ({
                 return (
                   <tr
                     key={row.id}
+                    data-rowid={row.id}
                     data-rowindex={rowIndex}
                     onClickCapture={(e) => {
-                      const target = e.target as HTMLElement;
-                      // Consider interactive if it's an explicit input/button, OR if it has a click handler/button-like nature
-                      const closestCursor = target.closest(".cursor-pointer");
-                      const isInteractive =
-                        target.closest(
-                          'input, button, a, [role="button"], [data-interactive="true"]',
-                        ) ||
-                        (closestCursor && closestCursor !== e.currentTarget);
-                      if (isInteractive) {
-                        setClickedRowId(row.id);
-                      } else {
-                        setClickedRowId((prev) =>
-                          prev === row.id ? null : row.id,
-                        );
-                      }
+                      setClickedRowId(row.id);
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();

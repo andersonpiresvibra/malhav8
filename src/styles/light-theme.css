@@ -214,6 +214,19 @@
   color: #0f172a !important;
 }
 
+/* Garantir que a célula selecionada ou em edição fique azul destaque mesmo ao passar o mouse */
+:root:not(.dark) table tbody tr td.selected-focus-cell,
+:root:not(.dark) table tbody tr:hover td.selected-focus-cell {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+:root:not(.dark) table tbody tr td.selected-focus-cell input,
+:root:not(.dark) table tbody tr:hover td.selected-focus-cell input {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
 /* Specific selector provided by the user */
 :root:not(.dark) div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > table:nth-of-type(1) > thead:nth-of-type(1) > tr:nth-of-type(1) > th:nth-of-type(3) {
   background-color: #2C864C !important;

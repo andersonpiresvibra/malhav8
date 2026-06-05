@@ -12,3 +12,16 @@
   color: #0f172a !important;
 }
 
+/* Garantir que a célula selecionada ou em edição fique azul destaque mesmo ao passar o mouse */
+:root.dark table tbody tr td.selected-focus-cell,
+:root.dark table tbody tr:hover td.selected-focus-cell {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+:root.dark table tbody tr td.selected-focus-cell input,
+:root.dark table tbody tr:hover td.selected-focus-cell input {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+

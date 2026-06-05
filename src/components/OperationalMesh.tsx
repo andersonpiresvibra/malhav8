@@ -11,7 +11,7 @@ import { TimeConflictModal } from './TimeConflictModal';
 import { BulkNextDayModal } from './BulkNextDayModal';
 import { InlineCalendar } from './ui/InlineCalendar';
 import { supabase } from '../lib/supabase';
-import { getBaseMeshFlights, upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos } from '../services/supabaseService';
+import { getBaseMeshFlights, upsertBaseMeshFlights, clearBaseMeshFlights, getDestinos, getAircrafts } from '../services/supabaseService';
 import { formatAirlineName } from '../utils/airlineUtils';
 import { downloadTemplate } from '../utils/excelTemplateUtils';
 import { findMatchingAircraft } from '../utils/aircraftMatcher';
@@ -208,9 +208,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
   const [airlinesDB, setAirlinesDB] = useState<{ id: string; airline: string; airline_code: string }[]>([]);
 
   useEffect(() => {
-    supabase.from('aeronaves').select('*').then(res => {
-      if (res.data) setAircraftsDB(res.data as AircraftType[]);
-    });
+    getAircrafts().then(data => {
+      setAircraftsDB(data as AircraftType[]);
+    }).catch(console.error);
     supabase.from('companhias').select('id, airline, airline_code').order('airline').then(res => {
       if (res.data) setAirlinesDB(res.data as any[]);
     });
@@ -640,47 +640,17 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
     const unsyncedFlights = activeFlights.filter(f => !isFlightSynced(f));
 
     if (unsyncedFlights.length === 0) {
-        setAlertState({isOpen: true, title: 'Malha Sincronizada', message: 'A malha geral já está sincronizada. Todos os voos ativos da malha base já estão presentes na malha geral (Operação Mês).'});
-        return;
-    }
-
-    const readyToSync = unsyncedFlights.filter(f => getFlightErrors(f).isValid).sort((a, b) => {
-        const aMin = getMinutesDiff(a.etd, a.date || currentMeshDate);
-        const bMin = getMinutesDiff(b.etd, b.date || currentMeshDate);
-        return aMin - bMin;
-    });
-    const inconsistent = unsyncedFlights.filter(f => !getFlightErrors(f).isValid);
-
-    if (readyToSync.length === 0) {
-        let advice = "Corrija as duplicatas e campos obrigatórios (marcados em vermelho/laranja) para prosseguir.";
-        const firstUnsynced = unsyncedFlights[0];
-        if (firstUnsynced) {
-            const errs = getFlightErrors(firstUnsynced);
-            if (errs.isIncomplete) {
-                advice = `Exemplo: O voo ${firstUnsynced.departureFlightNumber} está incompleto ou sem prefixo.`;
-            } else if (errs.isDuplicated) {
-                advice = `Exemplo: O voo ${firstUnsynced.departureFlightNumber} está duplicado.`;
-            }
-        }
-
         setAlertState({
             isOpen: true, 
-            title: 'Nenhum Voo Pronto', 
-            message: `Não há voos prontos para sincronização. ${advice}`
+            title: 'Malha já enviada', 
+            message: 'Todos os voos ativos dessa data já foram enviados para a operação. Caso precise fazer novas edições, elas devem ser feitas diretamente no painel da malha operacional.'
         });
         return;
     }
 
-    if (inconsistent.length > 0) {
-        setSyncConfirmState({
-            isOpen: true, 
-            message: `Identificamos ${readyToSync.length} voos prontos e ${inconsistent.length} voos inconsistentes. Deseja enviar apenas os voos prontos? Os inconsistentes ficarão pendentes na Malha Base.`, 
-            unsynced: readyToSync
-        });
-        return;
-    }
-
-    executeSync(readyToSync);
+    // Envia todos os voos ativos de forma direta e sem restrições de validação estritas de campos incompletos.
+    // Qualquer ajuste ou complemento será feito diretamente na tela da malha operacional.
+    executeSync(unsyncedFlights);
   };
 
   const executeSync = (flightsToSync: MeshFlight[]) => {
@@ -820,6 +790,30 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
     if (!flight) return;
     const isEditing = editingCell?.rowId === flight.id && editingCell?.col === colIndex;
 
+    const getNextEditableCell = (startRow: number, startCol: number, direction: 'RIGHT' | 'LEFT'): { rowId: string, col: number } | null => {
+      let r = startRow;
+      let c = startCol;
+      while (true) {
+        if (direction === 'RIGHT') {
+          c++;
+          if (c >= COLUMNS.length) {
+            c = 0;
+            r++;
+          }
+        } else {
+          c--;
+          if (c < 0) {
+            c = COLUMNS.length - 1;
+            r--;
+          }
+        }
+        if (r < 0 || r >= filteredFlights.length) return null;
+        if (COLUMNS[c].isVariable && COLUMNS[c].key !== 'actions') {
+          return { rowId: filteredFlights[r].id, col: c };
+        }
+      }
+    };
+
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
@@ -838,26 +832,38 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
       case 'ArrowRight':
         if (!isEditing) {
           e.preventDefault();
-          setFocusedCell({ rowId: flight.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
+          const next = getNextEditableCell(rowIndex, colIndex, 'RIGHT');
+          if (next) setFocusedCell({ rowId: next.rowId, col: next.col });
         } else {
           const input = e.target as HTMLInputElement;
           if (input.selectionStart === input.value.length) {
             e.preventDefault();
-            setFocusedCell({ rowId: flight.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
-            handleFinishEdit(flight.id, colIndex);
+            const next = getNextEditableCell(rowIndex, colIndex, 'RIGHT');
+            if (next) {
+              setFocusedCell({ rowId: next.rowId, col: next.col });
+              startEditingCell(next.rowId, next.col);
+            } else {
+              handleFinishEdit(flight.id, colIndex);
+            }
           }
         }
         break;
       case 'ArrowLeft':
         if (!isEditing) {
           e.preventDefault();
-          setFocusedCell({ rowId: flight.id, col: Math.max(0, colIndex - 1) });
+          const prev = getNextEditableCell(rowIndex, colIndex, 'LEFT');
+          if (prev) setFocusedCell({ rowId: prev.rowId, col: prev.col });
         } else {
           const input = e.target as HTMLInputElement;
           if (input.selectionStart === 0) {
             e.preventDefault();
-            setFocusedCell({ rowId: flight.id, col: Math.max(0, colIndex - 1) });
-            handleFinishEdit(flight.id, colIndex);
+            const prev = getNextEditableCell(rowIndex, colIndex, 'LEFT');
+            if (prev) {
+              setFocusedCell({ rowId: prev.rowId, col: prev.col });
+              startEditingCell(prev.rowId, prev.col);
+            } else {
+              handleFinishEdit(flight.id, colIndex);
+            }
           }
         }
         break;
@@ -877,32 +883,29 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                 setFocusedCell(null);
              }
           } else {
-             setFocusedCell({ rowId: flight.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
+             const next = getNextEditableCell(rowIndex, colIndex, 'RIGHT');
+             if (next) setFocusedCell({ rowId: next.rowId, col: next.col });
           }
           handleFinishEdit(flight.id, colIndex);
         } else if (COLUMNS[colIndex].isVariable) {
           startEditingCell(flight.id, colIndex);
         } else {
-          setFocusedCell({ rowId: flight.id, col: Math.min(COLUMNS.length - 1, colIndex + 1) });
+          const next = getNextEditableCell(rowIndex, colIndex, 'RIGHT');
+          if (next) setFocusedCell({ rowId: next.rowId, col: next.col });
         }
         break;
-      case 'Tab':
+      case 'Tab': {
         e.preventDefault();
         handleFinishEdit(flight.id, colIndex);
-        if (e.shiftKey) {
-          if (colIndex > 0) {
-            setFocusedCell({ rowId: flight.id, col: colIndex - 1 });
-          } else if (rowIndex > 0) {
-            setFocusedCell({ rowId: filteredFlights[rowIndex - 1].id, col: COLUMNS.length - 1 });
-          }
-        } else {
-          if (colIndex < COLUMNS.length - 1) {
-            setFocusedCell({ rowId: flight.id, col: colIndex + 1 });
-          } else if (rowIndex < filteredFlights.length - 1) {
-            setFocusedCell({ rowId: filteredFlights[rowIndex + 1].id, col: 0 });
+        const next = getNextEditableCell(rowIndex, colIndex, e.shiftKey ? 'LEFT' : 'RIGHT');
+        if (next) {
+          setFocusedCell({ rowId: next.rowId, col: next.col });
+          if (isEditing) {
+            startEditingCell(next.rowId, next.col);
           }
         }
         break;
+      }
       case 'Escape':
         if (editingCell) {
           e.preventDefault();
@@ -1394,7 +1397,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isDarkMode ? 'text-slate-300 hover:bg-[#FEDC00]/20 hover:text-[#FEDC00]' : 'text-slate-600 hover:bg-[#FEDC00]/20 hover:text-slate-900'}`}
                 >
                   <RefreshCw size={14} />
-                  Sincronizar
+                  Enviar p/ Operação
                 </button>
 
                 <button 
@@ -1629,7 +1632,7 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                               p-0 border-r border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'} relative transition-all h-10
                               ${col.isVariable ? (isDarkMode ? 'bg-emerald-400/5' : 'bg-emerald-500/5') : ''}
                               ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'bg-yellow-500/80' : ''}
-                              ${isCellFocused ? 'ring-2 ring-emerald-500 ring-inset z-20 shadow-xl' : ''}
+                              ${isCellFocused ? `border-2 border-blue-500 dark:border-blue-400 z-50 shadow-2xl scale-[1.01] selected-focus-cell ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? '!bg-yellow-500 !text-slate-950' : '!bg-blue-600 dark:!bg-blue-600 !text-white'}` : ''}
                             `}
                           >
                             {isCellEditing ? (
@@ -1653,9 +1656,9 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                                 onBlur={() => handleFinishEdit(flight.id, cIdx)}
                                 list={col.key === 'positionId' ? "positions-datalist" : undefined}
                                 className={`
-                                  absolute inset-0 w-full h-full px-3 bg-emerald-500 text-slate-950 font-mono text-[11px] uppercase font-black outline-none
+                                  absolute inset-0 w-full h-full px-3 font-mono text-[11px] uppercase font-black outline-none border-2 border-blue-500 ring-2 ring-blue-500/40 z-50
                                   ${col.key === 'airline' ? 'text-left' : 'text-center'}
-                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'bg-yellow-500' : ''}
+                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? '!bg-yellow-500 !text-slate-950' : '!bg-blue-600 !text-white'}
                                 `}
                               />
                               {col.key === 'positionId' && (
@@ -1672,13 +1675,13 @@ export const OperationalMesh: React.FC<OperationalMeshProps> = ({
                                 onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
                                 className={`
                                   w-full h-full px-3 flex items-center gap-2 font-bold text-[11px] uppercase select-none cursor-default outline-none tracking-tight relative
-                                  ${flight.disabled ? (isDarkMode ? 'text-slate-500/30' : 'text-slate-400/50') : (isDarkMode ? 'text-slate-200' : 'text-slate-700')}
+                                  ${isCellFocused ? (col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? '!text-slate-950' : '!text-white') : flight.disabled ? (isDarkMode ? 'text-slate-500/30' : 'text-slate-400/50') : (isDarkMode ? 'text-slate-200' : 'text-slate-700')}
                                   ${col.key === 'airline' ? 'justify-start text-left' : 'justify-center text-center'}
                                   ${!col.isVariable && !isCellFocused && !isMandatoryEmpty ? (isDarkMode ? 'text-indigo-400' : 'text-indigo-700') : ''}
-                                  ${col.key === 'etd' && flight[col.key] === 'PRÉ' ? (isDarkMode ? 'text-blue-400 font-black' : 'text-blue-600 font-black text-[12px]') : ''}
-                                  ${col.key === 'etd' && flight[col.key] && flight[col.key] !== '?' && flight[col.key] !== 'PRÉ' && getMinutesDiff(flight[col.key] as string, flight.date || currentMeshDate) < 0 ? (isDarkMode ? 'text-red-300 bg-red-900/60 font-black' : 'text-red-800 bg-red-200 font-black tracking-widest') : ''}
+                                  ${col.key === 'etd' && flight[col.key] === 'PRÉ' && !isCellFocused ? (isDarkMode ? 'text-blue-400 font-black' : 'text-blue-600 font-black text-[12px]') : ''}
+                                  ${col.key === 'etd' && flight[col.key] && flight[col.key] !== '?' && flight[col.key] !== 'PRÉ' && getMinutesDiff(flight[col.key] as string, flight.date || currentMeshDate) < 0 && !isCellFocused ? (isDarkMode ? 'text-red-300 bg-red-900/60 font-black' : 'text-red-800 bg-red-200 font-black tracking-widest') : ''}
                                   ${isMandatoryEmpty ? 'text-red-500 animate-pulse font-black text-xs' : ''}
-                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' ? 'text-slate-950 font-black' : ''}
+                                  ${col.key === 'positionId' && positionRestrictions[cellValue as string] === 'CTA' && !isCellFocused ? 'text-slate-950 font-black' : ''}
                                 `}
                               >
                                 <span>{isMandatoryEmpty ? '?' : (col.key === 'airline' ? formatAirlineName(String(cellValue)) : String(cellValue) || '-')}</span>

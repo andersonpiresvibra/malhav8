@@ -285,7 +285,9 @@ const App: React.FC = () => {
           instruction += `    start_time TIMESTAMP WITH TIME ZONE, end_time TIMESTAMP WITH TIME ZONE,\n`;
           instruction += `    assignment_time TIMESTAMP WITH TIME ZONE, assigned_by_lt TEXT,\n`;
           instruction += `    is_excluded_from_queue BOOLEAN DEFAULT false, report JSONB DEFAULT '{}'::jsonb,\n`;
-          instruction += `    logs JSONB DEFAULT '[]'::jsonb,\n`;
+          instruction += `    logs JSONB DEFAULT '[]'::jsonb, operator_id UUID,\n`;
+          instruction += `    support_operator_id UUID, support_operator TEXT,\n`;
+          instruction += `    vehicle_id UUID, vehicle_type TEXT,\n`;
           instruction += `    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n`;
           instruction += `    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n`;
           instruction += `);\n\n`;
