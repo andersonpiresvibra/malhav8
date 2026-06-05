@@ -7,9 +7,9 @@
 }
 
 :root.dark table tbody tr:hover td {
-  background-color: #4ADE80 !important;
+  background-color: #1e293b !important;
   background-image: none !important;
-  color: #0f172a !important;
+  color: #ffffff !important;
 }
 
 /* Garantir que a célula selecionada ou em edição fique azul destaque mesmo ao passar o mouse */
