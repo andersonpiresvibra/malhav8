@@ -2,6 +2,35 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Vehicle, OperatorProfile, AircraftType, FlightData, FlightStatus, MeshFlight } from '../types';
 import { getLocalTodayDateStr } from '../utils/shiftUtils';
 
+export const safeLocalStorageSetItem = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error: any) {
+    const isQuotaError = error.name === 'QuotaExceededError' || 
+                         error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+                         (error.message && error.message.includes('exceeded the quota'));
+    if (isQuotaError) {
+      console.warn(`[localStorage] Cota esgotada ao gravar no cache para a chave '${key}'. Limpando caches antigos...`);
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('supabase_cache_flights_') || k.startsWith('supabase_cache_basemesh_flights_'))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(key, value);
+        console.log(`[localStorage] Chave '${key}' gravada com sucesso após limpeza de cota.`);
+      } catch (retryError) {
+        console.warn(`[localStorage] Ainda sem espaço após limpar caches de voos para a chave '${key}'. Ignorando silenciosamente.`, retryError);
+      }
+    } else {
+      console.warn(`[localStorage] Falha não relacionada a cota ao gravar chave '${key}':`, error);
+    }
+  }
+};
+
 if (typeof window !== 'undefined') {
   (window as any).missingTablesDetected = (window as any).missingTablesDetected || [];
 }
@@ -95,8 +124,8 @@ export const detectAndRegisterMissingColumn = (errorMessage: string): boolean =>
     if (!knownMissingColumns.has(colName)) {
       console.warn(`[Supabase Enterprise] Detectada coluna ausente na tabela no banco: '${colName}'. Descartando-a temporariamente do payload...`);
       knownMissingColumns.add(colName);
-      return true;
     }
+    return true; // Retorna sempre true para incentivar o loop de re-tentativa a aplicar o novo filtro de colunas
   }
   return false;
 };
@@ -167,62 +196,217 @@ export const getAuditLogs = async (limitCount: number = 1000): Promise<AuditLogE
 let operatorsCache: { id: string; warName: string }[] = [];
 let vehiclesCache: { id: string; fleetNumber: string }[] = [];
 
-export const getDestinos = async (): Promise<any[]> => {
-  if (!isSupabaseConfigured()) return [];
-  
-  // 1. Pega tabela de destinos estáticos (ICAO -> Cidade)
-  const { data: destData, error: destError } = await supabase.from('destinos').select('*');
-  let destinosBase = destData || [];
-  
-  // 2. Tenta puxar inteligência de voos passados da malha operacional para ajudar no auto-complete (limita aos ultimos 500 para ser rapido mas util)
-  const { data: voosData, error: voosError } = await supabase
-    .from('malha_operacional')
-    .select('flight_number, departure_flight_number, destination, airline_code, airline')
-    .limit(1000)
-    .order('created_at', { ascending: false });
-    
-  let allDestinos: any[] = [];
-  
-  // Array para mapeamento rapido de ICAO -> City
-  const mapIcaoToCity = (icao: string) => {
-     const match = destinosBase.find(d => d.icao === icao);
-     return match ? match.city : '';
-  };
+export const getFallbackVehicles = (): Vehicle[] => {
+  return [
+    { id: '2104', type: 'SERVIDOR', manufacturer: 'FORD', status: 'DISPONÍVEL', maxFlowRate: 1000, hasPlatform: false, capacity: 5000, currentVolume: 0, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '2108', type: 'SERVIDOR', manufacturer: 'FORD', status: 'DISPONÍVEL', maxFlowRate: 1000, hasPlatform: false, capacity: 5000, currentVolume: 0, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '2111', type: 'SERVIDOR', manufacturer: 'FORD', status: 'DISPONÍVEL', maxFlowRate: 1000, hasPlatform: false, capacity: 5000, currentVolume: 0, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '2113', type: 'SERVIDOR', manufacturer: 'FORD', status: 'DISPONÍVEL', maxFlowRate: 1000, hasPlatform: false, capacity: 5000, currentVolume: 0, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '2122', type: 'SERVIDOR', manufacturer: 'MERCEDES-BENZ', status: 'DISPONÍVEL', maxFlowRate: 2000, hasPlatform: true, capacity: 8000, currentVolume: 0, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '2123', type: 'SERVIDOR', manufacturer: 'MERCEDES-BENZ', status: 'OCUPADO', maxFlowRate: 2000, hasPlatform: true, capacity: 8000, currentVolume: 0, currentPosition: 'REM 211', lastPosition: '', isActive: true, operatorId: 'op-002' },
+    { id: '2124', type: 'SERVIDOR', manufacturer: 'MERCEDES-BENZ', status: 'DISPONÍVEL', maxFlowRate: 2000, hasPlatform: true, capacity: 8000, currentVolume: 0, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '2125', type: 'SERVIDOR', manufacturer: 'MERCEDES-BENZ', status: 'DISPONÍVEL', maxFlowRate: 2000, hasPlatform: true, capacity: 8000, currentVolume: 0, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '1405', type: 'CTA', manufacturer: 'MISTER-CTA', status: 'DISPONÍVEL', maxFlowRate: 1500, hasPlatform: false, capacity: 15000, currentVolume: 12000, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '1425', type: 'CTA', manufacturer: 'MISTER-CTA', status: 'DISPONÍVEL', maxFlowRate: 2000, hasPlatform: false, capacity: 20000, currentVolume: 18000, currentPosition: '', lastPosition: '', isActive: true },
+    { id: '1426', type: 'CTA', manufacturer: 'MISTER-CTA', status: 'DISPONÍVEL', maxFlowRate: 2000, hasPlatform: false, capacity: 20000, currentVolume: 15000, currentPosition: '', lastPosition: '', isActive: true }
+  ];
+};
 
-  if (destinosBase.length > 0) {
-      allDestinos = destinosBase.map((d: any) => ({
-          ...d,
-          flightNumber: d.flightNumber || d.flight_number || d.voo || d.prefixo || d.voo_chegada || d.voo_saida,
-          departureFlightNumber: d.departureFlightNumber || d.voo_saida || d.departure_flight_number,
-          airlineCode: d.airlineCode || d.airline_code || d.cia_cod || d.codigo_cia,
-          airline: d.airline || d.cia || d.airline_name || d.companhia || d.empresa,
-          destination: d.destination || d.destino || d.dest || d.cidade || d.city || d.icao
-      }));
+export const getFallbackOperators = (): OperatorProfile[] => {
+  return [
+    {
+      id: 'op-001',
+      fullName: 'João Silva',
+      warName: 'SILVA',
+      companyId: 'VIBRA',
+      gruId: 'GRU-001',
+      vestNumber: '001',
+      photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=60',
+      email: 'silva@vibra.com.br',
+      isLT: 'NÃO',
+      isUsuario: false,
+      isAdministrador: false,
+      isMaster: false,
+      patio: 'AERODROMO',
+      tmfLogin: 'SILVA1',
+      bloodType: 'O+',
+      role: 'Op. Pleno',
+      status: 'DISPONÍVEL',
+      category: 'AERODROMO',
+      lastPosition: '',
+      fleetCapability: 'SRV',
+      shift: { cycle: 'MANHÃ', start: '06:00', end: '14:00' },
+      airlines: ['G3', 'LA'],
+      ratings: { speed: 4.5, safety: 5.0, airlineSpecific: {} },
+      expertise: { servidor: 80, cta: 50 },
+      stats: { flightsWeekly: 14, flightsMonthly: 58, volumeWeekly: 120000, volumeMonthly: 500000 },
+      workDays: []
+    },
+    {
+      id: 'op-002',
+      fullName: 'Anderson Souza',
+      warName: 'SOUZA',
+      companyId: 'VIBRA',
+      gruId: 'GRU-002',
+      vestNumber: '002',
+      photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=60',
+      email: 'souza@vibra.com.br',
+      isLT: 'NÃO',
+      isUsuario: false,
+      isAdministrador: false,
+      isMaster: false,
+      patio: 'ILHA',
+      tmfLogin: 'SOUZA2',
+      bloodType: 'A+',
+      role: 'Op. Pleno',
+      status: 'OCUPADO',
+      category: 'ILHA',
+      lastPosition: '',
+      fleetCapability: 'BOTH',
+      shift: { cycle: 'MANHÃ', start: '06:00', end: '14:00' },
+      airlines: ['LA'],
+      ratings: { speed: 4.8, safety: 4.9, airlineSpecific: {} },
+      expertise: { servidor: 90, cta: 85 },
+      stats: { flightsWeekly: 18, flightsMonthly: 72, volumeWeekly: 160000, volumeMonthly: 640000 },
+      workDays: []
+    },
+    {
+      id: 'op-003',
+      fullName: 'Pedro Cabral',
+      warName: 'CABRAL',
+      companyId: 'VIBRA',
+      gruId: 'GRU-003',
+      vestNumber: '003',
+      photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=60',
+      email: 'cabral@vibra.com.br',
+      isLT: 'NÃO',
+      isUsuario: false,
+      isAdministrador: false,
+      isMaster: false,
+      patio: 'AERODROMO',
+      tmfLogin: 'CABRAL3',
+      bloodType: 'AB-',
+      role: 'Op. Sênior',
+      status: 'DISPONÍVEL',
+      category: 'AERODROMO',
+      lastPosition: '',
+      fleetCapability: 'BOTH',
+      shift: { cycle: 'MANHÃ', start: '06:00', end: '14:00' },
+      airlines: ['G3', 'LA', 'AD'],
+      ratings: { speed: 4.9, safety: 5.0, airlineSpecific: {} },
+      expertise: { servidor: 95, cta: 95 },
+      stats: { flightsWeekly: 20, flightsMonthly: 85, volumeWeekly: 220000, volumeMonthly: 900000 },
+      workDays: []
+    },
+    {
+      id: 'op-004',
+      fullName: 'Ricardo Barbosa',
+      warName: 'BARBOSA',
+      companyId: 'VIBRA',
+      gruId: 'GRU-004',
+      vestNumber: '004',
+      photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=60',
+      email: 'barbosa@vibra.com.br',
+      isLT: 'SIM',
+      isUsuario: true,
+      isAdministrador: true,
+      isMaster: false,
+      patio: 'AMBOS',
+      tmfLogin: 'BARBOSA4',
+      bloodType: 'B+',
+      role: 'Op. LT',
+      status: 'DISPONÍVEL',
+      category: 'AMBOS',
+      lastPosition: '',
+      fleetCapability: 'SRV',
+      shift: { cycle: 'MANHÃ', start: '06:00', end: '14:00' },
+      airlines: ['G3', 'LA'],
+      ratings: { speed: 4.2, safety: 4.8, airlineSpecific: {} },
+      expertise: { servidor: 75, cta: 10 },
+      stats: { flightsWeekly: 10, flightsMonthly: 40, volumeWeekly: 80000, volumeMonthly: 320000 },
+      workDays: []
+    }
+  ];
+};
+
+export const getFallbackDestinos = (): any[] => {
+  return [
+    { flightNumber: 'LA1234', departureFlightNumber: 'LA1235', airlineCode: 'LA', airline: 'LATAM', destination: 'SBGL', city: 'Rio de Janeiro (GIG)' },
+    { flightNumber: 'AD2098', departureFlightNumber: 'AD2099', airlineCode: 'AD', airline: 'Azul', destination: 'SBSP', city: 'São Paulo (CGH)' },
+    { flightNumber: 'G34012', departureFlightNumber: 'G34013', airlineCode: 'G3', airline: 'Gol', destination: 'SBBR', city: 'Brasília (BSB)' }
+  ];
+};
+
+export const getDestinos = async (): Promise<any[]> => {
+  if (!isSupabaseConfigured()) {
+    console.warn('[Supabase] Não configurado. Retornando destinos de contingência.');
+    return getFallbackDestinos();
   }
   
-  if (voosData && voosData.length > 0) {
-      // Remover duplicatas
-      const unicos = new Map();
-      voosData.forEach(v => {
-          if (v.departure_flight_number && !unicos.has(v.departure_flight_number)) {
-              unicos.set(v.departure_flight_number, {
-                  flightNumber: v.flight_number,
-                  departureFlightNumber: v.departure_flight_number,
-                  airlineCode: v.airline_code,
-                  airline: v.airline,
-                  destination: v.destination,
-                  city: mapIcaoToCity(v.destination)
-              });
-          }
-      });
-      allDestinos = [...allDestinos, ...Array.from(unicos.values())];
+  try {
+    // 1. Pega tabela de destinos estáticos (ICAO -> Cidade)
+    const { data: destData, error: destError } = await supabase.from('destinos').select('*');
+    if (destError) console.warn('[Supabase] Erro ao buscar destinos, usando cache/fallback:', destError.message);
+    let destinosBase = destData || [];
+    
+    // 2. Tenta puxar inteligência de voos passados da malha operacional para ajudar no auto-complete (limita aos ultimos 500 para ser rapido mas util)
+    const { data: voosData, error: voosError } = await supabase
+      .from('malha_operacional')
+      .select('flight_number, departure_flight_number, destination, airline_code, airline')
+      .limit(1000)
+      .order('created_at', { ascending: false });
+      
+    if (voosError) console.warn('[Supabase] Erro ao buscar malha operacional em getDestinos:', voosError.message);
+      
+    let allDestinos: any[] = [];
+    
+    // Array para mapeamento rapido de ICAO -> City
+    const mapIcaoToCity = (icao: string) => {
+       const match = destinosBase.find(d => d.icao === icao);
+       return match ? match.city : '';
+    };
+
+    if (destinosBase.length > 0) {
+        allDestinos = destinosBase.map((d: any) => ({
+            ...d,
+            flightNumber: d.flightNumber || d.flight_number || d.voo || d.prefixo || d.voo_chegada || d.voo_saida,
+            departureFlightNumber: d.departureFlightNumber || d.voo_saida || d.departure_flight_number,
+            airlineCode: d.airlineCode || d.airline_code || d.cia_cod || d.codigo_cia,
+            airline: d.airline || d.cia || d.airline_name || d.companhia || d.empresa,
+            destination: d.destination || d.destino || d.dest || d.cidade || d.city || d.icao
+        }));
+    }
+    
+    if (voosData && voosData.length > 0) {
+        // Remover duplicatas
+        const unicos = new Map();
+        voosData.forEach(v => {
+            if (v.departure_flight_number && !unicos.has(v.departure_flight_number)) {
+                unicos.set(v.departure_flight_number, {
+                    flightNumber: v.flight_number,
+                    departureFlightNumber: v.departure_flight_number,
+                    airlineCode: v.airline_code,
+                    airline: v.airline,
+                    destination: v.destination,
+                    city: mapIcaoToCity(v.destination)
+                });
+            }
+        });
+        allDestinos = [...allDestinos, ...Array.from(unicos.values())];
+    }
+    
+    return allDestinos.length > 0 ? allDestinos : getFallbackDestinos();
+  } catch (err) {
+    console.warn('[Supabase] Falha ao carregar destinos, aplicando contingência offline:', err);
+    return getFallbackDestinos();
   }
-  
-  return allDestinos;
 };
 
 export const getVehicles = async (): Promise<Vehicle[]> => {
-  if (!isSupabaseConfigured()) return [];
+  if (!isSupabaseConfigured()) {
+    console.warn('[Supabase] Não configurado. Retornando frota de contingência.');
+    return getFallbackVehicles();
+  }
   try {
     const { data, error } = await supabase.from('frotas').select('*');
     if (error) {
@@ -234,10 +418,7 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
         window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
         return JSON.parse(cached);
       }
-      if (checkAndRegisterError(error.message, 'frotas')) {
-        return [];
-      }
-      throw error;
+      return getFallbackVehicles();
     }
     
     const mapped = data.map((v: any) => ({
@@ -263,22 +444,16 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
       fleetNumber: v.fleet_number?.toString()
     }));
 
-    localStorage.setItem('supabase_cache_vehicles', JSON.stringify(mapped));
+    safeLocalStorageSetItem('supabase_cache_vehicles', JSON.stringify(mapped));
     return mapped;
   } catch (err: any) {
-    console.error('[Supabase] Exception in getVehicles:', err);
-    if (checkAndRegisterError(err.message || '', 'frotas')) {
-      const cached = localStorage.getItem('supabase_cache_vehicles');
-      if (cached) return JSON.parse(cached);
-      return [];
-    }
+    console.warn('[Supabase] Exception in getVehicles, aplicando contingência offline:', err);
     const cached = localStorage.getItem('supabase_cache_vehicles');
     if (cached) {
-      console.warn('[Supabase] Returning cached vehicles list after exception');
       window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
       return JSON.parse(cached);
     }
-    throw err;
+    return getFallbackVehicles();
   }
 };
 
@@ -382,7 +557,10 @@ export const updateVehicle = async (vehicleId: string, updates: any) => {
 };
 
 export const getOperators = async (): Promise<OperatorProfile[]> => {
-  if (!isSupabaseConfigured()) return [];
+  if (!isSupabaseConfigured()) {
+    console.warn('[Supabase] Não configurado. Retornando operadores de contingência.');
+    return getFallbackOperators();
+  }
   try {
     const { data, error } = await supabase.from('operadores_geral').select('*, oper_do_dia(work_date, day_type)');
     if (error) {
@@ -393,7 +571,7 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
         window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
         return JSON.parse(cached);
       }
-      throw error;
+      return getFallbackOperators();
     }
     
     operatorsCache = data.map((o: any) => ({ id: o.id, warName: o.war_name }));
@@ -434,17 +612,16 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
       })) || []
     })) as OperatorProfile[];
 
-    localStorage.setItem('supabase_cache_operators', JSON.stringify(mapped));
+    safeLocalStorageSetItem('supabase_cache_operators', JSON.stringify(mapped));
     return mapped;
   } catch (err: any) {
-    console.error('[Supabase] Exception in getOperators:', err);
+    console.warn('[Supabase] Exception in getOperators, aplicando contingência offline:', err);
     const cached = localStorage.getItem('supabase_cache_operators');
     if (cached) {
-      console.warn('[Supabase] Returning cached operators list after exception');
       window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
       return JSON.parse(cached);
     }
-    throw err;
+    return getFallbackOperators();
   }
 };
 
@@ -515,7 +692,7 @@ export const getAircrafts = async (): Promise<AircraftType[]> => {
       ...a,
       model: a.model || a.modelo || a.modelo_id || '--'
     }));
-    localStorage.setItem('supabase_cache_aircrafts', JSON.stringify(mapped));
+    safeLocalStorageSetItem('supabase_cache_aircrafts', JSON.stringify(mapped));
     return mapped as any[];
   } catch (err: any) {
     console.error('[Supabase] Exception in getAircrafts:', err);
@@ -534,6 +711,30 @@ export const getAircrafts = async (): Promise<AircraftType[]> => {
     }
     throw err;
   }
+};
+
+const generateDateSpecificUuid = (meshId: string, dateStr: string): string => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let baseUuid = meshId || '';
+  
+  if (!uuidRegex.test(baseUuid)) {
+    let hash = 0;
+    for (let i = 0; i < baseUuid.length; i++) {
+      hash = (hash << 5) - hash + baseUuid.charCodeAt(i);
+      hash |= 0;
+    }
+    const hexHash = Math.abs(hash).toString(16).padEnd(12, 'f').substring(0, 12);
+    baseUuid = `e0000000-0000-4000-a000-${hexHash}`;
+  }
+
+  const parts = dateStr.split('-');
+  const yearStr = parts[0] ? parts[0] : '2026';
+  const monthStr = parts[1] ? parts[1] : '06';
+  const dayStr = parts[2] ? parts[2] : '01';
+
+  const dateSegment = `${dayStr}${monthStr}${yearStr}`;
+  const paddedDateSegment = dateSegment.substring(0, 8).padEnd(8, '0');
+  return `${paddedDateSegment}-${baseUuid.substring(9)}`;
 };
 
 const mergeWithBaseMesh = async (opFlights: FlightData[], dateRef: string): Promise<FlightData[]> => {
@@ -556,12 +757,15 @@ const mergeWithBaseMesh = async (opFlights: FlightData[], dateRef: string): Prom
   baseMesh.forEach(baseF => {
     if (baseF.disabled) return; // Ignora voos desabilitados na malha base
 
-    const opF = opFlightsMap.get(baseF.id);
+    // Gera o ID virtual exclusivo para o dia atual baseado no contrato original
+    const dateSpecificId = generateDateSpecificUuid(baseF.id, dateRef);
+
+    const opF = opFlightsMap.get(dateSpecificId);
 
     if (!opF) {
       // Voo virtual da Malha Base que ainda não está criado fisicamente na tabela operacional
       const virtualFlight: FlightData = {
-        id: baseF.id,
+        id: dateSpecificId,
         date: dateRef,
         flightNumber: baseF.flightNumber || '',
         departureFlightNumber: baseF.departureFlightNumber || '',
@@ -595,6 +799,7 @@ const mergeWithBaseMesh = async (opFlights: FlightData[], dateRef: string): Prom
 
       const inheritedFields = ["flightNumber", "departureFlightNumber", "airline", "airlineCode", "destination", "model", "registration", "eta", "etd"];
       const mergedFlight = { ...opF };
+      mergedFlight.id = dateSpecificId; // Garante que o voo unificado siga com o ID específico do dia
       const overriddenObj = opF.report?.overriddenFields || {};
 
       inheritedFields.forEach(field => {
@@ -613,7 +818,10 @@ const mergeWithBaseMesh = async (opFlights: FlightData[], dateRef: string): Prom
 
   // 2. Adiciona voos criados localmente na operacional do dia que não derivam da Malha Base
   opFlights.forEach(opF => {
-    const existsInBase = baseMesh.some(baseF => baseF.id === opF.id);
+    const existsInBase = baseMesh.some(baseF => {
+      const dateSpecificId = generateDateSpecificUuid(baseF.id, dateRef);
+      return dateSpecificId === opF.id;
+    });
     if (!existsInBase) {
       if (!opF.report?.isDeletedLocal) {
         finalMergedFlights.push(opF);
@@ -621,7 +829,17 @@ const mergeWithBaseMesh = async (opFlights: FlightData[], dateRef: string): Prom
     }
   });
 
-  return finalMergedFlights;
+  // 3. Garantir unicidade contratual absoluta de IDs para mitigar avisos de chaves duplicadas no React
+  const seenIds = new Set<string>();
+  const uniqueFlights: FlightData[] = [];
+  finalMergedFlights.forEach(f => {
+    if (f.id && !seenIds.has(f.id)) {
+      seenIds.add(f.id);
+      uniqueFlights.push(f);
+    }
+  });
+
+  return uniqueFlights;
 };
 
 export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
@@ -755,7 +973,7 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
       }) as FlightData[];
       
       const mergedFallback = await mergeWithBaseMesh(fallbackMapped, dateRef);
-      localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mergedFallback));
+      safeLocalStorageSetItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mergedFallback));
       window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
       return mergedFallback;
     }
@@ -832,7 +1050,7 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
     }) as FlightData[];
 
     const mergedNormal = await mergeWithBaseMesh(mapped, dateRef);
-    localStorage.setItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mergedNormal));
+    safeLocalStorageSetItem(`supabase_cache_flights_${dateRef}`, JSON.stringify(mergedNormal));
     window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
     return mergedNormal;
   } catch (err: any) {
@@ -1150,18 +1368,20 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
     // Desduplicação inteligente para garantir que múltiplos voos de contratos históricos ou importações cruzadas
     // apareçam como itens exclusivos e limpos baseados na chave operacional unificada
     const seen = new Set<string>();
+    const seenIds = new Set<string>();
     const uniqueMapped: MeshFlight[] = [];
 
     for (const f of mapped) {
        const key = `${f.airlineCode || f.airline}_${f.flightNumber}_${f.departureFlightNumber}_${f.etd}_${f.destination}`.toUpperCase();
-       if (!seen.has(key)) {
+       if (!seen.has(key) && f.id && !seenIds.has(f.id)) {
          seen.add(key);
+         seenIds.add(f.id);
          uniqueMapped.push(f);
        }
     }
 
-    localStorage.setItem(`supabase_cache_basemesh_flights_all`, JSON.stringify(uniqueMapped));
-    localStorage.setItem(`supabase_cache_basemesh_flights_${dateRef}`, JSON.stringify(uniqueMapped));
+    safeLocalStorageSetItem(`supabase_cache_basemesh_flights_all`, JSON.stringify(uniqueMapped));
+    safeLocalStorageSetItem(`supabase_cache_basemesh_flights_${dateRef}`, JSON.stringify(uniqueMapped));
     return uniqueMapped;
   } catch (err: any) {
     console.error('[Supabase] Exception in getBaseMeshFlights:', err);

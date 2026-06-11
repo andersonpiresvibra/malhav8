@@ -20,6 +20,7 @@ import { AircraftsAdmin } from './components/AircraftsAdmin';
 import { AirlinesAdmin } from './components/AirlinesAdmin';
 import { Aerodromo } from './components/Aerodromo';
 import { OperatorManager } from './components/OperatorManager';
+import { AiDashboard } from './components/AiDashboard';
 import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './constants/aerodromoConfig';
 
 import { GridOps } from './components/GridOps';
@@ -29,7 +30,7 @@ import { LayoutPreferencesModal, UserLayoutPreferences, defaultPreferences } fro
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
   const [view, setView] = useState<ViewState>(() => {
-    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN'];
+    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN', 'AI_DASHBOARD'];
     
     // Prioritize pathname suffix (e.g., "/REPORTS")
     const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
@@ -50,7 +51,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleUrlChange = () => {
-      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN'];
+      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN', 'AI_DASHBOARD'];
       
       const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
       const pathnamePart = cleanPathname.split('/')[0] as ViewState;
@@ -525,7 +526,7 @@ const App: React.FC = () => {
            setIsLoadingData(false);
        }
     });
-  }, [currentMeshDate, view, user]);
+  }, [currentMeshDate, user]);
 
   const meshFlights = meshFlightsByDate[currentMeshDate] || [];
   
@@ -553,11 +554,19 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('meshFlights', JSON.stringify(meshFlights));
+    try {
+      localStorage.setItem('meshFlights', JSON.stringify(meshFlights));
+    } catch (e) {
+      console.error('[localStorage] Erro ao salvar meshFlights localmente:', e);
+    }
   }, [meshFlights]);
 
   useEffect(() => {
-    localStorage.setItem('globalFlights', JSON.stringify(globalFlights));
+    try {
+      localStorage.setItem('globalFlights', JSON.stringify(globalFlights));
+    } catch (e) {
+      console.error('[localStorage] Erro ao salvar globalFlights localmente:', e);
+    }
   }, [globalFlights]);
 
   const { isDarkMode, toggleDarkMode } = useTheme();
@@ -1194,6 +1203,12 @@ const App: React.FC = () => {
                     setPositionRestrictions={setPositionRestrictions}
                     flights={globalFlights}
                     onClearAllAssignments={clearAllPositionAssignments}
+                  />
+                )}
+                {view === 'AI_DASHBOARD' && (
+                  <AiDashboard 
+                    flights={globalFlights}
+                    operators={globalOperators}
                   />
                 )}
               </Suspense>

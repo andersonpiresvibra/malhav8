@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass, CalendarDays, Building, Layers, HardHat, MapPin, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass, CalendarDays, Building, Layers, HardHat, MapPin, ChevronDown, Brain } from 'lucide-react';
 import { ViewState } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -43,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'AERODROMO' as ViewState, icon: MapPin, label: 'Aeródromo' },
     { id: 'FLEET' as ViewState, icon: BusFront, label: 'Frotas' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório', adminOnly: true },
+    // { id: 'AI_DASHBOARD' as ViewState, icon: Brain, label: 'IA Insights' },
   ].filter(item => {
     if (visibleTabs && visibleTabs[item.id] === false) return false;
     if (item.adminOnly) {
