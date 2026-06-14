@@ -5767,6 +5767,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
           setSelectedOperatorId(null);
         }}
         flight={assignModalFlight}
+        flights={flights}
+        vehicles={vehicles}
         operators={
           assignModalFlight
             ? getEligibleOperators(assignModalFlight, false)
@@ -5785,6 +5787,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
           setSelectedOperatorId(null);
         }}
         flight={assignSupportModalFlight}
+        flights={flights}
+        vehicles={vehicles}
         operators={
           assignSupportModalFlight
             ? getEligibleOperators(assignSupportModalFlight, true)
