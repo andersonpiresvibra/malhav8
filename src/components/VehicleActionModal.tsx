@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Vehicle, OperatorProfile } from '../types';
+import { Vehicle, OperatorProfile, FlightData } from '../types';
 import { X, UserPlus, Trash2, Power, PowerOff, Droplet, Save } from 'lucide-react';
 import { DesigOpr } from './desigopr';
 
@@ -10,9 +10,20 @@ interface VehicleActionModalProps {
   density: number;
   operators: OperatorProfile[];
   showStatusOnly?: boolean;
+  vehicles?: Vehicle[];
+  flights?: FlightData[];
 }
 
-export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ vehicle, onClose, onUpdateVehicle, density, operators, showStatusOnly = false }) => {
+export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ 
+  vehicle, 
+  onClose, 
+  onUpdateVehicle, 
+  density, 
+  operators, 
+  showStatusOnly = false,
+  vehicles = [],
+  flights = []
+}) => {
   const [currentVolume, setCurrentVolume] = useState(vehicle?.currentVolume || 0);
   const [isDeactivationModalOpen, setIsDeactivationModalOpen] = useState(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState(false);
@@ -158,6 +169,8 @@ export const VehicleActionModal: React.FC<VehicleActionModalProps> = ({ vehicle,
         isOpen={isAssignModalOpen}
         onClose={() => setIsAssignModalOpen(false)}
         operators={operators}
+        vehicles={vehicles}
+        flights={flights}
         vehicle={vehicle}
         onConfirm={(operatorId) => {
             const operator = operators.find(op => op.id === operatorId);

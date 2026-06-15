@@ -173,6 +173,59 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
     });
   }, [currentList, sortConfig]);
 
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+
+  const handleExportPDF = async () => {
+    const element = document.getElementById('printable-report-container');
+    if (!element) return;
+    
+    setIsExportingPDF(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      
+      // Converte o container inteiro em um canvas com escala 2 para alta nitidez comercial
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+      
+      const flightNum = selectedFlight?.flightNumber || 'SBGR';
+      pdf.save(`Relatorio_Operacional_Voo_${flightNum}.pdf`);
+    } catch (err) {
+      console.error("Erro gerando PDF operacional:", err);
+      alert("Houve um problema ao compilar o PDF do relatório. Use a exportação do navegador pelo botão de impressão convencional.");
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
+
   const handlePrint = () => {
       window.print();
   };
@@ -291,6 +344,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ flights, initialFlight
                             </div>
 
                             <div className="flex gap-2">
+                                <button 
+                                    onClick={handleExportPDF}
+                                    disabled={isExportingPDF}
+                                    className={`flex items-center gap-2 ${isExportingPDF ? 'bg-indigo-800 opacity-60' : 'bg-indigo-600 hover:bg-indigo-550'} text-white px-4 py-1.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md shadow-indigo-600/20 transition-all`}
+                                >
+                                    {isExportingPDF ? (
+                                        <>
+                                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Gerando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FileText size={14} /> DOWNLOAD PDF
+                                        </>
+                                    )}
+                                </button>
                                 <button 
                                     onClick={handlePrint}
                                     className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md shadow-emerald-600/20"

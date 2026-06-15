@@ -19,9 +19,10 @@ interface DashboardHeaderProps {
   setDensity: (val: number) => void;
   temperature: number;
   setTemperature: (val: number) => void;
+  isSupabaseOffline?: boolean;
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName, operators = [], onOpenLayoutPrefs, density, setDensity, temperature, setTemperature }) => {
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, toggleDarkMode, isFullscreen, onToggleFullscreen, globalSearchTerm, setGlobalSearchTerm, ltName, ltPhotoUrl, setLtName, operators = [], onOpenLayoutPrefs, density, setDensity, temperature, setTemperature, isSupabaseOffline = false }) => {
   const { signOut } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [editingField, setEditingField] = useState<'density' | 'temperature' | 'ltName' | null>(null);
@@ -29,6 +30,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
   const [tempN, setTempN] = useState(String(temperature));
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  const [isRotating, setIsRotating] = useState(false);
+  const handleSyncClick = () => {
+    setIsRotating(true);
+    window.dispatchEvent(new CustomEvent('supabase-force-refresh'));
+    setTimeout(() => {
+      setIsRotating(false);
+    }, 1000);
+  };
 
   useEffect(() => {
     setDensityN(String(density));
@@ -298,6 +308,28 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isDarkMode, to
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 border-l border-white/20 pl-4 h-10 select-none">
+            {/* Status de Rede / Supabase */}
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isSupabaseOffline ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isSupabaseOffline ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-white">
+                {isSupabaseOffline ? 'Contingência' : 'Online'}
+              </span>
+            </div>
+
+            {/* Botão Sincronizar Agora */}
+            <button
+              onClick={handleSyncClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border border-white/10 cursor-pointer active:scale-95"
+              title="Forçar atualização dos dados do Supabase"
+            >
+              <RefreshCw size={12} className={isRotating ? 'animate-spin' : ''} />
+              Sincronizar Agora
+            </button>
+          </div>
           <div id="header-options-portal-target"></div>
         </div>
       </header>

@@ -437,6 +437,93 @@ export const GridOps: React.FC<GridOpsProps> = ({
   const { isDarkMode } = useTheme();
   const { user, warName } = useAuth();
 
+  // === AUXILIAR DE MINUTOS PARA CÁLCULO DE TRÁFEGO ===
+  const timeToMin = (timeStr?: string) => {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return 0;
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+  };
+
+  const getFlightInterval = (f: FlightData) => {
+    const startStr = f.actualArrivalTime || f.eta || '12:00';
+    const endStr = f.etd || '13:00';
+    const start = timeToMin(startStr);
+    const end = timeToMin(endStr);
+    return { start, end };
+  };
+
+  // Memo de estatísticas de frotas para o LT
+  const fleetStats = useMemo(() => {
+    const defaultStats = {
+      ctaActive: 0,
+      ctaStandby: 0,
+      srvActive: 0,
+      srvStandby: 0
+    };
+    if (!vehicles) return defaultStats;
+
+    return vehicles.reduce((acc, v) => {
+      if (v.isActive === false || v.status === 'INATIVO') return acc;
+
+      const isCta = v.type === 'CTA';
+      const isOperating = !!v.operatorId;
+
+      if (isCta) {
+        if (isOperating) {
+          acc.ctaActive++;
+        } else {
+          acc.ctaStandby++;
+        }
+      } else {
+        if (isOperating) {
+          acc.srvActive++;
+        } else {
+          acc.srvStandby++;
+        }
+      }
+      return acc;
+    }, defaultStats);
+  }, [vehicles]);
+
+  // Memo de detecção de overlap de pátio (SBGR)
+  const positionOverlaps = useMemo(() => {
+    const activeFlights = flights.filter(f => 
+      f.positionId && 
+      f.status !== FlightStatus.FINALIZADO && 
+      f.status !== FlightStatus.CANCELADO
+    );
+    
+    const overlappingFlightIds = new Set<string>();
+    
+    for (let i = 0; i < activeFlights.length; i++) {
+      const f1 = activeFlights[i];
+      const pos1 = String(f1.positionId).trim().toUpperCase();
+      const int1 = getFlightInterval(f1);
+      
+      for (let j = i + 1; j < activeFlights.length; j++) {
+        const f2 = activeFlights[j];
+        const pos2 = String(f2.positionId).trim().toUpperCase();
+        
+        if (pos1 === pos2 && pos1 !== "" && pos1 !== "N/A" && pos1 !== "?" && pos1 !== "0") {
+          const int2 = getFlightInterval(f2);
+          
+          // Checa sobreposição temporal
+          const isOverlapping = int1.start < int2.end && int2.start < int1.end;
+          
+          if (isOverlapping) {
+            overlappingFlightIds.add(f1.id);
+            overlappingFlightIds.add(f2.id);
+          }
+        }
+      }
+    }
+    
+    return overlappingFlightIds;
+  }, [flights]);
+
   const isColVisible = (colKey: string) => {
     if (!layoutPreferences || !layoutPreferences.visibleColumns) return true;
     
@@ -1927,6 +2014,8 @@ export const GridOps: React.FC<GridOpsProps> = ({
         (!positionsMetadata &&
           positionRestrictions[row.positionId as string] === "SRV"));
 
+    const isOverlappingPosition = colKey === "positionId" && positionOverlaps.has(row.id);
+
     // Check if the flight is delayed
     const minutesToEtd = getMinutesDiff(row.etd, row.date);
     const isDelayed = row.status === FlightStatus.FILA && minutesToEtd < 0; // "ATRASADO"
@@ -1938,7 +2027,11 @@ export const GridOps: React.FC<GridOpsProps> = ({
     const isFilaReal = row.status === FlightStatus.FILA && !isDelayed && !isPenalty && !isAtrasando; // "FILA"
 
     let cellStyle = className;
-    if (colKey === "eta" || colKey === "etd" || colKey === "actualArrivalTime") {
+    if (isOverlappingPosition) {
+      cellStyle += isDarkMode
+        ? " !bg-amber-500/20 !text-amber-400 border-amber-500/30 font-black animate-pulse"
+        : " !bg-amber-100 !text-amber-900 border-amber-300 font-black animate-pulse";
+    } else if (colKey === "eta" || colKey === "etd" || colKey === "actualArrivalTime") {
       cellStyle = `text-center font-mono ${
         isDarkMode ? "!text-emerald-400 font-black" : "!text-emerald-600 font-black"
       } tracking-wider md:tracking-widest`;
@@ -1971,6 +2064,17 @@ export const GridOps: React.FC<GridOpsProps> = ({
     }
 
     let extraLabel = null;
+
+    if (isOverlappingPosition) {
+      extraLabel = (
+        <span
+          className="absolute -top-1.5 -right-1 text-[8px] bg-amber-500 text-black px-1 py-[1px] rounded-sm font-black uppercase tracking-tighter shadow-sm z-20 pointer-events-none flex items-center gap-0.5 animate-bounce"
+          title="CONFLITO: Posição ocupada simultaneamente por outro voo neste mesmo intervalo de tempo!"
+        >
+          🚨 OVERLAP
+        </span>
+      );
+    }
 
     if (
       colKey === "etd" &&
@@ -2066,7 +2170,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         className={`
           p-0 border-y border-l transition-all relative h-10 outline-none
           ${isFocused ? `border-2 border-blue-500 dark:border-blue-400 z-50 shadow-2xl scale-[1.01] selected-focus-cell ${isRemota ? '!bg-[#fff700] !text-slate-950' : '!bg-blue-600 dark:!bg-blue-600 !text-white'}` : "z-10"}
-          ${isRemota && !isFocused ? "bg-[#fff700] border-[#ccc600]" : isFocused ? "" : getRowBgClass(row)}
+          ${isOverlappingPosition && !isFocused ? (isDarkMode ? "!bg-amber-500/20 text-amber-400 border-amber-500/30" : "!bg-amber-100 text-amber-900 border-amber-300") : isRemota && !isFocused ? "bg-[#fff700] border-[#ccc600]" : isFocused ? "" : getRowBgClass(row)}
         `}
       >
         {isEditing ? (
@@ -2134,7 +2238,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
             className={`w-full h-full px-1 flex items-center relative ${colKey === "airlineCode" ? "justify-start ml-2" : "justify-center"} font-mono text-[12px] select-none cursor-default outline-none ${
               isFocused
                 ? (isRemota ? "!bg-[#fff700] !text-slate-950 !border-2 !border-yellow-400 shadow-xl z-20 font-black" : "!bg-blue-500 !text-white !border-2 !border-blue-400 shadow-xl z-20 font-black")
-                : `${cellStyle} ${isRemota ? "bg-[#fff700] text-[#524f4f]" : ""}`
+                : `${cellStyle} ${isRemota ? "bg-[#fff700] text-[#524f4f]" : ""} ${isOverlappingPosition ? (isDarkMode ? "!text-amber-400 font-extrabold" : "!text-amber-950 font-extrabold") : ""}`
             }`}
           >
             {extraLabel}
@@ -4017,6 +4121,45 @@ export const GridOps: React.FC<GridOpsProps> = ({
             );
           })}
         </nav>
+      </div>
+
+      {/* COMPONENTE FLEET STATUS (OPERACIONAL) */}
+      <div className={`px-6 py-2 shrink-0 flex flex-col sm:flex-row items-center justify-between border-b text-[10px] uppercase font-black tracking-wider ${isDarkMode ? 'bg-[#0f141c]/80 border-slate-900 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600 shadow-sm'} select-none gap-2 z-20 relative`}>
+        <div className="flex items-center gap-2 font-black">
+          <BusFront size={14} className="text-emerald-500 shrink-0" />
+          <span className={`${isDarkMode ? 'text-slate-300' : 'text-slate-800'}`}>Frota Operacional (Turno SBGR):</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-y-1 gap-x-6">
+          <div className="flex items-center gap-3">
+            <span className="text-amber-500 font-extrabold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              CTAs (Acopladores):
+            </span>
+            <span className="flex items-center gap-1">
+              <span className={`font-mono text-xs ${isDarkMode ? 'text-white' : 'text-slate-950'} font-black`}>{fleetStats.ctaActive}</span> OPERATIVOS
+            </span>
+            <span className="text-slate-300 dark:text-slate-800">/</span>
+            <span className="flex items-center gap-1">
+              <span className={`font-mono text-xs ${isDarkMode ? 'text-white' : 'text-slate-950'} font-black`}>{fleetStats.ctaStandby}</span> STANDBY
+            </span>
+          </div>
+
+          <div className="hidden sm:block w-px h-3 bg-slate-200 dark:bg-slate-800" />
+
+          <div className="flex items-center gap-3">
+            <span className="text-blue-500 font-extrabold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              SRVs (Caminhões Tanque):
+            </span>
+            <span className="flex items-center gap-1">
+              <span className={`font-mono text-xs ${isDarkMode ? 'text-white' : 'text-slate-950'} font-black`}>{fleetStats.srvActive}</span> OPERATIVOS
+            </span>
+            <span className="text-slate-300 dark:text-slate-800">/</span>
+            <span className="flex items-center gap-1">
+              <span className={`font-mono text-xs ${isDarkMode ? 'text-white' : 'text-slate-950'} font-black`}>{fleetStats.srvStandby}</span> STANDBY
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* GRID CONTAINER */}

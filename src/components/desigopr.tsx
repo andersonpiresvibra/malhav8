@@ -212,7 +212,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({
                             if (tab === 'SRV') {
                                 tabStyle = { backgroundColor: '#3B82F6', color: '#ffffff', borderColor: '#3B82F6' };
                             } else {
-                                tabStyle = { backgroundColor: '#FE9A00', color: '#000000', borderColor: '#FE9A00' };
+                                tabStyle = { backgroundColor: '#E7C800', color: '#000000', borderColor: '#E7C800' };
                             }
                         }
 
@@ -239,7 +239,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({
                                             isActive 
                                                 ? (tab === 'SRV' 
                                                     ? { backgroundColor: '#ffffff', color: '#13336c', fontWeight: '900' } 
-                                                    : { backgroundColor: '#ffffff', color: '#fe9a00', fontWeight: '900' }) 
+                                                    : { backgroundColor: '#ffffff', color: '#E7C800', fontWeight: '900' }) 
                                                 : { backgroundColor: '#1e293b', color: '#64748b' }
                                         }
                                     >
@@ -364,7 +364,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({
                                                         }`}
                                                         style={
                                                             !isOpIncompatible 
-                                                                ? { backgroundColor: '#10b981', color: '#ffffff', borderColor: '#10b981', fontWeight: '900' } 
+                                                                ? { backgroundColor: '#2acc2a', color: '#ffffff', borderColor: '#2acc2a', fontWeight: '900' } 
                                                                 : {}
                                                         }
                                                     >
@@ -437,7 +437,7 @@ export const DesigOpr: React.FC<DesigOprProps> = ({
                                                             }`}
                                                             style={
                                                                 isCta 
-                                                                    ? { backgroundColor: '#FE9A00', color: '#000000', borderColor: '#FE9A00', fontWeight: '900' } 
+                                                                    ? { backgroundColor: '#E7C800', color: '#000000', borderColor: '#E7C800', fontWeight: '900' } 
                                                                     : { backgroundColor: '#2563eb', color: '#ffffff', borderColor: '#1d4ed8', fontWeight: '900' }
                                                             }
                                                         >

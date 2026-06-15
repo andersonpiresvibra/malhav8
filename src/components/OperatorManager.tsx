@@ -18,16 +18,27 @@ const OperatorHeaderCard: React.FC<{
   const profile = operators.find(p => p.warName === operatorName || p.fullName === operatorName || p.id === operatorName);
 
   return (
-    <div className="flex items-center gap-2 select-none">
+    <div className="flex items-center gap-3 select-none">
       <div className="text-right flex flex-col justify-center min-w-0">
-        <span className="text-[12px] font-black text-slate-100 uppercase tracking-tight leading-none truncate max-w-[120px]">
+        <span className="text-[12.5px] font-black text-slate-100 uppercase tracking-tight leading-none truncate max-w-[120px]">
           {operatorName}
         </span>
-        <span className="text-[10px] font-black uppercase tracking-wider mt-1.5 leading-none font-mono">
-          <span className={status === 'DISPONÍVEL' ? 'text-emerald-400' : status === 'OCUPADO' ? 'text-blue-400' : status === 'INATIVO' ? 'text-red-400' : 'text-amber-400'}>
-            {status}
+        <div className="mt-1.5">
+          <span 
+            className={`inline-flex items-center justify-center text-[9px] font-black font-mono uppercase px-2 py-0.5 rounded-sm leading-none border ${
+              status === 'DISPONÍVEL' 
+                ? 'bg-emerald-600 text-white border-emerald-600' 
+                : status === 'OCUPADO' 
+                  ? 'bg-blue-600 text-white border-blue-600' 
+                  : status === 'INATIVO' 
+                    ? 'bg-red-600 text-white border-red-650' 
+                    : 'bg-amber-500 text-slate-950 border-amber-500'
+            }`}
+            style={status === 'DISPONÍVEL' ? { backgroundColor: '#2acc2a', borderColor: '#2acc2a', color: '#ffffff' } : {}}
+          >
+            {status === 'DISPONÍVEL' ? 'LIVRE' : status}
           </span>
-        </span>
+        </div>
       </div>
       
       <div className="w-[30px] h-[40px] bg-slate-950 border border-slate-700 overflow-hidden shrink-0 flex items-end justify-center rounded shadow-inner">
@@ -174,11 +185,11 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
 
   const getStatusColor = (status: VehicleStatus) => {
     switch (status) {
-      case 'DISPONÍVEL': return 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
-      case 'OCUPADO': return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-      case 'INATIVO': return 'text-red-500 bg-red-500/10 border-red-500/20';
-      case 'ENCHIMENTO': return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-      default: return 'text-slate-500 bg-slate-500/10 border-slate-500/20';
+      case 'DISPONÍVEL': return 'bg-emerald-600 text-white border-emerald-600 font-black shadow-sm';
+      case 'OCUPADO': return 'bg-blue-600 text-white border-blue-600 font-black shadow-sm';
+      case 'INATIVO': return 'bg-red-600 text-white border-red-600 font-black shadow-sm';
+      case 'ENCHIMENTO': return 'bg-amber-500 text-slate-950 border-amber-600 font-black shadow-sm';
+      default: return 'bg-slate-800 text-slate-400 border-slate-700 font-bold';
     }
   };
 
@@ -260,6 +271,8 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
         density={density}
         operators={operators}
         showStatusOnly={isStatusModalOnly}
+        vehicles={syncedVehicles}
+        flights={flights}
       />
       <header className="px-8 py-3 border-b border-slate-800/60 bg-slate-900/40 shrink-0">
         <div className="flex items-center justify-between gap-6">
@@ -304,9 +317,14 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                 return (
                   <div key={vehicle.id} onClick={() => setSelectedVehicle(vehicle)} className="bg-slate-900 border border-slate-800 rounded-md p-4 flex flex-col justify-between hover:border-amber-500/30 cursor-pointer shadow-xl">
                     <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <span className="text-3xl font-black text-amber-500 font-mono tracking-tighter leading-none">{vehicle.id}</span>
-                        <p className="text-xs font-bold text-blue-400 font-mono mt-1">{getCtaPosition(vehicle)}</p>
+                      <div className="flex flex-col gap-2">
+                        <span 
+                          className="inline-flex items-center justify-center font-mono font-black text-lg px-2.5 py-1 rounded shadow-md border leading-none text-slate-950 uppercase"
+                          style={{ backgroundColor: '#E7C800', borderColor: '#E7C800' }}
+                        >
+                          {vehicle.id}
+                        </span>
+                        <p className="text-xs font-bold text-blue-400 font-mono tracking-wider">{getCtaPosition(vehicle)}</p>
                       </div>
                       {vehicle.operatorName ? (
                         <OperatorHeaderCard operatorName={vehicle.operatorName} status={vehicle.status} operators={operators} />
@@ -353,9 +371,14 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
                 return (
                   <div key={vehicle.id} onClick={() => { setSelectedVehicle(vehicle); setIsStatusModalOnly(false); }} className="bg-slate-900 border border-slate-800 rounded-md flex flex-col justify-between hover:border-amber-500/30 cursor-pointer shadow-xl">
                     <div className="flex justify-between items-start p-4">
-                      <div>
-                        <span className="text-3xl font-black text-white font-mono tracking-tighter leading-none">{vehicle.id}</span>
-                        <p className="text-xs font-bold text-slate-500 font-sans mt-1">{vehicle.manufacturer}</p>
+                      <div className="flex flex-col gap-2">
+                        <span 
+                          className="inline-flex items-center justify-center font-mono font-black text-lg px-2.5 py-1 rounded shadow-md border leading-none text-white uppercase"
+                          style={{ backgroundColor: '#2563eb', borderColor: '#2563eb' }}
+                        >
+                          {vehicle.id}
+                        </span>
+                        <p className="text-xs font-bold text-slate-500 font-sans tracking-wide">{vehicle.manufacturer}</p>
                       </div>
                       {vehicle.operatorName ? (
                         <OperatorHeaderCard operatorName={vehicle.operatorName} status={vehicle.status} operators={operators} />
@@ -414,7 +437,18 @@ export const OperatorManager: React.FC<OperatorManagerProps> = ({ density, vehic
               <tbody>
                 {sortedVehicles.map((v) => (
                   <tr key={v.id} onClick={() => { setSelectedVehicle(v); setIsStatusModalOnly(false); }} className="border-b border-slate-800/40 hover:bg-slate-800/20 cursor-pointer">
-                    <td className="px-4 py-3 font-mono font-black text-white text-sm">{v.id}</td>
+                    <td className="px-4 py-3">
+                      <span 
+                        className="inline-flex items-center justify-center font-mono font-black text-xs px-2 py-0.5 rounded shadow-sm border uppercase min-w-[55px] text-center leading-none"
+                        style={
+                          v.type === 'CTA' 
+                            ? { backgroundColor: '#E7C800', borderColor: '#E7C800', color: '#000000' } 
+                            : { backgroundColor: '#2563eb', borderColor: '#2563eb', color: '#ffffff' }
+                        }
+                      >
+                        {v.id}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-slate-400 font-bold">{v.manufacturer}</td>
                     <td className="px-4 py-3"><OperatorCell operatorName={v.operatorName} operators={operators} /></td>
                     <td className="px-4 py-3 font-mono text-blue-400 font-bold">{v.currentPosition || '--'}</td>

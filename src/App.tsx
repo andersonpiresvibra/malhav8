@@ -627,11 +627,46 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const runEndOfDayRoutine = useCallback(async () => {
+   const runEndOfDayRoutine = useCallback(async () => {
     // 1. Filtrar voos da Operação (GridOps)
     const finishedFlights = globalFlights.filter(f => f.status === 'FINALIZADO' || f.status === 'CANCELADO');
     const unfinishedFlights = globalFlights.filter(f => f.status !== 'FINALIZADO' && f.status !== 'CANCELADO');
     
+    // 1.5. Exportação automática de logs de status e dados da malha em JSON para BACKUP EXTERNO do usuário
+    try {
+      const backupDateStr = currentMeshDate || getLocalTodayDateStr();
+      const backupData = {
+        title: "BACKUP EXTRATOR DE DIÁRIO DE PISTA - SISTEMA MALHA",
+        airport: "SBGR / Guarulhos",
+        exportedAt: new Date().toISOString(),
+        shiftDate: backupDateStr,
+        operationalFlights: globalFlights.filter(f => f.date === backupDateStr || !f.date),
+        baseMeshFlights: meshFlightsByDate[backupDateStr] || [],
+        vehiclesStateAtClose: globalVehicles,
+        operatorsOnDuty: globalOperators.map(op => ({
+          warName: op.warName,
+          fullName: op.fullName,
+          status: op.status,
+          role: op.role,
+          category: op.category,
+          airlines: op.airlines
+        }))
+      };
+      
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const blobUrl = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', blobUrl);
+      downloadAnchor.setAttribute('download', `Backup_Malha_Logs_Vibra_${backupDateStr}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(blobUrl);
+      console.log(`[Backup] Envelopado e exportado JSON de fim de turno para a data ${backupDateStr}`);
+    } catch (err) {
+      console.error("Erro na exportação automática do JSON de backup:", err);
+    }
+
     // 2. Gerar relatório Excel dos finalizados
     if (finishedFlights.length > 0) {
       try {
@@ -913,6 +948,7 @@ const App: React.FC = () => {
         setDensity={updateDensity}
         temperature={sessionTemperature}
         setTemperature={updateTemperature}
+        isSupabaseOffline={isSupabaseOffline}
       />
 
       {supabaseError && (
