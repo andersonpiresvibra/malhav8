@@ -2,10 +2,9 @@ name = "malha-api"
 main = "src/index.ts"
 compatibility_date = "2025-08-01"
 
-# Variável secreta — NUNCA comitar. Setar via: wrangler secret put GEMINI_API_KEY
-# ou no painel Cloudflare -> Workers -> malha-api -> Settings -> Variables.
-[vars]
-# (vazio — segredos ficam em secrets)
+# Workers AI binding (LLM gratuito do Cloudflare) — sem chave externa
+[ai]
+binding = "AI"
 
 # Rotas: se quiser domínio próprio para a API (ex: api.mlh.bobsimcom.br)
 # routes = [{ pattern = "api.mlh.bobsimcom.br", custom_domain = true }]

@@ -1,11 +1,10 @@
 // Cloudflare Worker — Backend do JETFUEL-SIM
-// Substitui server.ts (Express) que NÃO roda em Workers.
-// Reproduz: GET /api/health, POST /api/ai-insights (Gemini)
-
-import { GoogleGenAI } from "@google/genai";
+// Substitui server.ts (Express). Reproduz: GET /api/health, POST /api/ai-insights.
+// LLM gratuito via Cloudflare Workers AI (sem chave externa; free tier da conta).
 
 export interface Env {
-  GEMINI_API_KEY: string;
+  // Binding de Workers AI (configurado em wrangler.toml como [ai])
+  AI: Ai;
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -15,13 +14,6 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 async function handleAiInsights(req: Request, env: Env): Promise<Response> {
-  if (!env.GEMINI_API_KEY) {
-    return new Response(JSON.stringify({ error: "API key missing" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-    });
-  }
-
   let body: any;
   try {
     body = await req.json();
@@ -40,25 +32,34 @@ async function handleAiInsights(req: Request, env: Env): Promise<Response> {
     });
   }
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: `Você é o BOB, Engenheiro de Software Sênior e Arquiteto Técnico do sistema MALHA para Guarulhos (SBGR).
-O usuário (Líder de Turno ou Diretor da BR Aviation/Vibra) está nos consultando com a seguinte pergunta: "${prompt}".
+  const system = `Você é o BOB, Engenheiro de Software Sênior e Arquiteto Técnico do sistema JETFUEL-SIM (antes MALHA) para Guarulhos (SBGR).
+O usuário (Líder de Turno ou Diretor da BR Aviation/Vibra) está nos consultando: "${prompt}".
 
-Abaixo estão as estatísticas agregadas de pátio simuladas dos últimos 30 dias de voo do aeródromo:
+Estatísticas de pátio (simuladas, últimos 30 dias):
 ${JSON.stringify(context, null, 2)}
 
-Sua resposta em Português do Brasil deve ter um tom de amigo técnico de pátio ríspido, porém prestativo, altamente especializado (Ground Handling). Use formato Markdown (sub-títulos h4 '###' ou '####', e asteriscos para listas).`,
+Responda em Português do Brasil, tom de amigo técnico de pátio ríspido porém prestativo, altamente especializado (Ground Handling). Use Markdown (sub-títulos '###' e listas com asteriscos).`;
+
+  try {
+    const result = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ],
     });
 
-    return new Response(JSON.stringify({ text: response.text }), {
+    const text =
+      (result as any)?.response ||
+      (result as any)?.text ||
+      JSON.stringify(result);
+
+    return new Response(JSON.stringify({ text }), {
       status: 200,
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   } catch (e: any) {
     return new Response(
-      JSON.stringify({ error: e?.message || "Internal server error" }),
+      JSON.stringify({ error: (e as Error)?.message || "Internal server error" }),
       { status: 500, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
     );
   }
