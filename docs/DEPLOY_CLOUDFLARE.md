@@ -36,6 +36,18 @@ No frontend, ajustar a chamada de IA para a URL do Worker:
 `const AI_ENDPOINT = import.meta.env.VITE_AI_API_URL || '/api/ai-insights'`
 (definir `VITE_AI_API_URL` nas env do Pages apontando para o Worker).
 
+### URLs de produção (deploy realizado — Fase 4)
+- **Frontend (Pages):** https://malha.pages.dev  (custom domain alvo: mlh.bobsimcom.br)
+- **Backend IA (Worker):** https://malha-api.jetfuel.workers.dev
+- **Health:** https://malha-api.jetfuel.workers.dev/api/health → `{"status":"ok"}`
+- **AI Insights:** POST https://malha-api.jetfuel.workers.dev/api/ai-insights
+  (requer secret `GEMINI_API_KEY` no Worker — ainda não configurado)
+
+### Variáveis de build usadas no último deploy
+- VITE_SUPABASE_URL=https://kznhwegfecjnxjigdply.supabase.co
+- VITE_SUPABASE_ANON_KEY=(anon key fornecida)
+- VITE_AI_API_URL=https://malha-api.jetfuel.workers.dev
+
 ## 6. Observações
 - `server.ts` (Express) fica **obsoleto** no Cloudflare; mantido só p/ dev local.
 - `metadata.json` indica `MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API` — confirmar no painel do AI Studio se há binding automático; se sim, o Worker pode não ser necessário (mas é a forma portável).
