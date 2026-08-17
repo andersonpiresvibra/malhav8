@@ -21,6 +21,8 @@ import { AirlinesAdmin } from './components/AirlinesAdmin';
 import { Aerodromo } from './components/Aerodromo';
 import { OperatorManager } from './components/OperatorManager';
 import { AiDashboard } from './components/AiDashboard';
+import { AdversityPanel } from './components/AdversityPanel';
+import { ShiftControl } from './components/ShiftControl';
 import { POSITIONS_METADATA, POSITIONS_BY_PATIO, PositionMetadata } from './constants/aerodromoConfig';
 
 import { GridOps } from './components/GridOps';
@@ -1260,6 +1262,8 @@ const App: React.FC = () => {
           <X size={20} />
         </button>
       )}
+      <AdversityPanel />
+      <ShiftControl />
     </div>
   );
 };
